@@ -46,8 +46,37 @@ pnpm build
 - `adapters/` : frontières avec les services externes ;
 - `tests-unit/` : règles et contrats isolés.
 
-## État
+## Configuration de l’agent
 
-Le dépôt contient le socle du jalon 0 et une page de laboratoire. Le prochain
-jalon consiste à valider le streaming AI SDK, les tools exécutés dans le
-navigateur et DuckDB-WASM sur une ressource Parquet fixe.
+Le fournisseur doit exposer une API compatible OpenAI :
+
+```dotenv
+NUXT_AI_BASE_URL=https://endpoint-compatible-openai.example/v1
+NUXT_AI_API_KEY=
+NUXT_AI_MODEL=
+```
+
+Pour Albert, ces valeurs correspondent respectivement aux anciens
+`ALBERT_API_URL`, `ALBERT_API_KEY` et `ALBERT_MODEL`. Aucun secret n’est envoyé
+au navigateur.
+
+## Spike d’exploration
+
+La page `/laboratoire/exploration` valide actuellement :
+
+- le chargement d’une fixture Parquet locale ;
+- DuckDB-WASM et son Worker exclusivement dans le navigateur ;
+- l’inspection typée du schéma ;
+- l’exécution bornée de SQL en lecture seule ;
+- les tools client `inspect_schema` et `execute_sql` ;
+- la réinjection automatique de leurs résultats dans AI SDK ;
+- une réponse réellement streamée par une route Nitro.
+
+La fixture peut être régénérée avec :
+
+```bash
+pnpm fixture:generate
+```
+
+Le prochain jalon consiste à tester le parcours avec Albert configuré, puis à
+extraire les composants conversationnels avant d’ajouter d’autres capacités.
