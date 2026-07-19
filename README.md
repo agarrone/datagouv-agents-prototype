@@ -48,17 +48,20 @@ pnpm build
 
 ## Configuration de l’agent
 
-Le fournisseur doit exposer une API compatible OpenAI :
+Le prototype utilise Vercel AI Gateway par défaut :
 
 ```dotenv
-NUXT_AI_BASE_URL=https://endpoint-compatible-openai.example/v1
-NUXT_AI_API_KEY=
-NUXT_AI_MODEL=
+NUXT_AI_GATEWAY_API_KEY=
+NUXT_AI_GATEWAY_MODEL=openai/gpt-5.4-mini
 ```
 
-Pour Albert, ces valeurs correspondent respectivement aux anciens
-`ALBERT_API_URL`, `ALBERT_API_KEY` et `ALBERT_MODEL`. Aucun secret n’est envoyé
-au navigateur.
+Dans un déploiement Vercel, `AI_GATEWAY_API_KEY` ou le jeton OIDC fourni par
+Vercel sont également reconnus. Le modèle peut être remplacé sans modifier le
+code.
+
+Un endpoint OpenAI-compatible reste disponible comme solution de repli avec
+`NUXT_AI_BASE_URL`, `NUXT_AI_API_KEY` et `NUXT_AI_MODEL`. Aucun secret n’est
+envoyé au navigateur.
 
 ## Spike d’exploration
 

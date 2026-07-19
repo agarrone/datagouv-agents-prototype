@@ -6,6 +6,8 @@ export default defineNuxtConfig({
   modules: ["@nuxt/eslint"],
   css: ["~/assets/css/main.css"],
   runtimeConfig: {
+    aiGatewayApiKey: "",
+    aiGatewayModel: "openai/gpt-5.4-mini",
     aiBaseUrl: "",
     aiApiKey: "",
     aiModel: "",
