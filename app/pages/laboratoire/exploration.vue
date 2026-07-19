@@ -27,7 +27,7 @@ const {
     try {
       if (toolCall.toolName === "inspect_schema") {
         const output = await dataset.inspectSchema();
-        await addToolOutput({
+        addToolOutput({
           tool: "inspect_schema",
           toolCallId: toolCall.toolCallId,
           output,
@@ -37,14 +37,14 @@ const {
 
       if (toolCall.toolName === "execute_sql") {
         const output = await dataset.executeSql(toolCall.input.sql);
-        await addToolOutput({
+        addToolOutput({
           tool: "execute_sql",
           toolCallId: toolCall.toolCallId,
           output,
         });
       }
     } catch (reason) {
-      await addToolOutput({
+      addToolOutput({
         state: "output-error",
         tool: toolCall.toolName,
         toolCallId: toolCall.toolCallId,
