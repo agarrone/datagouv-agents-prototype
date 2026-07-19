@@ -129,7 +129,7 @@ async function applyExplorerProposal(
       </div>
     </header>
 
-    <div class="mx-auto grid w-full max-w-[90rem] flex-1 lg:grid-cols-[minmax(0,1fr)_32rem]">
+    <div class="mx-auto grid w-full max-w-[96rem] flex-1 lg:grid-cols-[minmax(0,1fr)_36rem]">
       <section class="min-w-0 border-b border-[#aaa] lg:border-b-0">
         <div class="border-b border-[#ddd] px-5 py-4">
           <p class="text-sm font-bold">{{ dataset.activeResource.value?.title ?? "Ressources de test" }}</p>
@@ -166,7 +166,7 @@ async function applyExplorerProposal(
         </div>
       </section>
 
-      <aside class="chat-sidebar flex min-h-[44rem] flex-col border-l border-[#c6c6c6] bg-[linear-gradient(to_bottom,rgba(235,237,255,0.30)_0%,rgba(235,237,255,0.01)_100%)] shadow-[-4px_0_12px_rgba(0,0,0,0.06)]">
+      <aside class="chat-sidebar flex min-h-[44rem] flex-col border-l border-[#929292] bg-[linear-gradient(to_bottom,rgba(235,237,255,0.30)_0%,rgba(235,237,255,0.01)_100%)] shadow-[-4px_0_12px_rgba(0,0,0,0.05)]">
         <ExplorationAgentPanelHeader />
         <ExplorationConversationScroller
           :message-count="messages.length"

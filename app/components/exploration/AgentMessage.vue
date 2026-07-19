@@ -21,12 +21,19 @@ const reasoningActive = computed(() => reasoningParts.value.some(part =>
   && part.state !== "output-available"
   && part.state !== "output-error",
 ));
+const assistantText = computed(() => props.message.parts
+  .filter(part => part.type === "text")
+  .map(part => part.text)
+  .join("\n\n")
+  .trim());
 
 </script>
 
 <template>
   <article
-    :class="message.role === 'user' ? 'ml-auto max-w-[85%] rounded-xl bg-[#eee] px-3 py-2.5' : 'w-full'"
+    :class="message.role === 'user'
+      ? 'ml-auto max-w-[88%] rounded-[14px_14px_3px_14px] bg-[#eee] px-4 py-3'
+      : 'w-full'"
     class="text-[13px]"
     :data-message-role="message.role"
   >
@@ -54,12 +61,18 @@ const reasoningActive = computed(() => reasoningParts.value.some(part =>
           v-if="part.type === 'tool-inspect_schema'"
           title="Inspection du schéma"
           :state="part.state"
+          :output-summary="part.state === 'output-available'
+            ? `${part.output.rowCount.toLocaleString('fr-FR')} lignes · ${part.output.columns.length} colonnes`
+            : undefined"
           :error="part.state === 'output-error' ? part.errorText : undefined"
         />
         <ExplorationAgentToolStep
           v-else-if="part.type === 'tool-get_dataset_metadata'"
           title="Métadonnées du jeu de données"
           :state="part.state"
+          :output-summary="part.state === 'output-available'
+            ? [part.output.organization, part.output.license].filter(Boolean).join(' · ') || 'Métadonnées récupérées'
+            : undefined"
           :error="part.state === 'output-error' ? part.errorText : undefined"
         />
         <ExplorationAgentToolStep
@@ -67,6 +80,10 @@ const reasoningActive = computed(() => reasoningParts.value.some(part =>
           title="Exécution SQL"
           :state="part.state"
           :sql="'input' in part ? part.input?.sql : undefined"
+          :input-summary="'input' in part ? part.input?.purpose : undefined"
+          :output-summary="part.state === 'output-available'
+            ? `${part.output.rowCount.toLocaleString('fr-FR')} ligne${part.output.rowCount > 1 ? 's' : ''} · ${part.output.elapsedMs} ms${part.output.truncated ? ' · résultat limité' : ''}`
+            : undefined"
           :error="part.state === 'output-error' ? part.errorText : undefined"
         />
       </template>
@@ -77,12 +94,10 @@ const reasoningActive = computed(() => reasoningParts.value.some(part =>
         v-for="(part, partIndex) in message.parts"
         :key="`${message.id}-${partIndex}`"
       >
-      <p
+      <ExplorationMessageResponse
         v-if="part.type === 'text'"
-        class="whitespace-pre-wrap leading-6"
-      >
-        {{ part.text }}
-      </p>
+        :content="part.text"
+      />
 
       <template v-else-if="part.type === 'tool-propose_explorer_view'">
         <ExplorationExplorerProposal
@@ -139,6 +154,10 @@ const reasoningActive = computed(() => reasoningParts.value.some(part =>
         </p>
       </div>
       </template>
+      <ExplorationMessageActions
+        v-if="assistantText && !reasoningActive"
+        :content="assistantText"
+      />
     </template>
   </article>
 </template>

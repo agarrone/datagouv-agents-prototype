@@ -58,10 +58,10 @@ onMounted(updateScrollButton);
   <div class="relative min-h-0 flex-1">
     <div
       ref="container"
-      class="agent-conversation-scroll h-full overflow-y-auto px-5 py-4"
+      class="agent-conversation-scroll h-full overflow-y-auto px-5 py-5 md:px-6"
       @scroll.passive="updateScrollButton"
     >
-      <div class="space-y-5">
+      <div class="mx-auto max-w-[42rem] space-y-6">
         <slot />
       </div>
     </div>
