@@ -5,8 +5,7 @@ export function useAgentModel() {
   const config = useRuntimeConfig();
 
   const gatewayApiKey = config.aiGatewayApiKey
-    || process.env.AI_GATEWAY_API_KEY
-    || process.env.VERCEL_OIDC_TOKEN;
+    || process.env.AI_GATEWAY_API_KEY;
 
   if (gatewayApiKey) {
     const gateway = createGateway({
@@ -15,19 +14,30 @@ export function useAgentModel() {
     return gateway(config.aiGatewayModel);
   }
 
-  if (!config.aiBaseUrl || !config.aiApiKey || !config.aiModel) {
-    throw createError({
-      statusCode: 503,
-      statusMessage:
-        "Vercel AI Gateway n’est pas configuré. Ajoutez NUXT_AI_GATEWAY_API_KEY.",
+  const compatibleBaseUrl = config.aiBaseUrl || process.env.ALBERT_API_URL;
+  const compatibleApiKey = config.aiApiKey || process.env.ALBERT_API_KEY;
+  const compatibleModel = config.aiModel || process.env.ALBERT_MODEL;
+
+  if (compatibleBaseUrl && compatibleApiKey && compatibleModel) {
+    const provider = createOpenAICompatible({
+      name: "datagouv-prototype",
+      baseURL: compatibleBaseUrl,
+      apiKey: compatibleApiKey,
     });
+
+    return provider(compatibleModel);
   }
 
-  const provider = createOpenAICompatible({
-    name: "datagouv-prototype",
-    baseURL: config.aiBaseUrl,
-    apiKey: config.aiApiKey,
-  });
+  if (process.env.VERCEL_OIDC_TOKEN) {
+    const gateway = createGateway({
+      apiKey: process.env.VERCEL_OIDC_TOKEN,
+    });
+    return gateway(config.aiGatewayModel);
+  }
 
-  return provider(config.aiModel);
+  throw createError({
+    statusCode: 503,
+    statusMessage:
+      "Aucun fournisseur IA n’est configuré. Ajoutez les variables Vercel AI Gateway ou Albert.",
+  });
 }

@@ -63,6 +63,10 @@ Un endpoint OpenAI-compatible reste disponible comme solution de repli avec
 `NUXT_AI_BASE_URL`, `NUXT_AI_API_KEY` et `NUXT_AI_MODEL`. Aucun secret n’est
 envoyé au navigateur.
 
+Pour faciliter le déploiement du prototype existant, les noms historiques
+`ALBERT_API_URL`, `ALBERT_API_KEY` et `ALBERT_MODEL` sont aussi reconnus
+directement.
+
 ## Spike d’exploration
 
 La page `/laboratoire/exploration` valide actuellement :
