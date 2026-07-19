@@ -20,6 +20,7 @@ let databasePromise: Promise<AsyncDuckDB> | undefined;
 let connectionPromise: Promise<AsyncDuckDBConnection> | undefined;
 let activeWorker: Worker | undefined;
 const verifiedQueries = new Set<string>();
+let latestVerifiedQuery: string | undefined;
 
 function normalizeValue(value: unknown): DatasetValue {
   if (value === null || value === undefined) return null;
@@ -102,6 +103,7 @@ async function resetDatabase() {
   connectionPromise = undefined;
   databasePromise = undefined;
   verifiedQueries.clear();
+  latestVerifiedQuery = undefined;
 
   if (previousConnection) {
     try {
@@ -222,6 +224,7 @@ export function useDatasetEngine() {
     const truncated = allRows.length > 100;
     const rows = allRows.slice(0, 100);
     verifiedQueries.add(readOnlySql);
+    latestVerifiedQuery = readOnlySql;
 
     return {
       columns: table.schema.fields.map(field => field.name),
@@ -270,6 +273,79 @@ export function useDatasetEngine() {
     return result;
   }
 
+  async function createChartData(
+    requiredFields: string[],
+  ): Promise<DatasetQueryResult> {
+    const connection = await getConnection();
+    if (!latestVerifiedQuery) {
+      throw new Error(
+        "Les données du graphique doivent être vérifiées par une requête SQL préalable.",
+      );
+    }
+    const readOnlySql = latestVerifiedQuery;
+
+    const startedAt = performance.now();
+    const table = await connection.query(`
+      SELECT *
+      FROM (${readOnlySql}) AS chart_data
+      LIMIT 1001
+    `);
+    const columns = table.schema.fields.map(field => field.name);
+    const missingFields = requiredFields.filter(
+      field => !columns.includes(field),
+    );
+    if (missingFields.length > 0) {
+      throw new Error(
+        `Champs absents du résultat SQL : ${missingFields.join(", ")}.`,
+      );
+    }
+
+    const allRows = tableToRows(table);
+    return {
+      columns,
+      rows: allRows.slice(0, 1000),
+      rowCount: allRows.length > 1000 ? 1000 : allRows.length,
+      truncated: allRows.length > 1000,
+      elapsedMs: Math.round(performance.now() - startedAt),
+    };
+  }
+
+  async function createMapData(
+    requiredFields: string[],
+  ): Promise<DatasetQueryResult> {
+    const connection = await getConnection();
+    if (!latestVerifiedQuery) {
+      throw new Error(
+        "Les données de la carte doivent être vérifiées par une requête SQL préalable.",
+      );
+    }
+
+    const startedAt = performance.now();
+    const table = await connection.query(`
+      SELECT *
+      FROM (${latestVerifiedQuery}) AS map_data
+      LIMIT 5001
+    `);
+    const columns = table.schema.fields.map(field => field.name);
+    const missingFields = requiredFields.filter(
+      field => !columns.includes(field),
+    );
+    if (missingFields.length > 0) {
+      throw new Error(
+        `Champs absents du résultat SQL : ${missingFields.join(", ")}.`,
+      );
+    }
+
+    const allRows = tableToRows(table);
+    return {
+      columns,
+      rows: allRows.slice(0, 5000),
+      rowCount: Math.min(allRows.length, 5000),
+      truncated: allRows.length > 5000,
+      elapsedMs: Math.round(performance.now() - startedAt),
+    };
+  }
+
   function resetExplorerView() {
     activeView.value = null;
   }
@@ -278,6 +354,8 @@ export function useDatasetEngine() {
     activeResource: readonly(activeResource),
     activeView: readonly(activeView),
     applyExplorerView,
+    createChartData,
+    createMapData,
     error: readonly(error),
     executeSql,
     inspectSchema,

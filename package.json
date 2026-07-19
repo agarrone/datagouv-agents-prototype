@@ -27,6 +27,8 @@
     "@duckdb/duckdb-wasm": "1.33.1-dev57.0",
     "@tailwindcss/vite": "4.3.3",
     "ai": "7.0.31",
+    "echarts": "^6.1.0",
+    "maplibre-gl": "^5.24.0",
     "nuxt": "4.5.0",
     "tailwindcss": "4.3.3",
     "vue": "3.5.40",
@@ -34,6 +36,7 @@
   },
   "devDependencies": {
     "@nuxt/eslint": "1.16.0",
+    "@types/geojson": "^7946.0.16",
     "@vue/test-utils": "2.4.11",
     "eslint": "10.7.0",
     "happy-dom": "20.11.0",

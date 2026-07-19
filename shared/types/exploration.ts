@@ -38,3 +38,50 @@ export interface ExplorerViewResult extends DatasetQueryResult {
   title: string;
   sql: string;
 }
+
+export type ChartType = "bar" | "line" | "area" | "pie" | "scatter";
+
+export interface ChartSeriesSpec {
+  field: string;
+  label: string;
+}
+
+export interface ChartSpec {
+  type: ChartType;
+  title: string;
+  description: string;
+  xField: string;
+  xLabel: string;
+  series: ChartSeriesSpec[];
+}
+
+export type MapSpec =
+  | {
+      type: "points";
+      title: string;
+      description: string;
+      latitudeField: string;
+      longitudeField: string;
+      labelField: string;
+      valueField?: string;
+      valueLabel?: string;
+    }
+  | {
+      type: "geojson";
+      title: string;
+      description: string;
+      geojsonField: string;
+      labelField: string;
+      valueField?: string;
+      valueLabel?: string;
+    }
+  | {
+      type: "choropleth";
+      title: string;
+      description: string;
+      boundary: "france-regions" | "france-departments";
+      dataKey: string;
+      valueField: string;
+      labelField?: string;
+      valueLabel: string;
+    };

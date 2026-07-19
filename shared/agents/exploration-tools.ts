@@ -95,4 +95,77 @@ export const explorationTools = {
       truncated: z.boolean(),
     }),
   }),
+  create_chart: tool({
+    description:
+      "Affiche réellement un graphique ECharts dans la conversation à partir du résultat de la dernière requête execute_sql réussie. Pour créer un graphique, appeler impérativement ce tool juste après execute_sql : ne jamais recopier la requête SQL ni écrire la spécification en JSON ou dans un bloc de code.",
+    inputSchema: z.object({
+      type: z.enum(["bar", "line", "area", "pie", "scatter"]),
+      title: z.string().min(1),
+      description: z.string().min(1),
+      xField: z
+        .string()
+        .min(1)
+        .describe("Champ des catégories, dates ou valeurs en abscisse."),
+      xLabel: z.string().min(1),
+      series: z
+        .array(z.object({
+          field: z.string().min(1),
+          label: z.string().min(1),
+        }))
+        .min(1)
+        .max(4),
+    }),
+    outputSchema: z.object({
+      columns: z.array(z.string()),
+      rows: z.array(datasetRowSchema),
+      rowCount: z.number(),
+      truncated: z.boolean(),
+      elapsedMs: z.number(),
+    }),
+  }),
+  create_map: tool({
+    description:
+      "Affiche réellement une carte MapLibre dans la conversation à partir du résultat de la dernière requête execute_sql réussie. Pour créer une carte, appeler impérativement ce tool juste après execute_sql : ne jamais recopier la requête SQL ni simuler la carte dans le texte.",
+    inputSchema: z.discriminatedUnion("type", [
+      z.object({
+        type: z.literal("points"),
+        title: z.string().min(1),
+        description: z.string().min(1),
+        latitudeField: z.string().min(1),
+        longitudeField: z.string().min(1),
+        labelField: z.string().min(1),
+        valueField: z.string().min(1).optional(),
+        valueLabel: z.string().min(1).optional(),
+      }),
+      z.object({
+        type: z.literal("geojson"),
+        title: z.string().min(1),
+        description: z.string().min(1),
+        geojsonField: z.string().min(1),
+        labelField: z.string().min(1),
+        valueField: z.string().min(1).optional(),
+        valueLabel: z.string().min(1).optional(),
+      }),
+      z.object({
+        type: z.literal("choropleth"),
+        title: z.string().min(1),
+        description: z.string().min(1),
+        boundary: z.enum(["france-regions", "france-departments"]),
+        dataKey: z
+          .string()
+          .min(1)
+          .describe("Champ contenant le code officiel ou le nom du territoire."),
+        valueField: z.string().min(1),
+        labelField: z.string().min(1).optional(),
+        valueLabel: z.string().min(1),
+      }),
+    ]),
+    outputSchema: z.object({
+      columns: z.array(z.string()),
+      rows: z.array(datasetRowSchema),
+      rowCount: z.number(),
+      truncated: z.boolean(),
+      elapsedMs: z.number(),
+    }),
+  }),
 };
