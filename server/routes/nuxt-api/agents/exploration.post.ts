@@ -1,12 +1,15 @@
 import {
   convertToModelMessages,
+  isStepCount,
   streamText,
 } from "ai";
 import { explorationTools } from "~~/shared/agents/exploration-tools";
+import { resourceContextSchema } from "~~/shared/schemas/agent";
 import type { ExplorationMessage } from "~~/shared/types/exploration";
 import { useAgentModel } from "~~/server/agents/provider";
+import { fetchDatasetMetadata } from "~~/server/services/datagouv";
 
-const instructions = `
+const baseInstructions = `
 Tu es l’assistant d’exploration d’un prototype data.gouv.fr.
 
 La ressource est une table DuckDB nommée data, chargée uniquement dans le
@@ -14,39 +17,96 @@ navigateur. Tu ne connais jamais son contenu sans preuve fournie par un tool.
 
 Règles :
 - réponds en français ;
+- utilise get_dataset_metadata pour les questions sur le jeu de données, son
+  producteur, sa description, sa licence, sa qualité ou ses ressources ;
 - utilise inspect_schema lorsque le schéma n’est pas présent dans le fil ;
 - utilise execute_sql pour toute question portant sur les valeurs ou les
   statistiques de la ressource ;
+- utilise propose_explorer_view après execute_sql uniquement lorsque
+  l’utilisateur demande clairement à voir le résultat dans le tableau, à
+  filtrer, trier ou transformer l’explorateur ;
+- l’appel à propose_explorer_view crée lui-même la carte de confirmation dans
+  l’interface : lorsque l’intention est claire, appelle le tool directement et
+  ne demande jamais « souhaitez-vous appliquer » dans le texte ;
+- ne propose pas de modifier le tableau pour une question qui attend seulement
+  une réponse dans la conversation ;
+- pour un simple filtre ou tri, conserve toutes les colonnes avec SELECT * ;
+- ne projette des colonnes et ne réalise une agrégation dans l’explorateur que
+  si l’utilisateur le demande explicitement ;
+- si l’intention d’affichage ou le filtre est ambigu, demande une précision
+  avant de proposer une vue ;
+- réponds aussi à la question dans la conversation lorsqu’une vue est proposée ;
 - écris une unique requête DuckDB en lecture seule sur la table data ;
 - limite les projections aux colonnes utiles à la réponse ;
 - fonde la réponse finale uniquement sur les résultats fournis ;
+- ne transforme pas les identifiants techniques en citations ou références ;
 - si un tool échoue, explique sobrement l’échec sans inventer de résultat ;
 - reste concis et cite les valeurs importantes.
 `;
 
+function agentErrorMessage(error: unknown) {
+  const details = error instanceof Error
+    ? `${error.message} ${error.cause ?? ""}`
+    : String(error);
+
+  if (/too many requests|429/i.test(details)) {
+    return "Le service d’assistance reçoit trop de demandes pour le moment. Réessayez dans quelques instants.";
+  }
+  return "L’assistant n’a pas pu terminer cette réponse.";
+}
+
 export default defineEventHandler(async (event) => {
-  const body = await readBody<{ messages?: ExplorationMessage[] }>(event);
+  const body = await readBody<{
+    messages?: ExplorationMessage[];
+    resource?: unknown;
+  }>(event);
   if (!Array.isArray(body.messages)) {
     throw createError({
       statusCode: 400,
       statusMessage: "La liste des messages est absente.",
     });
   }
+  const resource = resourceContextSchema.safeParse(body.resource);
+  if (!resource.success) {
+    throw createError({
+      statusCode: 400,
+      statusMessage: "Le contexte de la ressource est absent ou invalide.",
+    });
+  }
+
+  const tools = {
+    ...explorationTools,
+    get_dataset_metadata: {
+      ...explorationTools.get_dataset_metadata,
+      execute: async () => fetchDatasetMetadata(resource.data.datasetId),
+    },
+  };
+  const instructions = `${baseInstructions}
+
+Contexte actif fourni par l’interface :
+- jeu de données : ${resource.data.title}
+- producteur : ${resource.data.organization}
+- référence data.gouv.fr : ${resource.data.datasetId}
+- ressource : ${resource.data.resourceName}
+- identifiant de ressource : ${resource.data.resourceId}
+- table locale : data
+`;
 
   const result = streamText({
     model: useAgentModel(),
     instructions,
     messages: await convertToModelMessages(body.messages, {
-      tools: explorationTools,
+      tools,
     }),
-    tools: explorationTools,
+    tools,
+    stopWhen: isStepCount(5),
     abortSignal: event.node.req.signal,
   });
 
   return result.toUIMessageStreamResponse({
     onError(error) {
       console.error("Exploration agent error", error);
-      return "L’assistant n’a pas pu terminer cette réponse.";
+      return agentErrorMessage(error);
     },
   });
 });

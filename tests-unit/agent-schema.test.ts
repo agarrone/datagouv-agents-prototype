@@ -7,6 +7,8 @@ describe("resourceContextSchema", () => {
       datasetId: "dataset-id",
       resourceId: "resource-id",
       title: "Données de test",
+      organization: "Organisation de test",
+      resourceName: "Ressource de test",
       url: "https://example.test/resource.parquet",
     });
 
@@ -18,10 +20,11 @@ describe("resourceContextSchema", () => {
       datasetId: "dataset-id",
       resourceId: "resource-id",
       title: "Données de test",
+      organization: "Organisation de test",
+      resourceName: "Ressource de test",
       url: "pas-une-url",
     });
 
     expect(result.success).toBe(false);
   });
 });
-

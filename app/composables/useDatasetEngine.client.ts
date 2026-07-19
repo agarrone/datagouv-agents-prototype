@@ -7,13 +7,19 @@ import type {
   DatasetRow,
   DatasetSchemaResult,
   DatasetValue,
+  ExplorerViewResult,
 } from "~~/shared/types/exploration";
+import type {
+  ExplorationResource,
+} from "~~/shared/data/exploration-resources";
 import { validateReadOnlySql } from "~~/shared/sql/read-only";
 
 type EngineStatus = "idle" | "loading" | "ready" | "error";
 
 let databasePromise: Promise<AsyncDuckDB> | undefined;
 let connectionPromise: Promise<AsyncDuckDBConnection> | undefined;
+let activeWorker: Worker | undefined;
+const verifiedQueries = new Set<string>();
 
 function normalizeValue(value: unknown): DatasetValue {
   if (value === null || value === undefined) return null;
@@ -43,7 +49,7 @@ function tableToRows(
   });
 }
 
-async function createDatabase() {
+async function createDatabase(parquetUrl: string) {
   const [
     duckdb,
     { default: duckdbMvpWasm },
@@ -56,35 +62,63 @@ async function createDatabase() {
     ),
   ]);
   const worker = new Worker(duckdbMvpWorker);
+  activeWorker = worker;
   const database = new duckdb.AsyncDuckDB(new duckdb.VoidLogger(), worker);
   await database.instantiate(duckdbMvpWasm);
-
-  const response = await fetch("/fixtures/datasets.parquet");
-  if (!response.ok) {
-    throw new Error("La ressource Parquet de test est inaccessible.");
-  }
-  await database.registerFileBuffer(
-    "datasets.parquet",
-    new Uint8Array(await response.arrayBuffer()),
+  await database.registerFileURL(
+    "resource.parquet",
+    parquetUrl,
+    duckdb.DuckDBDataProtocol.HTTP,
+    false,
   );
 
   const connection = await database.connect();
   await connection.query(`
     CREATE OR REPLACE VIEW data AS
-    SELECT * FROM read_parquet('datasets.parquet')
+    SELECT * FROM read_parquet('resource.parquet')
   `);
   connectionPromise = Promise.resolve(connection);
 
   return database;
 }
 
-async function getConnection() {
-  databasePromise ??= createDatabase();
+async function getConnection(parquetUrl?: string) {
+  if (!databasePromise && parquetUrl) {
+    databasePromise = createDatabase(parquetUrl);
+  }
+  if (!databasePromise) {
+    throw new Error("Chargez une ressource avant de l’interroger.");
+  }
   await databasePromise;
   if (!connectionPromise) {
     throw new Error("La connexion DuckDB n’a pas pu être initialisée.");
   }
   return connectionPromise;
+}
+
+async function resetDatabase() {
+  const previousConnection = connectionPromise;
+  const previousDatabase = databasePromise;
+  connectionPromise = undefined;
+  databasePromise = undefined;
+  verifiedQueries.clear();
+
+  if (previousConnection) {
+    try {
+      await (await previousConnection).close();
+    } catch {
+      // The connection may already be unavailable after a loading error.
+    }
+  }
+  if (previousDatabase) {
+    try {
+      await (await previousDatabase).terminate();
+    } catch {
+      // The database may not have finished initializing.
+    }
+  }
+  activeWorker?.terminate();
+  activeWorker = undefined;
 }
 
 export function useDatasetEngine() {
@@ -95,6 +129,14 @@ export function useDatasetEngine() {
     () => null,
   );
   const preview = useState<DatasetRow[]>("dataset-engine-preview", () => []);
+  const activeResource = useState<ExplorationResource | null>(
+    "dataset-engine-resource",
+    () => null,
+  );
+  const activeView = useState<ExplorerViewResult | null>(
+    "dataset-engine-view",
+    () => null,
+  );
 
   async function inspectSchema(): Promise<DatasetSchemaResult> {
     const connection = await getConnection();
@@ -120,16 +162,45 @@ export function useDatasetEngine() {
     return result;
   }
 
-  async function load() {
-    if (status.value === "ready") return inspectSchema();
+  async function load(resource: ExplorationResource) {
+    if (
+      status.value === "ready"
+      && activeResource.value?.id === resource.id
+    ) {
+      return inspectSchema();
+    }
     status.value = "loading";
     error.value = null;
+    schema.value = null;
+    preview.value = [];
+    activeView.value = null;
+    activeResource.value = resource;
 
     try {
-      const result = await inspectSchema();
+      await resetDatabase();
+      const connection = await getConnection(resource.parquetUrl);
+      const [description, count, sample] = await Promise.all([
+        connection.query("DESCRIBE data"),
+        connection.query("SELECT COUNT(*) AS count FROM data"),
+        connection.query("SELECT * FROM data LIMIT 5"),
+      ]);
+      const descriptionRows = tableToRows(description);
+      const countRows = tableToRows(count);
+      const result: DatasetSchemaResult = {
+        table: "data",
+        rowCount: Number(countRows[0]?.count ?? 0),
+        columns: descriptionRows.map(row => ({
+          name: String(row.column_name),
+          type: String(row.column_type),
+        })),
+        sample: tableToRows(sample),
+      };
+      schema.value = result;
+      preview.value = result.sample;
       status.value = "ready";
       return result;
     } catch (reason) {
+      await resetDatabase();
       status.value = "error";
       error.value = reason instanceof Error
         ? reason.message
@@ -150,6 +221,7 @@ export function useDatasetEngine() {
     const allRows = tableToRows(table);
     const truncated = allRows.length > 100;
     const rows = allRows.slice(0, 100);
+    verifiedQueries.add(readOnlySql);
 
     return {
       columns: table.schema.fields.map(field => field.name),
@@ -160,12 +232,58 @@ export function useDatasetEngine() {
     };
   }
 
+  async function applyExplorerView(
+    sql: string,
+    title: string,
+  ): Promise<ExplorerViewResult> {
+    const connection = await getConnection();
+    const readOnlySql = validateReadOnlySql(sql);
+    if (!verifiedQueries.has(readOnlySql)) {
+      throw new Error(
+        "Cette requête doit être exécutée avec succès avant d’être appliquée au tableau.",
+      );
+    }
+    const startedAt = performance.now();
+    const [table, countTable] = await Promise.all([
+      connection.query(`
+        SELECT *
+        FROM (${readOnlySql}) AS explorer_view
+        LIMIT 101
+      `),
+      connection.query(`
+        SELECT COUNT(*) AS count
+        FROM (${readOnlySql}) AS explorer_view_count
+      `),
+    ]);
+    const allRows = tableToRows(table);
+    const columns = table.schema.fields.map(field => field.name);
+    const result: ExplorerViewResult = {
+      title,
+      sql: readOnlySql,
+      columns,
+      rows: allRows.slice(0, 100),
+      rowCount: Number(tableToRows(countTable)[0]?.count ?? 0),
+      truncated: allRows.length > 100,
+      elapsedMs: Math.round(performance.now() - startedAt),
+    };
+    activeView.value = result;
+    return result;
+  }
+
+  function resetExplorerView() {
+    activeView.value = null;
+  }
+
   return {
+    activeResource: readonly(activeResource),
+    activeView: readonly(activeView),
+    applyExplorerView,
     error: readonly(error),
     executeSql,
     inspectSchema,
     load,
     preview: readonly(preview),
+    resetExplorerView,
     schema: readonly(schema),
     status: readonly(status),
   };

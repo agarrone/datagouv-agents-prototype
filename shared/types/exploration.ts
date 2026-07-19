@@ -34,3 +34,7 @@ export interface DatasetQueryResult {
   elapsedMs: number;
 }
 
+export interface ExplorerViewResult extends DatasetQueryResult {
+  title: string;
+  sql: string;
+}
