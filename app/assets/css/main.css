@@ -1,0 +1,23 @@
+@import "tailwindcss";
+
+:root {
+  color: #161616;
+  background: #f6f6f6;
+  font-family: Marianne, Arial, sans-serif;
+  font-synthesis: none;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+}
+
+button,
+input,
+textarea {
+  font: inherit;
+}
+
