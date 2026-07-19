@@ -12,10 +12,12 @@ export default defineNuxtConfig({
   },
   typescript: {
     strict: true,
-    typeCheck: true,
+    // Le contrôle continu de vite-plugin-checker est actuellement incompatible
+    // avec le runtime Vite 8 de Nuxt 4.5. Le typage reste exécuté pendant le
+    // build et via la commande dédiée `pnpm typecheck`.
+    typeCheck: "build",
   },
   vite: {
     plugins: [tailwindcss()],
   },
 });
-
