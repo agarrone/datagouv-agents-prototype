@@ -15,6 +15,23 @@ describe("resourceContextSchema", () => {
     expect(result.success).toBe(true);
   });
 
+  it("accepts a preloaded schema summary", () => {
+    const result = resourceContextSchema.safeParse({
+      datasetId: "dataset",
+      resourceId: "resource",
+      title: "Titre",
+      organization: "Organisation",
+      resourceName: "Ressource",
+      url: "https://example.com/resource.parquet",
+      schema: {
+        rowCount: 12,
+        columns: [{ name: "title", type: "VARCHAR" }],
+      },
+    });
+
+    expect(result.success).toBe(true);
+  });
+
   it("refuse une URL de ressource invalide", () => {
     const result = resourceContextSchema.safeParse({
       datasetId: "dataset-id",

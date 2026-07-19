@@ -21,3 +21,23 @@ textarea {
   font: inherit;
 }
 
+@keyframes chat-sidebar-enter {
+  from {
+    opacity: 0;
+    transform: translateX(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.chat-sidebar {
+  animation: chat-sidebar-enter 180ms ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chat-sidebar {
+    animation: none;
+  }
+}

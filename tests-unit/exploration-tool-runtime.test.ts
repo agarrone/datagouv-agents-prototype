@@ -33,6 +33,25 @@ function toolOutputRecorder() {
 }
 
 describe("exploration tool runtime", () => {
+  it("does not wait for addToolOutput from inside onToolCall", async () => {
+    const dataset = datasetStub();
+    const addToolOutput = vi.fn(
+      () => new Promise<never>(() => {}),
+    ) as unknown as ExplorationAddToolOutput;
+    const runtime = useExplorationToolRuntime(dataset, addToolOutput);
+
+    await runtime.handleToolCall({
+      toolCall: {
+        dynamic: false,
+        toolName: "execute_sql",
+        toolCallId: "sql-deadlock-regression",
+        input: { sql: "SELECT 1", purpose: "Tester la boucle" },
+      },
+    } as ExplorationToolCallOptions);
+
+    expect(addToolOutput).toHaveBeenCalledOnce();
+  });
+
   it("executes SQL and publishes its output", async () => {
     const dataset = datasetStub();
     const recorder = toolOutputRecorder();

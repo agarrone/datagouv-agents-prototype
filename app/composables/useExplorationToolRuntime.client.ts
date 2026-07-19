@@ -36,7 +36,7 @@ export function useExplorationToolRuntime(
     try {
       if (toolCall.toolName === "inspect_schema") {
         const output = await dataset.inspectSchema();
-        await addToolOutput({
+        void addToolOutput({
           tool: "inspect_schema",
           toolCallId: toolCall.toolCallId,
           output,
@@ -46,7 +46,7 @@ export function useExplorationToolRuntime(
 
       if (toolCall.toolName === "execute_sql") {
         const output = await dataset.executeSql(toolCall.input.sql);
-        await addToolOutput({
+        void addToolOutput({
           tool: "execute_sql",
           toolCallId: toolCall.toolCallId,
           output,
@@ -58,7 +58,7 @@ export function useExplorationToolRuntime(
         const output = await dataset.createChartData(
           chartRequiredFields(toolCall.input),
         );
-        await addToolOutput({
+        void addToolOutput({
           tool: "create_chart",
           toolCallId: toolCall.toolCallId,
           output,
@@ -70,14 +70,14 @@ export function useExplorationToolRuntime(
         const output = await dataset.createMapData(
           mapRequiredFields(toolCall.input),
         );
-        await addToolOutput({
+        void addToolOutput({
           tool: "create_map",
           toolCallId: toolCall.toolCallId,
           output,
         });
       }
     } catch (reason) {
-      await addToolOutput({
+      void addToolOutput({
         state: "output-error",
         tool: toolCall.toolName,
         toolCallId: toolCall.toolCallId,

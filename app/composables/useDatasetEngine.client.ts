@@ -141,6 +141,8 @@ export function useDatasetEngine() {
   );
 
   async function inspectSchema(): Promise<DatasetSchemaResult> {
+    if (schema.value) return schema.value;
+
     const connection = await getConnection();
     const [description, count, sample] = await Promise.all([
       connection.query("DESCRIBE data"),
