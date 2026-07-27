@@ -3,6 +3,14 @@ import tailwindcss from "@tailwindcss/vite";
 export default defineNuxtConfig({
   compatibilityDate: "2026-07-19",
   devtools: { enabled: true },
+  app: {
+    head: {
+      link: [
+        { rel: "icon", type: "image/png", href: "/icon.png" },
+        { rel: "apple-touch-icon", href: "/icon.png" },
+      ],
+    },
+  },
   modules: ["@nuxt/eslint"],
   css: ["~/assets/css/main.css"],
   runtimeConfig: {

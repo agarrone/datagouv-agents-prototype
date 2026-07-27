@@ -1,25 +1,24 @@
 <script setup lang="ts">
+import GameOfLifeLoader from "./GameOfLifeLoader.client.vue";
+
 defineProps<{ kind: "graphique" | "carte" }>();
 </script>
 
 <template>
-  <div class="mt-3 flex h-80 flex-col items-center justify-center border border-[#ddd] bg-white text-center">
-    <div aria-hidden="true" class="flex items-center gap-1.5">
-      <span v-for="index in 3" :key="index" class="visual-dot h-1.5 w-1.5 rounded-full bg-[#929292]" :style="{ animationDelay: `${(index - 1) * 140}ms` }" />
+  <ExplorationResultCard
+    content-class="p-5"
+    :eyebrow="kind === 'carte' ? 'Carte' : 'Graphique'"
+    :title="kind === 'carte' ? 'Préparation de la carte' : 'Préparation du graphique'"
+  >
+    <div class="relative isolate h-72 overflow-hidden border border-[#e5e5e5] bg-white">
+      <GameOfLifeLoader class="absolute inset-0" />
+      <p class="absolute inset-x-3 bottom-3 z-10 text-center text-[11px] font-medium leading-4 text-[#666]">
+        Mise en forme des données…
+      </p>
     </div>
-    <p class="mt-3 text-xs text-[#666]">Préparation {{ kind === "carte" ? "de la carte" : "du graphique" }}…</p>
-  </div>
+    <template #footer>
+      <span>Calcul en cours</span>
+      <span>Données traitées localement</span>
+    </template>
+  </ExplorationResultCard>
 </template>
-
-<style scoped>
-@keyframes visual-dot {
-  0%, 70%, 100% { opacity: 0.25; transform: translateY(0); }
-  35% { opacity: 1; transform: translateY(-3px); }
-}
-
-.visual-dot { animation: visual-dot 1.2s ease-in-out infinite; }
-
-@media (prefers-reduced-motion: reduce) {
-  .visual-dot { animation: none; opacity: 0.65; }
-}
-</style>

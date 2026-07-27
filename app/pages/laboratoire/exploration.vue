@@ -4,7 +4,7 @@ import {
   DefaultChatTransport,
   lastAssistantMessageIsCompleteWithToolCalls,
 } from "ai";
-import type { ChatAddToolOutputFunction } from "ai";
+import type { ChatAddToolOutputFunction, LanguageModelUsage } from "ai";
 import {
   explorationResources,
   type ExplorationResource,
@@ -12,8 +12,17 @@ import {
 import type { ExplorationMessage } from "~~/shared/types/exploration";
 
 const input = ref("");
+const panelMode = ref<"assistant" | "sql">("assistant");
+const editingMessageId = ref<string | null>(null);
+const composer = ref<{ focus: () => void } | null>(null);
 const dataset = useDatasetEngine();
-const selectedResource = ref<ExplorationResource | null>(null);
+const { playUiSound } = useUiSound();
+const selectedResource = ref<ExplorationResource | null>(
+  explorationResources[0] ?? null,
+);
+const readySoundPlayed = ref(false);
+const latestResponseUsage = ref<LanguageModelUsage>();
+const previousToolErrorCount = ref(0);
 const runtimeBridge: {
   addToolOutput?: ChatAddToolOutputFunction<ExplorationMessage>;
 } = {};
@@ -64,6 +73,25 @@ const {
   }),
   sendAutomaticallyWhen: lastAssistantMessageIsCompleteWithToolCalls,
   onToolCall: toolRuntime.handleToolCall,
+  onFinish({ message }) {
+    const usage = message.metadata?.totalUsage;
+    if (!usage) return;
+    const current = latestResponseUsage.value;
+    latestResponseUsage.value = {
+      inputTokens: (current?.inputTokens ?? 0) + (usage.inputTokens ?? 0),
+      inputTokenDetails: {
+        noCacheTokens: (current?.inputTokenDetails.noCacheTokens ?? 0) + (usage.inputTokenDetails.noCacheTokens ?? 0),
+        cacheReadTokens: (current?.inputTokenDetails.cacheReadTokens ?? 0) + (usage.inputTokenDetails.cacheReadTokens ?? 0),
+        cacheWriteTokens: (current?.inputTokenDetails.cacheWriteTokens ?? 0) + (usage.inputTokenDetails.cacheWriteTokens ?? 0),
+      },
+      outputTokens: (current?.outputTokens ?? 0) + (usage.outputTokens ?? 0),
+      outputTokenDetails: {
+        textTokens: (current?.outputTokenDetails.textTokens ?? 0) + (usage.outputTokenDetails.textTokens ?? 0),
+        reasoningTokens: (current?.outputTokenDetails.reasoningTokens ?? 0) + (usage.outputTokenDetails.reasoningTokens ?? 0),
+      },
+      totalTokens: (current?.totalTokens ?? 0) + (usage.totalTokens ?? 0),
+    };
+  },
 });
 runtimeBridge.addToolOutput = addToolOutput;
 
@@ -78,12 +106,100 @@ const tableColumns = computed(() =>
 const tableRows = computed(() =>
   dataset.activeView.value?.rows ?? dataset.preview.value,
 );
+const toolErrorCount = computed(() => messages.value.reduce(
+  (total, message) => total + message.parts.filter(
+    part => "state" in part && part.state === "output-error",
+  ).length,
+  0,
+));
+const showInitialThinking = computed(() => {
+  if (!isResponding.value) return false;
+  const lastMessage = messages.value.at(-1);
+  return !lastMessage
+    || lastMessage.role === "user"
+    || lastMessage.parts.length === 0;
+});
+const lastMessageId = computed(() => messages.value.at(-1)?.id);
+const lastUserMessageId = computed(() => [...messages.value]
+  .reverse()
+  .find(message => message.role === "user")?.id);
+
+function previousUserQuestion(messageIndex: number) {
+  for (let index = messageIndex - 1; index >= 0; index -= 1) {
+    const message = messages.value[index];
+    if (message?.role !== "user") continue;
+    return message.parts
+      .filter(part => part.type === "text")
+      .map(part => part.text)
+      .join("\n")
+      .trim();
+  }
+  return "";
+}
+
+watch(
+  () => dataset.status.value,
+  (status) => {
+    if (status === "ready" && messages.value.length === 0 && !readySoundPlayed.value) {
+      readySoundPlayed.value = true;
+      playUiSound("ready");
+    }
+  },
+);
+
+watch(
+  [chatError, () => dataset.error.value],
+  ([nextChatError, nextDatasetError], [previousChatError, previousDatasetError]) => {
+    if (
+      (nextChatError && nextChatError !== previousChatError)
+      || (nextDatasetError && nextDatasetError !== previousDatasetError)
+    ) {
+      playUiSound("error");
+    }
+  },
+);
+
+watch(toolErrorCount, (count) => {
+  if (count > previousToolErrorCount.value) playUiSound("error");
+  previousToolErrorCount.value = count;
+});
 
 async function submit() {
   const text = input.value.trim();
   if (!text || dataset.status.value !== "ready" || isResponding.value) return;
+  const messageId = editingMessageId.value;
+  latestResponseUsage.value = undefined;
   input.value = "";
-  await sendMessage({ text });
+  editingMessageId.value = null;
+  await sendMessage({
+    text,
+    messageId: messageId ?? undefined,
+    metadata: { createdAt: new Date().toISOString() },
+  });
+}
+
+async function editQuestion(messageId: string, content: string) {
+  if (isResponding.value) return;
+  editingMessageId.value = messageId;
+  input.value = content;
+  await nextTick();
+  composer.value?.focus();
+}
+
+async function cancelQuestionEditing() {
+  editingMessageId.value = null;
+  input.value = "";
+  await nextTick();
+  composer.value?.focus();
+}
+
+async function loadSelectedResource() {
+  if (!selectedResource.value || dataset.status.value === "loading") return;
+  try {
+    await dataset.load(selectedResource.value);
+  } catch {
+    // L’erreur est déjà exposée par le moteur de données et le sélecteur.
+  }
 }
 
 async function applyExplorerProposal(
@@ -93,6 +209,7 @@ async function applyExplorerProposal(
 ) {
   try {
     const view = await dataset.applyExplorerView(sql, title);
+    if (/\bwhere\b/i.test(sql)) playUiSound("whisper");
     await addToolOutput({
       tool: "propose_explorer_view",
       toolCallId,
@@ -167,33 +284,62 @@ async function applyExplorerProposal(
       </section>
 
       <aside class="chat-sidebar flex min-h-[44rem] flex-col border-l border-[#929292] bg-[linear-gradient(to_bottom,rgba(235,237,255,0.30)_0%,rgba(235,237,255,0.01)_100%)] shadow-[-4px_0_12px_rgba(0,0,0,0.05)]">
-        <ExplorationAgentPanelHeader />
+        <ExplorationAgentPanelHeader v-model="panelMode" />
         <ExplorationConversationScroller
+          v-show="panelMode === 'assistant'"
           :message-count="messages.length"
           :responding="isResponding"
+          :usage="latestResponseUsage"
         >
           <ExplorationAgentEmptyState
             v-if="messages.length === 0"
             class="min-h-full"
+            :loading="dataset.status.value === 'loading'"
             :ready="dataset.status.value === 'ready'"
+            :resource-title="selectedResource?.title"
+            @load="loadSelectedResource"
             @suggestion="input = $event"
           />
           <ExplorationAgentMessage
-            v-for="message in messages"
+            v-for="(message, messageIndex) in messages"
             :key="message.id"
+            :can-edit="message.role === 'user' && message.id === lastUserMessageId && !isResponding"
             :message="message"
+            :responding="isResponding && message.id === lastMessageId && message.role === 'assistant'"
+            :feedback-context="message.role === 'assistant' && dataset.activeResource.value ? {
+              question: previousUserQuestion(messageIndex),
+              resource: dataset.activeResource.value.parquetUrl,
+              dataset: dataset.activeResource.value.title,
+              resourceName: 'Version Parquet du jeu de données',
+              model: 'agent-exploration',
+            } : undefined"
             @apply-proposal="applyExplorerProposal"
+            @edit="editQuestion"
           />
-          <p v-if="chatError" class="border-l-4 border-[#e1000f] bg-white p-3 text-sm">{{ chatError.message }}</p>
+          <ExplorationAgentThinking v-if="showInitialThinking" />
+          <ExplorationStatusMessage
+            v-if="chatError"
+            :message="chatError.message"
+            title="La réponse n’a pas pu être générée"
+            tone="error"
+          />
         </ExplorationConversationScroller>
         <ExplorationAgentComposer
+          v-show="panelMode === 'assistant'"
+          ref="composer"
           v-model="input"
           :disabled="dataset.status.value !== 'ready'"
+          :editing="Boolean(editingMessageId)"
           :resource-organization="dataset.activeResource.value?.organization"
           :resource-title="dataset.activeResource.value?.title"
           :responding="isResponding"
+          @cancel-edit="cancelQuestionEditing"
           @stop="stop"
           @submit="submit"
+        />
+        <ExplorationSqlConsole
+          v-show="panelMode === 'sql'"
+          :ready="dataset.status.value === 'ready'"
         />
       </aside>
     </div>

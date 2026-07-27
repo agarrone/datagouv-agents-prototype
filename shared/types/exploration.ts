@@ -1,4 +1,4 @@
-import type { InferUITools, UIMessage } from "ai";
+import type { InferUITools, LanguageModelUsage, UIMessage } from "ai";
 import type { explorationTools } from "../agents/exploration-tools";
 
 export type ExplorationTools = InferUITools<typeof explorationTools>;
@@ -6,6 +6,7 @@ export type ExplorationTools = InferUITools<typeof explorationTools>;
 export type ExplorationMessage = UIMessage<
   {
     createdAt?: string;
+    totalUsage?: LanguageModelUsage;
   },
   never,
   ExplorationTools

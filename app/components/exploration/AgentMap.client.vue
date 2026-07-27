@@ -23,15 +23,18 @@ const props = defineProps<{
   spec: MapSpec;
   rows: DatasetRow[];
   truncated: boolean;
+  playCompletionSound?: boolean;
 }>();
 
 const mapElement = ref<HTMLElement | null>(null);
+const { playUiSound } = useUiSound();
 const renderedCount = ref(0);
 const mapError = ref<string | null>(null);
 const legendRange = ref<[number, number] | null>(null);
 let maplibre: typeof import("maplibre-gl") | undefined;
 let map: import("maplibre-gl").Map | undefined;
 let resizeObserver: ResizeObserver | undefined;
+let completionSoundPlayed = false;
 
 const sourceId = "agent-map-data";
 const interactiveLayers = ["agent-fill", "agent-line", "agent-points"];
@@ -376,6 +379,10 @@ function updateSource(geojson: FeatureCollection) {
       duration: 450,
     });
   }
+  if (props.playCompletionSound !== false && !completionSoundPlayed) {
+    completionSoundPlayed = true;
+    playUiSound("sparkle");
+  }
 }
 
 async function safelyRenderMap() {
@@ -385,6 +392,7 @@ async function safelyRenderMap() {
     mapError.value = reason instanceof Error
       ? reason.message
       : "La carte n’a pas pu être affichée.";
+    playUiSound("error");
   }
 }
 
@@ -409,20 +417,19 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <figure class="border border-[#ddd] bg-white">
-    <header class="border-b border-[#ddd] px-5 py-4">
-      <h3 class="font-bold">{{ spec.title }}</h3>
-      <p class="mt-1 text-sm leading-6 text-[#666]">
-        {{ spec.description }}
-      </p>
-    </header>
-    <div class="relative h-80 w-full">
+  <ExplorationResultCard
+    content-class="p-5"
+    :description="spec.description"
+    eyebrow="Carte"
+    :title="spec.title"
+  >
+    <div class="relative h-72 w-full overflow-hidden border border-[#e5e5e5]">
       <div ref="mapElement" class="h-full w-full" />
       <div
         v-if="spec.type === 'choropleth' && legendRange"
-        class="absolute bottom-5 left-3 z-10 w-36 border border-[#ddd] bg-white p-3 text-xs shadow-sm"
+        class="absolute bottom-3 left-3 z-10 w-36 rounded-sm border border-[#929292] bg-white p-3 text-[11px] shadow-sm"
       >
-        <p class="mb-2 font-bold">{{ spec.valueLabel }}</p>
+        <p class="mb-2 font-semibold">{{ spec.valueLabel }}</p>
         <div class="h-2 bg-gradient-to-r from-[#ececfe] to-[#000091]" />
         <div class="mt-1 flex justify-between gap-2 text-[#666]">
           <span>{{ legendRange[0].toLocaleString("fr-FR") }}</span>
@@ -431,28 +438,30 @@ onBeforeUnmount(() => {
       </div>
       <div
         v-if="mapError"
-        class="absolute inset-0 flex items-center justify-center bg-white p-5 text-center text-sm text-[#e1000f]"
+        class="absolute inset-0 flex items-center justify-center bg-[#fef4f4] p-5 text-center text-sm text-[#ce0500]"
       >
         {{ mapError }}
       </div>
     </div>
-    <figcaption
-      class="flex items-center justify-between gap-4 border-t border-[#ddd] px-5 py-3 text-xs text-[#666]"
-    >
+    <template #footer>
       <span>{{ renderedCount }} entités affichées</span>
       <span v-if="truncated">Résultat limité aux 5 000 premières lignes</span>
       <span v-else>Données calculées localement</span>
-    </figcaption>
-  </figure>
+    </template>
+  </ExplorationResultCard>
 </template>
 
 <style scoped>
 :deep(.maplibregl-popup-content) {
   border: 1px solid #929292;
-  border-radius: 0;
+  border-radius: 4px;
   box-shadow: 0 2px 8px rgb(0 0 0 / 16%);
   font-family: Marianne, Arial, sans-serif;
   padding: 12px;
+}
+
+:deep(.maplibregl-popup-tip) {
+  display: none;
 }
 
 :deep(.agent-map-popup-value) {

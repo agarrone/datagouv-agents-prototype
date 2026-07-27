@@ -1,10 +1,52 @@
 @import "tailwindcss";
+@import "remixicon/fonts/remixicon.css";
 
 :root {
   color: #161616;
   background: #f6f6f6;
   font-family: Marianne, Arial, sans-serif;
   font-synthesis: none;
+
+  /* Motion scale — transitions.dev */
+  --duration-stagger: 40ms;
+  --duration-quick: 150ms;
+  --duration-fast: 250ms;
+  --duration-medium: 350ms;
+  --duration-slow: 400ms;
+  --ease-smooth-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in-out: ease-in-out;
+  --ease-linear: linear;
+  --distance-base: 8px;
+  --blur-small: 2px;
+
+  /* Agent component surfaces */
+  --agent-border-strong: #c6c6c6;
+  --agent-border: #dddddd;
+  --agent-border-soft: #e5e5e5;
+  --agent-radius-card: 6px;
+  --agent-radius-inner: 2px;
+  --agent-surface: #ffffff;
+  --agent-surface-subtle: #f6f6f6;
+
+  /* Transitions used by the assistant */
+  --icon-swap-dur: var(--duration-fast);
+  --icon-swap-blur: var(--blur-small);
+  --icon-swap-start-scale: 0.25;
+  --icon-swap-ease: var(--ease-in-out);
+  --shimmer-dur: 2000ms;
+  --shimmer-base: #777;
+  --shimmer-highlight: #3a3a3a;
+  --shimmer-band: 400%;
+  --shimmer-ease: var(--ease-linear);
+  --acc-expand: var(--duration-fast);
+  --acc-collapse: var(--duration-fast);
+  --acc-chevron: var(--duration-fast);
+  --acc-ease: var(--ease-smooth-out);
+}
+
+html {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 * {
@@ -21,23 +63,165 @@ textarea {
   font: inherit;
 }
 
+.agent-surface {
+  background: var(--agent-surface);
+  border: 1px solid var(--agent-border-strong);
+  border-radius: var(--agent-radius-card);
+}
+
+.agent-surface-interactive {
+  transition-property: border-color, box-shadow;
+  transition-duration: var(--duration-quick);
+  transition-timing-function: var(--ease-smooth-out);
+}
+
+.agent-surface-interactive:hover {
+  border-color: #929292;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 4%);
+}
+
+.agent-inset-surface {
+  background: var(--agent-surface-subtle);
+  border: 1px solid var(--agent-border);
+  border-radius: var(--agent-radius-inner);
+}
+
+/* Syntax highlighting — palette aligned with the restrained data.gouv.fr UI. */
+.hljs {
+  color: #3a3a3a;
+}
+
+.hljs-keyword,
+.hljs-selector-tag,
+.hljs-literal,
+.hljs-section,
+.hljs-link {
+  color: #000091;
+  font-weight: 600;
+}
+
+.hljs-string,
+.hljs-attr,
+.hljs-template-tag,
+.hljs-template-variable,
+.hljs-regexp {
+  color: #18753c;
+}
+
+.hljs-number,
+.hljs-symbol,
+.hljs-bullet,
+.hljs-variable,
+.hljs-meta {
+  color: #a55800;
+}
+
+.hljs-title,
+.hljs-title.class_,
+.hljs-title.function_,
+.hljs-selector-id,
+.hljs-selector-class,
+.hljs-built_in,
+.hljs-type {
+  color: #6e445a;
+}
+
+.hljs-comment,
+.hljs-quote {
+  color: #777;
+  font-style: italic;
+}
+
+.hljs-doctag,
+.hljs-strong {
+  font-weight: 600;
+}
+
+.hljs-emphasis {
+  font-style: italic;
+}
+
+.agent-pressable {
+  transition-property: transform, background-color, border-color, color, box-shadow;
+  transition-duration: var(--duration-quick);
+  transition-timing-function: var(--ease-smooth-out);
+}
+
+.agent-pressable:not(:disabled):active {
+  transform: scale(0.96);
+}
+
+.agent-focusable:focus-visible {
+  outline: 2px solid #000091;
+  outline-offset: 2px;
+}
+
 @keyframes chat-sidebar-enter {
   from {
     opacity: 0;
-    transform: translateX(8px);
+    transform: translateX(var(--distance-base));
+    filter: blur(var(--blur-small));
   }
   to {
     opacity: 1;
     transform: translateX(0);
+    filter: blur(0);
   }
 }
 
 .chat-sidebar {
-  animation: chat-sidebar-enter 180ms ease-out both;
+  animation: chat-sidebar-enter var(--duration-fast) var(--ease-smooth-out) both;
+  will-change: opacity, transform, filter;
+}
+
+/* transitions.dev — shimmer text */
+.t-shimmer {
+  position: relative;
+  display: inline-block;
+  color: var(--shimmer-base);
+}
+
+.t-shimmer::before {
+  content: attr(data-text);
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image: linear-gradient(
+    90deg,
+    transparent 0%,
+    transparent 40%,
+    var(--shimmer-highlight) 50%,
+    transparent 60%,
+    transparent 100%
+  );
+  background-size: var(--shimmer-band) 100%;
+  background-repeat: no-repeat;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  animation: t-shimmer var(--shimmer-dur) var(--shimmer-ease) infinite;
+}
+
+@keyframes t-shimmer {
+  0% { background-position: 100% 0; }
+  100% { background-position: 0% 0; }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .chat-sidebar {
     animation: none;
+  }
+
+  .agent-pressable {
+    transition-duration: 0ms;
+  }
+
+  .agent-pressable:not(:disabled):active {
+    transform: none;
+  }
+
+  .t-shimmer::before {
+    animation: none !important;
   }
 }

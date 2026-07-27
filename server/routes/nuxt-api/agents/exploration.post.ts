@@ -61,6 +61,11 @@ export default defineEventHandler(async (event) => {
   });
 
   return result.toUIMessageStreamResponse({
+    originalMessages: body.messages,
+    messageMetadata({ part }) {
+      if (part.type === "start") return { createdAt: new Date().toISOString() };
+      if (part.type === "finish") return { totalUsage: part.totalUsage };
+    },
     onError(error) {
       console.error("Exploration agent error", error);
       return agentErrorMessage(error);

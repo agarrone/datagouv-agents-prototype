@@ -11,22 +11,28 @@ defineEmits<{ apply: [] }>();
 </script>
 
 <template>
-  <section class="mt-3 overflow-hidden border border-[#c6c6c6] bg-white text-[13px]">
-    <div class="px-4 py-3">
-      <p class="text-[11px] font-medium uppercase tracking-wide text-[#666]">Vue proposée</p>
-      <h3 class="mt-1 font-medium leading-5">{{ title }}</h3>
-      <p class="mt-1 leading-5 text-[#666]">{{ reason }}</p>
-      <ExplorationCodeBlock class="mt-2" :code="sql" collapsible />
+  <section class="agent-surface mt-3 overflow-hidden text-[13px]">
+    <div class="flex items-start gap-3 px-4 py-3.5">
+      <span aria-hidden="true" class="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-md bg-[#f5f5fe] text-[#000091]">
+        <i class="ri-filter-line text-base leading-none" />
+      </span>
+      <div class="min-w-0 flex-1">
+        <p class="text-[10px] font-medium uppercase tracking-[0.05em] text-[#666]">Vue proposée</p>
+        <h3 class="mt-1 font-semibold leading-5">{{ title }}</h3>
+        <p class="mt-1 text-xs leading-5 text-[#666]">{{ reason }}</p>
+        <ExplorationCodeBlock class="mt-2" :code="sql" collapsible />
+      </div>
     </div>
-    <div v-if="state === 'input-available'" class="border-t border-[#e5e5e5] p-3">
-      <button class="bg-[#000091] px-4 py-2 text-xs font-medium text-white hover:bg-[#1212ff]" type="button" @click="$emit('apply')">
+    <div v-if="state === 'input-available'" class="flex justify-end border-t border-[#e5e5e5] px-4 py-3">
+      <button class="agent-focusable agent-pressable rounded-sm bg-[#000091] px-4 py-2 text-xs font-medium text-white hover:bg-[#1212ff]" type="button" @click="$emit('apply')">
         Appliquer au tableau
       </button>
     </div>
-    <p v-else-if="state === 'output-available'" class="border-t border-[#e5e5e5] px-4 py-3 text-xs text-[#18753c]">
-      Vue appliquée au tableau
+    <p v-else-if="state === 'output-available'" class="flex items-center gap-2 border-t border-[#e5e5e5] bg-[#e3fdeb] px-4 py-3 text-xs text-[#18753c]">
+      <i aria-hidden="true" class="ri-check-line text-base leading-none" />
+      <span>Vue appliquée au tableau</span>
     </p>
-    <p v-else-if="state === 'output-error'" class="border-t border-[#e5e5e5] px-4 py-3 text-xs text-[#e1000f]">
+    <p v-else-if="state === 'output-error'" class="border-t border-[#e5e5e5] bg-[#fef4f4] px-4 py-3 text-xs text-[#ce0500]">
       {{ error }}
     </p>
   </section>

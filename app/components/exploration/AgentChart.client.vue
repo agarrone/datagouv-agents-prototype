@@ -28,6 +28,7 @@ const props = defineProps<{
   spec: ChartSpec;
   rows: DatasetRow[];
   truncated: boolean;
+  playCompletionSound?: boolean;
 }>();
 
 use([
@@ -44,8 +45,10 @@ use([
 ]);
 
 const chartElement = ref<HTMLElement | null>(null);
+const { playUiSound } = useUiSound();
 let chart: EChartsType | undefined;
 let resizeObserver: ResizeObserver | undefined;
+let completionSoundPlayed = false;
 
 const colors = ["#000091", "#E1000F", "#18753C", "#A558A0"];
 
@@ -65,6 +68,7 @@ function chartOption(): EChartsCoreOption {
     color: colors,
     textStyle: {
       fontFamily: "Marianne, Arial, sans-serif",
+      fontWeight: 400,
       color: "#161616",
     },
     tooltip: {
@@ -76,6 +80,7 @@ function chartOption(): EChartsCoreOption {
       textStyle: {
         color: "#161616",
         fontFamily: "Marianne, Arial, sans-serif",
+        fontWeight: 400,
       },
     },
   };
@@ -169,6 +174,10 @@ function renderChart() {
   if (!chartElement.value) return;
   chart ??= init(chartElement.value, undefined, { renderer: "canvas" });
   chart.setOption(chartOption(), true);
+  if (props.playCompletionSound !== false && !completionSoundPlayed) {
+    completionSoundPlayed = true;
+    window.requestAnimationFrame(() => playUiSound("sparkle"));
+  }
 }
 
 onMounted(() => {
@@ -192,20 +201,18 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <figure class="border border-[#ddd] bg-white">
-    <header class="border-b border-[#ddd] px-5 py-4">
-      <h3 class="font-bold">{{ spec.title }}</h3>
-      <p class="mt-1 text-sm leading-6 text-[#666]">
-        {{ spec.description }}
-      </p>
-    </header>
-    <div ref="chartElement" class="h-80 w-full" />
-    <figcaption
-      class="flex items-center justify-between gap-4 border-t border-[#ddd] px-5 py-3 text-xs text-[#666]"
-    >
+  <ExplorationResultCard
+    content-class="p-5"
+    :description="spec.description"
+    eyebrow="Graphique"
+    :title="spec.title"
+    title-weight="bold"
+  >
+    <div ref="chartElement" class="h-72 w-full" />
+    <template #footer>
       <span>{{ rows.length }} points affichés</span>
       <span v-if="truncated">Résultat limité aux 1 000 premiers points</span>
       <span v-else>Données calculées localement</span>
-    </figcaption>
-  </figure>
+    </template>
+  </ExplorationResultCard>
 </template>
