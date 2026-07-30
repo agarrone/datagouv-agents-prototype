@@ -1,6 +1,6 @@
 <template>
   <div class="flex items-start gap-3 py-1 text-[13px]" role="status" aria-live="polite">
-    <span class="mt-0.5 flex h-6 min-w-10 shrink-0 items-center justify-center rounded bg-[#f6f6f6] px-1 text-[10px] text-[#777]">
+    <span class="mt-0.5 flex h-6 min-w-10 shrink-0 items-center justify-center rounded bg-[#f6f6f6] px-1 text-[12px] text-[#777]">
       <ExplorationUnicodeSpinner name="dna" />
     </span>
     <div class="min-w-0">

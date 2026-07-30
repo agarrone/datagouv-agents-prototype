@@ -427,7 +427,7 @@ onBeforeUnmount(() => {
       <div ref="mapElement" class="h-full w-full" />
       <div
         v-if="spec.type === 'choropleth' && legendRange"
-        class="absolute bottom-3 left-3 z-10 w-36 rounded-sm border border-[#929292] bg-white p-3 text-[11px] shadow-sm"
+        class="absolute bottom-3 left-3 z-10 w-36 rounded-sm border border-[#929292] bg-white p-3 text-[12px] shadow-sm"
       >
         <p class="mb-2 font-semibold">{{ spec.valueLabel }}</p>
         <div class="h-2 bg-gradient-to-r from-[#ececfe] to-[#000091]" />
@@ -438,7 +438,7 @@ onBeforeUnmount(() => {
       </div>
       <div
         v-if="mapError"
-        class="absolute inset-0 flex items-center justify-center bg-[#fef4f4] p-5 text-center text-sm text-[#ce0500]"
+        class="absolute inset-0 flex items-center justify-center bg-[#fef4f4] p-5 text-center text-[13px] text-[#ce0500]"
       >
         {{ mapError }}
       </div>

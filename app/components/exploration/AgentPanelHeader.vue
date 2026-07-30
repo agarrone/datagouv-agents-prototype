@@ -10,7 +10,7 @@ const mode = defineModel<"assistant" | "sql">({ default: "assistant" });
       </span>
       <div>
         <h2 class="text-[13px] font-medium">Interroger ces données</h2>
-        <p class="text-[11px] text-[#666]">Assistant d’exploration</p>
+        <p class="text-[12px] text-[#666]">Assistant d’exploration</p>
       </div>
     </div>
     <nav

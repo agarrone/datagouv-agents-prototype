@@ -17,14 +17,14 @@ defineEmits<{ apply: [] }>();
         <i class="ri-filter-line text-base leading-none" />
       </span>
       <div class="min-w-0 flex-1">
-        <p class="text-[10px] font-medium uppercase tracking-[0.05em] text-[#666]">Vue proposée</p>
+        <p class="text-[11px] font-medium uppercase tracking-[0.05em] text-[#666]">Vue proposée</p>
         <h3 class="mt-1 font-semibold leading-5">{{ title }}</h3>
         <p class="mt-1 text-xs leading-5 text-[#666]">{{ reason }}</p>
         <ExplorationCodeBlock class="mt-2" :code="sql" collapsible />
       </div>
     </div>
     <div v-if="state === 'input-available'" class="flex justify-end border-t border-[#e5e5e5] px-4 py-3">
-      <button class="agent-focusable agent-pressable rounded-sm bg-[#000091] px-4 py-2 text-xs font-medium text-white hover:bg-[#1212ff]" type="button" @click="$emit('apply')">
+      <button class="agent-focusable agent-pressable rounded-sm bg-[#000091] px-3 py-1.5 text-[11px] font-medium text-white hover:bg-[#1212ff]" type="button" @click="$emit('apply')">
         Appliquer au tableau
       </button>
     </div>

@@ -11,7 +11,7 @@ defineProps<{
 
 <template>
   <section class="py-1" aria-label="Progression de l’analyse" role="status">
-    <p class="mb-2 text-[11px] text-[#666]">Analyse en cours</p>
+    <p class="mb-2 text-[11px] leading-[1.5] text-[#777]">Analyse en cours</p>
     <ol class="space-y-1.5">
       <li
         v-for="(step, index) in steps"
@@ -29,7 +29,7 @@ defineProps<{
           />
         </span>
         <p
-          class="text-[12px] font-normal leading-[1.5]"
+          class="text-[11px] font-normal leading-[1.5]"
           :class="step.status === 'active'
             ? 't-shimmer'
             : step.status === 'error' ? 'text-[#ce0500]' : 'text-[#777]'"

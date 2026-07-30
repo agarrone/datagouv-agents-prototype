@@ -13,6 +13,7 @@ const props = defineProps<{
 const model = defineModel<string>({ required: true });
 const emit = defineEmits<{ cancelEdit: []; submit: []; stop: [] }>();
 const textarea = ref<HTMLTextAreaElement | null>(null);
+const modelDetails = ref<HTMLDetailsElement | null>(null);
 
 function resizeTextarea() {
   const element = textarea.value;
@@ -26,7 +27,18 @@ watch(model, async () => {
   resizeTextarea();
 });
 
-onMounted(resizeTextarea);
+function closeModelDetails(event: PointerEvent) {
+  if (modelDetails.value?.open && !modelDetails.value.contains(event.target as Node)) {
+    modelDetails.value.open = false;
+  }
+}
+
+onMounted(() => {
+  resizeTextarea();
+  document.addEventListener("pointerdown", closeModelDetails);
+});
+
+onBeforeUnmount(() => document.removeEventListener("pointerdown", closeModelDetails));
 
 function focus() {
   textarea.value?.focus();
@@ -64,7 +76,7 @@ function handleEnter(event: KeyboardEvent) {
           </span>
           <button
             aria-label="Annuler la modification"
-            class="agent-focusable agent-pressable flex h-6 w-6 shrink-0 items-center justify-center rounded text-[#666] hover:bg-[#eee] hover:text-[#161616]"
+            class="agent-focusable agent-pressable flex h-5 w-5 shrink-0 items-center justify-center rounded text-[#666] hover:bg-[#f6f6f6] hover:text-[#000091]"
             title="Annuler la modification"
             type="button"
             @click="emit('cancelEdit')"
@@ -86,9 +98,20 @@ function handleEnter(event: KeyboardEvent) {
         <footer class="flex items-center justify-between gap-3">
           <div class="flex min-w-0 items-center gap-1">
             <ExplorationTokenUsage :usage="usage" />
-            <span class="flex h-6 max-w-[150px] items-center rounded-full border border-[#cecece] px-2 text-[12px] leading-4 text-[#3a3a3a]">
-              <span class="truncate">gpt-oss-120b</span>
-            </span>
+            <details ref="modelDetails" class="group/model relative h-6">
+              <summary
+                aria-label="Informations sur le modèle gpt-oss-120b"
+                class="agent-focusable flex h-6 max-w-[150px] cursor-pointer list-none items-center rounded-full border border-[#cecece] px-2 text-[12px] leading-4 text-[#3a3a3a] transition-[background-color,color] duration-150 hover:bg-[#eee] hover:text-[#161616] [&::-webkit-details-marker]:hidden"
+                title="Informations sur le modèle"
+              >
+                <span class="truncate">gpt-oss-120b</span>
+              </summary>
+              <div
+                class="absolute bottom-7 left-0 z-30 w-[230px] rounded border border-[#e5e5e5] bg-white p-2 text-[11px] leading-4 text-[#5d5d5d] shadow-[0_2px_4px_rgba(0,0,0,0.04),2px_4px_16px_rgba(0,0,0,0.12)]"
+              >
+                Modèle open source exécuté sur une infrastructure opérée par la DINUM.
+              </div>
+            </details>
           </div>
           <button
             v-if="responding"
@@ -113,7 +136,13 @@ function handleEnter(event: KeyboardEvent) {
       </div>
     </form>
     <p class="mx-auto mt-1 min-h-6 max-w-[42rem] bg-transparent pb-1 text-right text-[11px] leading-6 text-[#5d5d5d]">
-      L’assistant peut faire des erreurs. Vérifiez les résultats importants.
+      L’assistant peut faire des erreurs.
+      <a
+        class="agent-focusable ml-1 underline underline-offset-2 hover:text-[#000091]"
+        href="https://datagouv-assistant.agarrone.fr/documentation"
+        rel="noopener noreferrer"
+        target="_blank"
+      >En savoir plus <i aria-hidden="true" class="ri-external-link-line align-[-1px] text-[10px] leading-none" /></a>
     </p>
   </div>
 </template>

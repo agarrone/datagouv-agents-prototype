@@ -64,7 +64,7 @@ async function applyToExplorer() {
 <template>
   <section class="min-h-0 flex-1 overflow-auto bg-transparent p-3" aria-label="Console SQL">
     <div class="mb-4 max-w-[32rem]">
-      <h3 class="text-balance text-[16px] font-semibold leading-6 text-[#161616]">
+      <h3 class="text-balance text-[15px] font-semibold leading-6 text-[#161616]">
         Interrogez les données en SQL
       </h3>
       <p class="mt-1 text-pretty text-[12px] leading-5 text-[#555]">
@@ -74,7 +74,7 @@ async function applyToExplorer() {
 
     <div class="agent-surface overflow-hidden">
       <div class="flex h-9 items-center border-b border-[#ddd] bg-[#f6f6f6] px-3">
-        <span class="flex items-center gap-2 text-[11px] font-semibold text-[#555]">
+        <span class="flex items-center gap-2 text-[12px] font-semibold text-[#555]">
           <i aria-hidden="true" class="ri-terminal-line text-sm leading-none text-[#666]" />
           Requête SQL
         </span>
@@ -85,9 +85,9 @@ async function applyToExplorer() {
         :disabled="!ready || running"
       />
       <footer class="flex min-h-11 items-center justify-between gap-3 border-t border-[#ddd] bg-[#f6f6f6] px-3 py-1.5">
-        <span class="text-[10px] leading-4 text-[#666]">Requêtes SELECT et WITH uniquement</span>
+        <span class="text-[12px] leading-4 text-[#666]">Requêtes SELECT et WITH uniquement</span>
         <button
-          class="agent-focusable agent-pressable h-8 shrink-0 bg-[#000091] px-3 text-[12px] font-medium text-white hover:bg-[#1212ff] disabled:cursor-not-allowed disabled:bg-[#929292]"
+          class="agent-focusable agent-pressable h-7 shrink-0 rounded-sm bg-[#000091] px-2.5 text-[11px] font-medium text-white hover:bg-[#1212ff] disabled:cursor-not-allowed disabled:bg-[#929292]"
           :disabled="!ready || !query.trim() || running"
           type="button"
           @click="runQuery"
@@ -114,14 +114,14 @@ async function applyToExplorer() {
 
     <div v-if="result" class="agent-surface mt-3 min-h-0 overflow-hidden">
       <header class="flex min-h-11 flex-wrap items-center justify-between gap-2 border-b border-[#ddd] bg-[#f6f6f6] px-3 py-1.5">
-        <span class="text-[11px] font-semibold text-[#555]">Résultat</span>
+        <span class="text-[12px] font-semibold text-[#555]">Résultat</span>
         <div class="flex flex-wrap items-center justify-end gap-2">
-          <span class="tabular-nums text-[10px] text-[#777]">
+          <span class="tabular-nums text-[12px] text-[#777]">
             {{ result.rowCount.toLocaleString("fr-FR") }} ligne{{ result.rowCount > 1 ? "s" : "" }} · {{ result.elapsedMs }} ms
             <template v-if="result.truncated"> · résultat limité</template>
           </span>
           <button
-            class="agent-focusable agent-pressable h-7 px-2 text-[11px] font-medium"
+            class="agent-focusable agent-pressable h-7 rounded-sm px-2 text-[11px] font-medium"
             :class="applied
               ? 'border border-[#46fd89] bg-[#b8fec9] text-[#18753c]'
               : 'bg-[#000091] text-white hover:bg-[#1212ff]'"
@@ -134,7 +134,7 @@ async function applyToExplorer() {
         </div>
       </header>
       <div class="max-h-[22rem] overflow-auto">
-        <table class="min-w-max border-collapse text-left font-mono text-[11px] leading-5">
+        <table class="min-w-max border-collapse text-left font-mono text-[12px] leading-5">
           <thead class="sticky top-0 z-10 bg-[#f6f6f6]">
             <tr>
               <th

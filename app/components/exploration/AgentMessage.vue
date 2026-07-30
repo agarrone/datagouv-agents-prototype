@@ -123,6 +123,15 @@ const assistantText = computed(() => props.message.parts
   .trim());
 
 type ToolDetail = { label: string; value: string };
+type ToolTraceEntry = {
+  id: string;
+  label: string;
+  description?: string;
+  summary: string;
+  sql?: string;
+  error?: boolean;
+  details?: ToolDetail[];
+};
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
@@ -168,6 +177,80 @@ function mapToolDetails(input: unknown): ToolDetail[] | undefined {
   }
   return details;
 }
+
+const toolTraceEntries = computed<ToolTraceEntry[]>(() => displayedToolParts.value.map((part, index) => {
+  const base = {
+    id: `${part.type}-${"toolCallId" in part ? part.toolCallId : index}`,
+    label: toolLabel(part.type),
+  };
+  if (part.state === "output-error") {
+    return { ...base, summary: part.errorText, error: true };
+  }
+  if (part.type === "tool-inspect_schema") {
+    return {
+      ...base,
+      description: "Lecture de la structure de la table chargée.",
+      summary: part.state === "output-available"
+        ? `${part.output.rowCount.toLocaleString("fr-FR")} lignes · ${part.output.columns.length} colonnes`
+        : "Inspection en cours",
+    };
+  }
+  if (part.type === "tool-get_dataset_metadata") {
+    return {
+      ...base,
+      description: "Lecture des informations publiques du jeu de données.",
+      summary: part.state === "output-available" ? "Métadonnées récupérées" : "Lecture en cours",
+      details: part.state === "output-available"
+        ? [
+            { label: "Producteur", value: part.output.organization || "Non renseigné" },
+            { label: "Licence", value: part.output.license || "Non renseignée" },
+            { label: "Ressources", value: part.output.resources.length.toLocaleString("fr-FR") },
+          ]
+        : undefined,
+    };
+  }
+  if (part.type === "tool-execute_sql") {
+    return {
+      ...base,
+      description: "input" in part ? part.input?.purpose : undefined,
+      sql: "input" in part ? part.input?.sql : undefined,
+      summary: part.state === "output-available"
+        ? `${part.output.rowCount.toLocaleString("fr-FR")} ligne${part.output.rowCount > 1 ? "s" : ""} · ${part.output.elapsedMs} ms${part.output.truncated ? " · résultat limité" : ""}`
+        : "Exécution en cours",
+      details: part.state === "output-available"
+        ? [{ label: "Colonnes", value: part.output.columns.join(", ") }]
+        : undefined,
+    };
+  }
+  if (part.type === "tool-propose_explorer_view") {
+    return {
+      ...base,
+      description: "input" in part ? part.input?.reason : undefined,
+      sql: "input" in part ? part.input?.sql : undefined,
+      summary: part.state === "output-available"
+        ? `Vue prête · ${part.output.rowCount.toLocaleString("fr-FR")} lignes`
+        : "Préparation en cours",
+    };
+  }
+  if (part.type === "tool-create_chart") {
+    return {
+      ...base,
+      description: "input" in part ? part.input?.description : undefined,
+      summary: part.state === "output-available"
+        ? `${part.output.rows.length.toLocaleString("fr-FR")} lignes représentées`
+        : "Création en cours",
+      details: chartToolDetails("input" in part ? part.input : undefined),
+    };
+  }
+  return {
+    ...base,
+    description: "input" in part ? part.input?.description : undefined,
+    summary: part.state === "output-available"
+      ? `${part.output.rows.length.toLocaleString("fr-FR")} lignes cartographiées`
+      : "Création en cours",
+    details: mapToolDetails("input" in part ? part.input : undefined),
+  };
+}));
 
 </script>
 
@@ -228,122 +311,35 @@ function mapToolDetails(input: unknown): ToolDetail[] | undefined {
           v-if="observableReasoning"
           :content="observableReasoning"
         />
-        <div class="mt-2 space-y-2">
-          <template
-            v-for="(part, partIndex) in displayedToolParts"
-            :key="`${message.id}-tool-${partIndex}`"
-          >
-        <ExplorationAgentToolStep
-          v-if="part.type === 'tool-inspect_schema'"
-          icon="ri-layout-column-line"
-          title="Inspection du schéma"
-          :state="part.state"
-          input-summary="Lecture de la structure de la table chargée dans l’explorateur."
-          :output-summary="part.state === 'output-available'
-            ? `${part.output.rowCount.toLocaleString('fr-FR')} lignes · ${part.output.columns.length} colonnes`
-            : undefined"
-          :details="part.state === 'output-available'
-            ? [{ label: 'Table', value: part.output.table }]
-            : undefined"
-          :fields="part.state === 'output-available'
-            ? part.output.columns
-            : undefined"
-          :error="part.state === 'output-error' ? part.errorText : undefined"
-        />
-        <ExplorationAgentToolStep
-          v-else-if="part.type === 'tool-get_dataset_metadata'"
-          icon="ri-file-info-line"
-          title="Métadonnées du jeu de données"
-          :state="part.state"
-          :output-summary="part.state === 'output-available'
-            ? [part.output.organization, part.output.license].filter(Boolean).join(' · ') || 'Métadonnées récupérées'
-            : undefined"
-          :details="part.state === 'output-available'
-            ? [
-                { label: 'Jeu de données', value: part.output.title },
-                { label: 'Producteur', value: part.output.organization || 'Non renseigné' },
-                { label: 'Licence', value: part.output.license || 'Non renseignée' },
-                { label: 'Ressources', value: part.output.resources.length.toLocaleString('fr-FR') },
-                { label: 'Mise à jour', value: part.output.lastUpdate ? new Date(part.output.lastUpdate).toLocaleDateString('fr-FR') : 'Non renseignée' },
-                { label: 'Qualité', value: part.output.qualityScore === null ? 'Non évaluée' : `${Math.round(part.output.qualityScore * 100)} %` },
-              ]
-            : undefined"
-          :error="part.state === 'output-error' ? part.errorText : undefined"
-        />
-        <ExplorationAgentToolStep
-          v-else-if="part.type === 'tool-execute_sql'"
-          icon="ri-code-s-slash-line"
-          title="Exécution SQL"
-          :state="part.state"
-          :sql="'input' in part ? part.input?.sql : undefined"
-          :input-summary="'input' in part ? part.input?.purpose : undefined"
-          :output-summary="part.state === 'output-available'
-            ? `${part.output.rowCount.toLocaleString('fr-FR')} ligne${part.output.rowCount > 1 ? 's' : ''} · ${part.output.elapsedMs} ms${part.output.truncated ? ' · résultat limité' : ''}`
-            : undefined"
-          :details="part.state === 'output-available'
-            ? [
-                { label: 'Lignes', value: part.output.rowCount.toLocaleString('fr-FR') },
-                { label: 'Durée', value: `${part.output.elapsedMs} ms` },
-                { label: 'Résultat', value: part.output.truncated ? 'Aperçu limité' : 'Complet' },
-              ]
-            : undefined"
-          :fields="part.state === 'output-available'
-            ? part.output.columns.map(name => ({ name }))
-            : undefined"
-          :error="part.state === 'output-error' ? part.errorText : undefined"
-        />
-            <ExplorationAgentToolStep
-              v-else-if="part.type === 'tool-propose_explorer_view'"
-              icon="ri-table-view"
-              title="Préparation de la vue"
-              :state="part.state"
-              :input-summary="'input' in part ? part.input?.reason : undefined"
-              :sql="'input' in part ? part.input?.sql : undefined"
-              :output-summary="part.state === 'output-available' ? 'Vue prête à être appliquée' : undefined"
-              :details="part.state === 'output-available'
-                ? [
-                    { label: 'Titre', value: part.output.title },
-                    { label: 'Lignes', value: part.output.rowCount.toLocaleString('fr-FR') },
-                    { label: 'Résultat', value: part.output.truncated ? 'Aperçu limité' : 'Complet' },
-                  ]
-                : undefined"
-              :fields="part.state === 'output-available'
-                ? part.output.columns.map(name => ({ name }))
-                : undefined"
-              :error="part.state === 'output-error' ? part.errorText : undefined"
-            />
-            <ExplorationAgentToolStep
-              v-else-if="part.type === 'tool-create_chart'"
-              icon="ri-bar-chart-box-line"
-              title="Création du graphique"
-              :state="part.state"
-              :input-summary="'input' in part ? part.input?.description : undefined"
-              :output-summary="part.state === 'output-available'
-                ? `${part.output.rows.length.toLocaleString('fr-FR')} lignes représentées`
-                : undefined"
-              :details="chartToolDetails('input' in part ? part.input : undefined)"
-              :fields="part.state === 'output-available'
-                ? part.output.columns.map(name => ({ name }))
-                : undefined"
-              :error="part.state === 'output-error' ? part.errorText : undefined"
-            />
-            <ExplorationAgentToolStep
-              v-else-if="part.type === 'tool-create_map'"
-              icon="ri-map-2-line"
-              title="Création de la carte"
-              :state="part.state"
-              :input-summary="'input' in part ? part.input?.description : undefined"
-              :output-summary="part.state === 'output-available'
-                ? `${part.output.rows.length.toLocaleString('fr-FR')} lignes cartographiées`
-                : undefined"
-              :details="mapToolDetails('input' in part ? part.input : undefined)"
-              :fields="part.state === 'output-available'
-                ? part.output.columns.map(name => ({ name }))
-                : undefined"
-              :error="part.state === 'output-error' ? part.errorText : undefined"
-            />
-          </template>
-        </div>
+        <ExplorationAgentDisclosure
+          class="mt-1"
+          icon="ri-tools-line"
+          :title="`${toolTraceEntries.length} ${toolTraceEntries.length > 1 ? 'outils utilisés' : 'outil utilisé'}`"
+        >
+          <ol class="space-y-2 pb-1 pl-[22px] pt-1 text-[11px] leading-5 text-[#666]">
+            <li
+              v-for="(entry, index) in toolTraceEntries"
+              :key="entry.id"
+              class="grid grid-cols-[14px_minmax(0,1fr)] gap-1"
+            >
+              <span class="tabular-nums text-[#555]">{{ index + 1 }}.</span>
+              <div class="min-w-0">
+                <p>
+                  <strong class="font-semibold text-[#333]">{{ entry.label }}</strong>
+                  <span v-if="entry.description"> : {{ entry.description }}</span>
+                </p>
+                <p class="text-[#666]" :class="entry.error ? 'text-[#ce0500]' : ''">{{ entry.summary }}</p>
+                <dl v-if="entry.details?.length" class="mt-1 space-y-0.5">
+                  <div v-for="detail in entry.details" :key="detail.label" class="flex gap-1">
+                    <dt class="shrink-0 text-[#777]">{{ detail.label }} :</dt>
+                    <dd class="min-w-0 break-words text-[#555]">{{ detail.value }}</dd>
+                  </div>
+                </dl>
+                <ExplorationCodeBlock v-if="entry.sql" class="mt-1" :code="entry.sql" collapsible />
+              </div>
+            </li>
+          </ol>
+        </ExplorationAgentDisclosure>
       </div>
       </Transition>
     </template>

@@ -16,7 +16,7 @@ withDefaults(defineProps<{
 <template>
   <section class="agent-surface overflow-hidden">
     <header class="border-b border-[#ddd] px-5 py-4">
-      <p v-if="eyebrow" class="mb-1 text-[10px] font-medium uppercase tracking-[0.05em] text-[#666]">
+      <p v-if="eyebrow" class="mb-1 text-[11px] font-medium uppercase tracking-[0.05em] text-[#666]">
         {{ eyebrow }}
       </p>
       <h3

@@ -12,7 +12,7 @@ defineProps<{ kind: "graphique" | "carte" }>();
   >
     <div class="relative isolate h-72 overflow-hidden border border-[#e5e5e5] bg-white">
       <GameOfLifeLoader class="absolute inset-0" />
-      <p class="absolute inset-x-3 bottom-3 z-10 text-center text-[11px] font-medium leading-4 text-[#666]">
+      <p class="absolute inset-x-3 bottom-3 z-10 text-center text-[12px] font-medium leading-4 text-[#666]">
         Mise en forme des données…
       </p>
     </div>

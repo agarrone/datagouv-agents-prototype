@@ -350,39 +350,6 @@ const schemaColumns = [
           <header class="mb-6"><p class="text-[10px] font-medium uppercase tracking-[0.06em] text-[#666]">05</p><h2 class="mt-1 text-2xl font-bold">Raisonnement et tools</h2></header>
           <div class="grid gap-4 xl:grid-cols-2">
             <div class="rounded-md border border-[#ddd] bg-white p-5">
-              <p class="mb-3 text-xs font-medium text-[#666]">États terminés</p>
-              <ExplorationAgentToolStep
-                title="Inspection du schéma"
-                icon="ri-layout-column-line"
-                state="output-available"
-                input-summary="Lecture de la structure de la table chargée dans l’explorateur."
-                output-summary="7 283 lignes · 30 colonnes"
-                :details="[{ label: 'Table', value: 'data' }]"
-                :fields="schemaColumns"
-              />
-              <ExplorationAgentToolStep
-                title="Exécution SQL"
-                icon="ri-code-s-slash-line"
-                state="output-available"
-                input-summary="Classer les résultats par nombre de vues"
-                sql="SELECT title, &quot;metric.views&quot; FROM data ORDER BY &quot;metric.views&quot; DESC LIMIT 10"
-                output-summary="10 lignes · 42 ms"
-                :details="[
-                  { label: 'Lignes', value: '10' },
-                  { label: 'Durée', value: '42 ms' },
-                  { label: 'Résultat', value: 'Complet' },
-                ]"
-                :fields="schemaColumns.slice(0, 2)"
-              />
-            </div>
-            <div class="rounded-md border border-[#ddd] bg-white p-5">
-              <p class="mb-3 text-xs font-medium text-[#666]">En cours et erreur</p>
-              <ExplorationAgentToolStep icon="ri-code-s-slash-line" title="Exécution SQL" state="input-available" input-summary="Calcul de la distribution" />
-              <ExplorationAgentToolStep icon="ri-map-2-line" title="Création de la carte" state="output-error" error="Les coordonnées géographiques sont absentes du résultat." />
-            </div>
-          </div>
-          <div class="mt-4 grid gap-4 xl:grid-cols-2">
-            <div class="rounded-md border border-[#ddd] bg-white p-5">
               <p class="mb-4 text-xs font-medium text-[#666]">Pendant l’exécution</p>
               <ExplorationAgentProgress
                 :steps="[
@@ -396,8 +363,23 @@ const schemaColumns = [
               <p class="mb-3 text-xs font-medium text-[#666]">Après l’exécution</p>
               <ExplorationReasoning content="L’assistant a vérifié la structure disponible puis exécuté une requête sur les données. Ce résumé décrit uniquement les opérations observables." />
               <ExplorationAgentDisclosure icon="ri-tools-line" title="2 outils utilisés">
-                <ExplorationAgentToolStep title="Inspection du schéma" state="output-available" output-summary="30 colonnes analysées" />
-                <ExplorationAgentToolStep title="Exécution SQL" state="output-available" sql="SELECT * FROM data LIMIT 10" output-summary="10 lignes · 42 ms" />
+                <ol class="space-y-2 pb-1 pl-[22px] pt-1 text-[11px] leading-5 text-[#666]">
+                  <li class="grid grid-cols-[14px_minmax(0,1fr)] gap-1">
+                    <span>1.</span>
+                    <div>
+                      <p><strong class="font-semibold text-[#333]">Inspection du schéma</strong> : lecture de la structure de la table.</p>
+                      <p class="text-[#777]">7 283 lignes · 30 colonnes</p>
+                    </div>
+                  </li>
+                  <li class="grid grid-cols-[14px_minmax(0,1fr)] gap-1">
+                    <span>2.</span>
+                    <div>
+                      <p><strong class="font-semibold text-[#333]">Exécution SQL</strong> : classer les résultats par nombre de vues.</p>
+                      <p class="text-[#777]">10 lignes · 42 ms</p>
+                      <ExplorationCodeBlock class="mt-1" code="SELECT * FROM data LIMIT 10" collapsible />
+                    </div>
+                  </li>
+                </ol>
               </ExplorationAgentDisclosure>
             </div>
           </div>

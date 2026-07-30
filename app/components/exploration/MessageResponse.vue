@@ -54,12 +54,21 @@ const rendered = computed(() => renderAssistantMarkdown(props.content, props.str
 .agent-message-response :deep(h2),
 .agent-message-response :deep(h3),
 .agent-message-response :deep(h4) {
-  font-size: 14px;
   font-weight: 600;
   line-height: 20px;
   margin-top: 14px;
   text-wrap: balance;
 }
+
+.agent-message-response :deep(h1) {
+  font-size: 17px;
+  line-height: 24px;
+}
+
+.agent-message-response :deep(h2) { font-size: 15px; }
+
+.agent-message-response :deep(h3),
+.agent-message-response :deep(h4) { font-size: 13px; }
 
 .agent-message-response :deep(h1:first-child),
 .agent-message-response :deep(h2:first-child),
@@ -115,7 +124,8 @@ const rendered = computed(() => renderAssistantMarkdown(props.content, props.str
   background: #f6f6f6;
   border-radius: 3px;
   font-family: Inconsolata, ui-monospace, monospace;
-  font-size: 0.92em;
+  color: #161616;
+  font-size: 12px;
   padding: 1px 4px;
 }
 

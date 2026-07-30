@@ -32,7 +32,7 @@ const suggestions = [
       >
     </div>
 
-    <h3 class="px-1 text-balance text-[14px] font-semibold leading-[1.4] text-[#161616]">
+    <h3 class="px-1 text-balance text-[15px] font-semibold leading-[1.4] text-[#161616]">
       Assistant d’exploration de données
     </h3>
 
@@ -43,7 +43,7 @@ const suggestions = [
       <div class="mt-2 flex flex-wrap gap-1.5">
         <button
           v-if="resourceTitle"
-          class="agent-focusable agent-pressable flex min-h-7 max-w-full items-center gap-1.5 rounded-full border border-[#e5e5e5] bg-white px-2.5 py-1 text-left text-[12px] leading-[1.35] text-[#3a3a3a] hover:border-[#000091] hover:bg-[#e8edff] hover:text-[#000091] disabled:cursor-wait disabled:text-[#666] max-sm:min-h-10 max-sm:w-full max-sm:px-3 max-sm:py-2"
+          class="agent-focusable agent-pressable flex min-h-6 max-w-full items-center gap-1.5 rounded-full border border-[#e5e5e5] bg-white px-2 py-0.5 text-left text-[11px] leading-4 text-[#3a3a3a] hover:border-[#000091] hover:bg-[#e8edff] hover:text-[#000091] disabled:cursor-wait disabled:text-[#666] max-sm:min-h-10 max-sm:w-full max-sm:px-3 max-sm:py-2 max-sm:text-[12px]"
           :disabled="loading"
           type="button"
           @click="emit('load')"

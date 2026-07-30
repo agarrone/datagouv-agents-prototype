@@ -64,21 +64,21 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <footer class="mt-2 flex min-h-10 flex-wrap items-center gap-0.5 text-[#666]">
+  <footer class="mt-2 flex min-h-6 flex-wrap items-center gap-1 text-[#5d5d5d]">
     <button
       :aria-label="copied ? 'Réponse copiée' : 'Copier la réponse'"
-      class="agent-focusable agent-pressable flex h-10 w-10 items-center justify-center rounded hover:bg-[#eee] hover:text-[#161616]"
+      class="agent-focusable agent-pressable flex h-6 w-6 items-center justify-center rounded hover:bg-[#f6f6f6] hover:text-[#000091]"
       :title="copied ? 'Copié' : 'Copier'"
       type="button"
       @click="copyResponse"
     >
       <span class="t-icon-swap h-4 w-4" :data-state="copied ? 'copied' : 'copy'" aria-hidden="true">
         <i
-          class="t-icon ri-check-line text-base leading-none"
+          class="t-icon ri-check-line text-sm leading-none"
           data-icon="copied"
         />
         <i
-          class="t-icon ri-file-copy-line text-base leading-none"
+          class="t-icon ri-file-copy-line text-sm leading-none"
           data-icon="copy"
         />
       </span>
@@ -88,37 +88,37 @@ onBeforeUnmount(() => {
       aria-label="Réponse utile"
       :aria-pressed="rating === 'useful'"
       :disabled="feedbackStatus === 'sending' || feedbackStatus === 'sent'"
-      class="agent-focusable agent-pressable flex h-10 w-10 items-center justify-center rounded hover:bg-[#eee]"
+      class="agent-focusable agent-pressable flex h-6 w-6 items-center justify-center rounded hover:bg-[#f6f6f6] hover:text-[#000091]"
       :class="rating === 'useful' ? 'bg-[#e3fdeb] text-[#18753c]' : ''"
       title="Utile"
       type="button"
       @click="sendFeedback('useful')"
     >
-      <i aria-hidden="true" class="ri-thumb-up-line text-base leading-none" />
+      <i aria-hidden="true" class="ri-thumb-up-line text-sm leading-none" />
     </button>
     <button
       aria-label="Réponse inutile"
       :aria-pressed="rating === 'not-useful'"
       :disabled="feedbackStatus === 'sending' || feedbackStatus === 'sent'"
-      class="agent-focusable agent-pressable flex h-10 w-10 items-center justify-center rounded hover:bg-[#eee]"
+      class="agent-focusable agent-pressable flex h-6 w-6 items-center justify-center rounded hover:bg-[#f6f6f6] hover:text-[#000091]"
       :class="rating === 'not-useful' ? 'bg-[#fef4f4] text-[#e1000f]' : ''"
       title="Inutile"
       type="button"
       @click="sendFeedback('not-useful')"
     >
-      <i aria-hidden="true" class="ri-thumb-down-line text-base leading-none" />
+      <i aria-hidden="true" class="ri-thumb-down-line text-sm leading-none" />
     </button>
     <span
       v-if="feedbackStatus === 'sending'"
-      class="ml-2 text-xs text-[#666]"
+      class="ml-2 text-[11px] text-[#666]"
     >Envoi…</span>
     <span
       v-else-if="feedbackStatus === 'sent'"
-      class="ml-2 text-xs text-[#18753c]"
+      class="ml-2 text-[11px] text-[#18753c]"
     >Merci pour votre retour.</span>
     <button
       v-else-if="feedbackStatus === 'error'"
-      class="agent-focusable ml-2 text-xs text-[#ce0500] underline underline-offset-2"
+      class="agent-focusable ml-2 text-[11px] text-[#ce0500] underline underline-offset-2"
       type="button"
       @click="rating && sendFeedback(rating)"
     >Échec de l’envoi · Réessayer</button>
