@@ -68,7 +68,7 @@ onMounted(updateScrollButton);
     <button
       v-if="showScrollButton"
       aria-label="Revenir au dernier message"
-      class="agent-focusable agent-pressable absolute bottom-3 left-1/2 flex h-10 w-10 -translate-x-1/2 items-center justify-center rounded-full bg-white text-[#161616] shadow-[0_0_0_1px_rgba(0,0,0,0.08),0_1px_2px_-1px_rgba(0,0,0,0.08),0_2px_4px_rgba(0,0,0,0.05)] hover:text-[#000091] hover:shadow-[0_0_0_1px_rgba(0,0,145,0.20),0_1px_2px_-1px_rgba(0,0,0,0.10),0_2px_5px_rgba(0,0,0,0.07)]"
+      class="agent-focusable agent-pressable absolute bottom-3 left-1/2 flex h-8 w-8 -translate-x-1/2 items-center justify-center rounded-full bg-white text-[12px] text-[#161616] shadow-[0_0_0_1px_rgba(0,0,0,0.08),0_1px_2px_-1px_rgba(0,0,0,0.08),0_2px_4px_rgba(0,0,0,0.05)] hover:text-[#000091] hover:shadow-[0_0_0_1px_rgba(0,0,145,0.20),0_1px_2px_-1px_rgba(0,0,0,0.10),0_2px_5px_rgba(0,0,0,0.07)]"
       type="button"
       @click="scrollToBottom"
     >

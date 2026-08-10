@@ -12,17 +12,24 @@ import {
 import type { ExplorationMessage } from "~~/shared/types/exploration";
 
 const input = ref("");
+const route = useRoute();
 const panelMode = ref<"assistant" | "sql">("assistant");
 const editingMessageId = ref<string | null>(null);
 const composer = ref<{ focus: () => void } | null>(null);
 const dataset = useDatasetEngine();
 const { playUiSound } = useUiSound();
+const requestedResourceId = typeof route.query.resource === "string"
+  ? route.query.resource
+  : "";
 const selectedResource = ref<ExplorationResource | null>(
-  explorationResources[0] ?? null,
+  explorationResources.find(resource => resource.id === requestedResourceId)
+  ?? explorationResources[0]
+  ?? null,
 );
 const readySoundPlayed = ref(false);
 const latestResponseUsage = ref<LanguageModelUsage>();
-const previousToolErrorCount = ref(0);
+const announcedToolErrorCount = ref(0);
+let settledErrorSoundTimer: ReturnType<typeof setTimeout> | undefined;
 const runtimeBridge: {
   addToolOutput?: ChatAddToolOutputFunction<ExplorationMessage>;
 } = {};
@@ -35,6 +42,7 @@ const toolRuntime = useExplorationToolRuntime(dataset, (output) => {
 
 const {
   addToolOutput,
+  clearError,
   error: chatError,
   messages,
   sendMessage,
@@ -106,12 +114,16 @@ const tableColumns = computed(() =>
 const tableRows = computed(() =>
   dataset.activeView.value?.rows ?? dataset.preview.value,
 );
-const toolErrorCount = computed(() => messages.value.reduce(
-  (total, message) => total + message.parts.filter(
-    part => "state" in part && part.state === "output-error",
-  ).length,
-  0,
-));
+const unresolvedToolErrorCount = computed(() => messages.value.reduce((total, message) => {
+  return total + message.parts.filter((part, index) => {
+    if (!("state" in part) || part.state !== "output-error") return false;
+    return !message.parts.slice(index + 1).some(nextPart =>
+      "state" in nextPart
+      && nextPart.type === part.type
+      && nextPart.state === "output-available",
+    );
+  }).length;
+}, 0));
 const showInitialThinking = computed(() => {
   if (!isResponding.value) return false;
   const lastMessage = messages.value.at(-1);
@@ -147,26 +159,36 @@ watch(
   },
 );
 
-watch(
-  [chatError, () => dataset.error.value],
-  ([nextChatError, nextDatasetError], [previousChatError, previousDatasetError]) => {
-    if (
-      (nextChatError && nextChatError !== previousChatError)
-      || (nextDatasetError && nextDatasetError !== previousDatasetError)
-    ) {
-      playUiSound("error");
-    }
-  },
-);
+watch(() => dataset.error.value, (error, previousError) => {
+  if (error && error !== previousError) playUiSound("error");
+});
 
-watch(toolErrorCount, (count) => {
-  if (count > previousToolErrorCount.value) playUiSound("error");
-  previousToolErrorCount.value = count;
+watch(chatStatus, (status) => {
+  if (settledErrorSoundTimer) clearTimeout(settledErrorSoundTimer);
+  if (status === "submitted" || status === "streaming") return;
+
+  settledErrorSoundTimer = setTimeout(() => {
+    if (isResponding.value) return;
+    const hasNewToolError = unresolvedToolErrorCount.value > announcedToolErrorCount.value;
+    if (chatError.value || hasNewToolError) playUiSound("error");
+    announcedToolErrorCount.value = unresolvedToolErrorCount.value;
+  }, 400);
+});
+
+onBeforeUnmount(() => {
+  if (settledErrorSoundTimer) clearTimeout(settledErrorSoundTimer);
+});
+
+onMounted(() => {
+  if (requestedResourceId && selectedResource.value) {
+    void loadSelectedResource();
+  }
 });
 
 async function submit() {
   const text = input.value.trim();
   if (!text || dataset.status.value !== "ready" || isResponding.value) return;
+  clearError();
   const messageId = editingMessageId.value;
   latestResponseUsage.value = undefined;
   input.value = "";
@@ -305,6 +327,7 @@ async function applyExplorerProposal(
             :key="message.id"
             :can-edit="message.role === 'user' && message.id === lastUserMessageId && !isResponding"
             :message="message"
+            :source="dataset.activeResource.value ? `${dataset.activeResource.value.title} · ${dataset.activeResource.value.organization}` : undefined"
             :responding="isResponding && message.id === lastMessageId && message.role === 'assistant'"
             :feedback-context="message.role === 'assistant' && dataset.activeResource.value ? {
               question: previousUserQuestion(messageIndex),
@@ -318,9 +341,9 @@ async function applyExplorerProposal(
           />
           <ExplorationAgentThinking v-if="showInitialThinking" />
           <ExplorationStatusMessage
-            v-if="chatError"
+            v-if="chatError && !isResponding"
             :message="chatError.message"
-            title="La réponse n’a pas pu être générée"
+            title="La réponse a été interrompue"
             tone="error"
           />
         </ExplorationConversationScroller>

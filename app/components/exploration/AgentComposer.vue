@@ -139,7 +139,7 @@ function handleEnter(event: KeyboardEvent) {
       L’assistant peut faire des erreurs.
       <a
         class="agent-focusable ml-1 underline underline-offset-2 hover:text-[#000091]"
-        href="https://datagouv-assistant.agarrone.fr/documentation"
+        href="/documentation"
         rel="noopener noreferrer"
         target="_blank"
       >En savoir plus <i aria-hidden="true" class="ri-external-link-line align-[-1px] text-[10px] leading-none" /></a>
