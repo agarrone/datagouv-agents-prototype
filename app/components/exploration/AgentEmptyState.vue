@@ -37,18 +37,18 @@ const suggestions = [
     </h3>
 
     <template v-if="!ready">
-      <p class="mt-1 max-w-[31rem] px-1 text-pretty text-[13px] leading-5 text-[#5d5d5d]">
+      <p class="mt-1 max-w-[31rem] px-1 text-pretty text-[13px] leading-5 text-[#555555]">
         Chargez une ressource pour permettre à l’assistant de comprendre sa structure.
       </p>
       <div class="mt-2 flex flex-wrap gap-1.5">
         <button
           v-if="resourceTitle"
-          class="agent-focusable agent-pressable flex min-h-7 max-w-full items-center gap-1.5 rounded-full border border-[#e5e5e5] bg-white px-2.5 py-1 text-left text-[12px] leading-[1.35] text-[#3a3a3a] transition-colors hover:border-[#000091] hover:bg-[#e8edff] hover:text-[#000091] disabled:cursor-wait disabled:text-[#666]"
+          class="agent-focusable agent-pressable flex min-h-7 max-w-full items-center gap-1.5 rounded-full border border-[#e5e5e5] bg-white px-2.5 py-1 text-left text-[12px] leading-[1.35] text-[#555555] transition-colors hover:border-[#000091] hover:bg-[#e8edff] hover:text-[#000091] disabled:cursor-wait disabled:text-[#555555]"
           :disabled="loading"
           type="button"
           @click="emit('load')"
         >
-          <ExplorationUnicodeSpinner v-if="loading" class="text-[9px]" name="dna" />
+          <ExplorationUnicodeSpinner v-if="loading" class="text-[12px]" name="dna" />
           <i v-else aria-hidden="true" class="ri-table-line shrink-0 text-sm leading-none" />
           <span class="max-w-72 truncate max-sm:max-w-56">
             {{ loading ? `Chargement de ${resourceTitle}…` : resourceTitle }}
@@ -58,7 +58,7 @@ const suggestions = [
     </template>
 
     <template v-else>
-      <p class="mt-1 px-1 text-[13px] leading-5 text-[#5d5d5d]">
+      <p class="mt-1 px-1 text-[13px] leading-5 text-[#555555]">
         Posez une question sur ces données.
       </p>
       <div class="mt-2 flex flex-wrap gap-1.5">

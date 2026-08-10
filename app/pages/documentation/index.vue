@@ -8,6 +8,15 @@ const tools = [
   ["Créer une carte", "Produit une carte de points, de géométries ou par territoires français avec MapLibre."],
 ];
 
+const summaryLinks = [
+  ["pourquoi", "Pourquoi cette expérimentation ?"],
+  ["fonctionnement", "Comment fonctionne une réponse ?"],
+  ["tools", "Les outils disponibles"],
+  ["modele", "Le modèle utilisé"],
+  ["donnees", "Données et confidentialité"],
+  ["limites", "Limites à garder en tête"],
+];
+
 useSeoMeta({
   title: "Comprendre l’assistant d’exploration — Prototype data.gouv.fr",
   description: "Fonctionnement, outils et limites du prototype d’assistant d’exploration de données.",
@@ -16,26 +25,34 @@ useSeoMeta({
 
 <template>
   <main class="min-h-dvh bg-white text-[#161616]">
-    <div class="mx-auto w-full max-w-[720px] px-4 py-8 sm:px-6 lg:py-12">
-      <NuxtLink class="text-[13px] font-medium text-[#000091] underline underline-offset-4 hover:text-[#1212ff]" to="/">
-        Retour au choix du jeu de données
-      </NuxtLink>
+    <div class="mx-auto grid w-full max-w-[90rem] gap-12 px-4 py-10 sm:px-6 lg:grid-cols-[12rem_minmax(0,1fr)] lg:py-14">
+      <nav class="self-start lg:sticky lg:top-6" aria-label="Sommaire de la documentation">
+        <NuxtLink class="text-[12px] font-medium text-[#000091] underline underline-offset-4 hover:text-[#1212ff]" to="/">
+          Retour à l’accueil
+        </NuxtLink>
+        <p class="mt-8 text-[11px] font-medium uppercase tracking-[0.06em] text-[#555555]">Sommaire</p>
+        <ol class="mt-3 space-y-2 text-[12px] leading-5">
+          <li v-for="link in summaryLinks" :key="link[0]"><a class="hover:text-[#000091]" :href="`#${link[0]}`">{{ link[1] }}</a></li>
+        </ol>
+      </nav>
 
-      <header class="mt-10 border-b border-[#ddd] pb-10">
-        <p class="text-[13px] font-medium text-[#666]">Documentation du prototype</p>
+      <div class="min-w-0 max-w-[60rem]">
+
+      <header class="border-b border-[#e5e5e5] pb-10">
+        <p class="text-[13px] font-medium text-[#555555]">Documentation du prototype</p>
         <h1 class="mt-3 text-3xl font-bold leading-tight tracking-[-0.02em] sm:text-[42px]">Comprendre l’assistant d’exploration</h1>
-        <p class="mt-5 text-[17px] leading-7 text-[#3a3a3a]">Cette expérimentation étudie comment une conversation en langage naturel peut aider à comprendre, interroger et représenter les données publiées sur data.gouv.fr.</p>
+        <p class="mt-5 text-[18px] leading-7 text-[#555555]">Cette expérimentation étudie comment une conversation en langage naturel peut aider à comprendre, interroger et représenter les données publiées sur data.gouv.fr.</p>
         <NuxtLink class="mt-6 inline-flex h-9 items-center border border-[#000091] px-3 text-[12px] font-medium text-[#000091] hover:bg-[#ececfe]" to="/documentation/technique">
           Consulter le fonctionnement technique détaillé
         </NuxtLink>
       </header>
 
-      <DocumentationSection title="Pourquoi cette expérimentation ?">
+      <DocumentationSection id="pourquoi" title="Pourquoi cette expérimentation ?">
         <p>Un fichier tabulaire peut être difficile à aborder : colonnes peu explicites, formats techniques ou besoin d’écrire une requête. L’assistant est placé à côté du tableau pour permettre de partir d’une question ordinaire et d’obtenir une réponse appuyée sur des opérations vérifiables.</p>
         <p>Le service reste un prototype autonome. Il prépare une éventuelle intégration future à data.gouv.fr, mais ne dépend pas aujourd’hui de son interface ni de son système de publication.</p>
       </DocumentationSection>
 
-      <DocumentationSection title="Comment fonctionne une réponse ?">
+      <DocumentationSection id="fonctionnement" title="Comment fonctionne une réponse ?">
         <ol>
           <li>L’assistant interprète la demande et repère les ambiguïtés éventuelles.</li>
           <li>Il choisit la preuve la plus légère : métadonnées, schéma ou requête SQL.</li>
@@ -46,23 +63,23 @@ useSeoMeta({
         <p>La section « Analyse terminée » décrit les opérations observables. Elle ne révèle pas une chaîne de pensée interne du modèle.</p>
       </DocumentationSection>
 
-      <DocumentationSection title="Les outils disponibles">
+      <DocumentationSection id="tools" title="Les outils disponibles">
         <ul>
           <li v-for="tool in tools" :key="tool[0]"><strong class="text-[#161616]">{{ tool[0] }} :</strong> {{ tool[1] }}</li>
         </ul>
       </DocumentationSection>
 
-      <DocumentationSection title="Le modèle utilisé">
+      <DocumentationSection id="modele" title="Le modèle utilisé">
         <p>Le prototype peut fonctionner avec Vercel AI Gateway ou avec un service compatible avec l’API OpenAI, notamment Albert. Le fournisseur et le modèle sont configurés côté serveur et peuvent évoluer sans modifier l’interface.</p>
         <p>Le modèle ne reçoit pas spontanément l’intégralité du fichier. Il reçoit le contexte de la ressource, puis demande à l’application d’exécuter les outils nécessaires.</p>
       </DocumentationSection>
 
-      <DocumentationSection title="Données et confidentialité">
+      <DocumentationSection id="donnees" title="Données et confidentialité">
         <p>Les ressources proposées sont publiques. Leur version Parquet est téléchargée et interrogée dans le navigateur avec DuckDB-WASM. Les requêtes sont limitées à la lecture et ne modifient jamais la ressource d’origine.</p>
         <p>Lorsque vous évaluez une réponse, la question, la réponse et le contexte du jeu de données sont envoyés à une table Grist afin d’améliorer le prototype. Aucune identité n’est demandée. Évitez néanmoins de saisir des informations personnelles ou sensibles.</p>
       </DocumentationSection>
 
-      <DocumentationSection title="Limites à garder en tête">
+      <DocumentationSection id="limites" title="Limites à garder en tête">
         <ul>
           <li>Le modèle peut mal interpréter une colonne, une période ou une unité.</li>
           <li>Une requête correcte peut néanmoins répondre imparfaitement à l’intention initiale.</li>
@@ -73,9 +90,10 @@ useSeoMeta({
         </ul>
       </DocumentationSection>
 
-      <footer class="border-t border-[#ddd] py-8 text-[13px]">
+      <footer class="border-t border-[#e5e5e5] py-8 text-[13px]">
         <NuxtLink class="font-medium text-[#000091] underline underline-offset-4" to="/">Tester l’assistant</NuxtLink>
       </footer>
+      </div>
     </div>
   </main>
 </template>

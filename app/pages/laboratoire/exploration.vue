@@ -254,25 +254,34 @@ async function applyExplorerProposal(
     });
   }
 }
+
+async function resolveClarification(toolCallId: string, choice: string) {
+  clearError();
+  await addToolOutput({
+    tool: "request_clarification",
+    toolCallId,
+    output: { choice },
+  });
+}
 </script>
 
 <template>
   <main class="flex min-h-screen flex-col bg-white lg:h-dvh lg:overflow-hidden">
-    <header class="border-b border-[#ddd] px-5 py-4">
+    <header class="border-b border-[#e5e5e5] px-5 py-4">
       <div class="mx-auto flex w-full max-w-[90rem] items-center justify-between">
         <div>
-          <p class="text-sm text-[#666]">Prototype autonome · Spike technique</p>
-          <h1 class="text-xl font-bold md:text-2xl">Agent d’exploration</h1>
+          <p class="text-[13px] text-[#555555]">Prototype autonome · Spike technique</p>
+          <h1 class="text-2xl font-bold">Agent d’exploration</h1>
         </div>
-        <NuxtLink class="text-sm text-[#000091] underline" to="/">Retour</NuxtLink>
+        <NuxtLink class="text-[13px] text-[#000091] underline" to="/">Retour</NuxtLink>
       </div>
     </header>
 
     <div class="mx-auto grid w-full max-w-[96rem] flex-1 lg:min-h-0 lg:grid-cols-[minmax(0,1fr)_36rem]">
-      <section class="min-w-0 border-b border-[#aaa] lg:min-h-0 lg:overflow-auto lg:border-b-0">
-        <div class="border-b border-[#ddd] px-5 py-4">
-          <p class="text-sm font-bold">{{ dataset.activeResource.value?.title ?? "Ressources de test" }}</p>
-          <p class="mt-1 text-sm text-[#666]">
+      <section class="min-w-0 border-b border-[#777777] lg:min-h-0 lg:overflow-auto lg:border-b-0">
+        <div class="border-b border-[#e5e5e5] px-5 py-4">
+          <p class="text-[13px] font-bold">{{ dataset.activeResource.value?.title ?? "Ressources de test" }}</p>
+          <p class="mt-1 text-[13px] text-[#555555]">
             {{ dataset.activeResource.value
               ? `${dataset.activeResource.value.organization} · Parquet`
               : "Sélectionnez une ressource issue de data.gouv.fr" }}
@@ -305,7 +314,7 @@ async function applyExplorerProposal(
         </div>
       </section>
 
-      <aside class="chat-sidebar flex min-h-[44rem] flex-col border-l border-[#929292] bg-[linear-gradient(to_bottom,rgba(235,237,255,0.30)_0%,rgba(235,237,255,0.01)_100%)] shadow-[-4px_0_12px_rgba(0,0,0,0.05)] lg:h-full lg:min-h-0 lg:overflow-hidden">
+      <aside class="chat-sidebar flex min-h-[44rem] flex-col border-l border-[#777777] bg-[linear-gradient(to_bottom,rgba(235,237,255,0.30)_0%,rgba(235,237,255,0.01)_100%)] shadow-[-4px_0_12px_rgba(0,0,0,0.05)] lg:h-full lg:min-h-0 lg:overflow-hidden">
         <ExplorationAgentPanelHeader v-model="panelMode" />
         <ExplorationConversationScroller
           v-show="panelMode === 'assistant'"
@@ -337,6 +346,7 @@ async function applyExplorerProposal(
               model: 'agent-exploration',
             } : undefined"
             @apply-proposal="applyExplorerProposal"
+            @clarify="resolveClarification"
             @edit="editQuestion"
           />
           <ExplorationAgentThinking v-if="showInitialThinking" />

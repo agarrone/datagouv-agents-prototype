@@ -11,7 +11,7 @@ const expanded = ref(props.open);
 </script>
 
 <template>
-  <section class="t-acc text-[12px] text-[#777]" :data-open="String(expanded)">
+  <section class="t-acc text-[12px] text-[#777777]" :data-open="String(expanded)">
     <button
       :aria-expanded="expanded"
       class="t-acc-head agent-focusable flex w-full items-center gap-2 py-1 text-left font-medium transition-colors duration-150 hover:text-[#161616]"
