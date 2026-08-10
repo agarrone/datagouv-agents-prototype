@@ -29,6 +29,24 @@ export const datasetMetadataOutputSchema = z.object({
 });
 
 export const explorationTools = {
+  request_clarification: tool({
+    description:
+      "Suspend l’analyse pour demander une précision indispensable à l’utilisateur. Utiliser uniquement lorsque plusieurs interprétations plausibles changeraient réellement le résultat. L’interface affiche les choix sous forme de suggestions cliquables.",
+    inputSchema: z.object({
+      question: z
+        .string()
+        .min(1)
+        .describe("Question courte et autonome adressée à l’utilisateur."),
+      choices: z
+        .array(z.string().min(1).max(80))
+        .min(2)
+        .max(4)
+        .describe("Choix courts, distincts et compréhensibles sans contexte technique."),
+    }),
+    outputSchema: z.object({
+      choice: z.string().min(1),
+    }),
+  }),
   get_dataset_metadata: tool({
     description:
       "Récupère les métadonnées publiques du jeu de données actif sur data.gouv.fr : description, producteur, licence, mise à jour, qualité et liste des ressources. Ne pas l’utiliser pour interroger les valeurs du fichier.",

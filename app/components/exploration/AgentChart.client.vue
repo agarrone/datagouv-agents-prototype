@@ -81,7 +81,7 @@ function chartOption(): EChartsCoreOption {
     tooltip: {
       trigger: props.spec.type === "pie" ? "item" : "axis",
       backgroundColor: "#ffffff",
-      borderColor: "#929292",
+      borderColor: "#777777",
       borderWidth: 1,
       padding: 12,
       textStyle: {
@@ -238,19 +238,19 @@ function createExportSvg() {
       `<svg x="40" y="${headerHeight}" width="${chartWidth}" height="${chartHeight}" viewBox="0 0 ${chartWidth} ${chartHeight}">`,
     );
     const description = descriptionLines.map((line, index) => (
-      `<text x="40" y="${58 + index * 20}" font-family="Marianne,Arial,sans-serif" font-size="14" font-weight="400" fill="#666666">${escapeXml(line)}</text>`
+      `<text x="40" y="${58 + index * 20}" font-family="Marianne,Arial,sans-serif" font-size="14" font-weight="400" fill="#555555">${escapeXml(line)}</text>`
     )).join("");
     const source = props.source
-      ? `<text x="40" y="${height - 17}" font-family="Marianne,Arial,sans-serif" font-size="11" font-weight="400" fill="#666666">Source : ${escapeXml(props.source)}</text>`
+      ? `<text x="40" y="${height - 17}" font-family="Marianne,Arial,sans-serif" font-size="11" font-weight="400" fill="#555555">Source : ${escapeXml(props.source)}</text>`
       : "";
 
     return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
       <rect width="${width}" height="${height}" fill="#ffffff" />
       <text x="40" y="32" font-family="Marianne,Arial,sans-serif" font-size="18" font-weight="700" fill="#161616">${escapeXml(props.spec.title)}</text>
       ${description}
-      <line x1="0" y1="${headerHeight - 1}" x2="${width}" y2="${headerHeight - 1}" stroke="#dddddd" />
+      <line x1="0" y1="${headerHeight - 1}" x2="${width}" y2="${headerHeight - 1}" stroke="#e5e5e5" />
       ${embeddedChart}
-      ${props.source ? `<line x1="0" y1="${height - footerHeight}" x2="${width}" y2="${height - footerHeight}" stroke="#dddddd" />` : ""}
+      ${props.source ? `<line x1="0" y1="${height - footerHeight}" x2="${width}" y2="${height - footerHeight}" stroke="#e5e5e5" />` : ""}
       ${source}
     </svg>`;
   } finally {
@@ -384,20 +384,20 @@ onBeforeUnmount(() => {
           <details ref="copyMenu" class="relative z-30">
             <summary
               aria-label="Copier le graphique"
-              class="agent-focusable flex h-8 w-8 cursor-pointer list-none items-center justify-center border border-[#e5e5e5] bg-white text-[#3a3a3a] hover:bg-[#f6f6f6] [&::-webkit-details-marker]:hidden"
+              class="agent-focusable flex h-8 w-8 cursor-pointer list-none items-center justify-center border border-[#e5e5e5] bg-white text-[#555555] hover:bg-[#f6f6f6] [&::-webkit-details-marker]:hidden"
               title="Copier le graphique"
             >
               <i aria-hidden="true" class="ri-file-copy-line text-base leading-none" />
             </summary>
-            <div class="absolute right-0 top-[calc(100%+4px)] z-50 w-44 rounded-sm border border-[#c6c6c6] bg-white p-1 shadow-[0_2px_4px_rgba(0,0,0,0.04),2px_4px_16px_rgba(0,0,0,0.12)]">
-              <button class="agent-focusable flex h-8 w-full items-center rounded-sm px-2.5 text-left text-[12px] leading-4 text-[#3a3a3a] hover:bg-[#f6f6f6]" type="button" @click="copyPng">Copier comme image</button>
-              <button class="agent-focusable flex h-8 w-full items-center rounded-sm px-2.5 text-left text-[12px] leading-4 text-[#3a3a3a] hover:bg-[#f6f6f6]" type="button" @click="copySvg">Copier le SVG</button>
-              <p v-if="copyStatus" class="mt-1 border-t border-[#e5e5e5] px-2.5 py-1.5 text-[11px] leading-4 text-[#5d5d5d]" role="status">{{ copyStatus }}</p>
+            <div class="absolute right-0 top-[calc(100%+4px)] z-50 w-44 rounded-md border border-[#e5e5e5] bg-white p-1 shadow-[0_2px_4px_rgba(0,0,0,0.04),2px_4px_16px_rgba(0,0,0,0.12)]">
+              <button class="agent-focusable flex h-8 w-full items-center rounded-md px-2.5 text-left text-[12px] leading-4 text-[#555555] hover:bg-[#f6f6f6]" type="button" @click="copyPng">Copier comme image</button>
+              <button class="agent-focusable flex h-8 w-full items-center rounded-md px-2.5 text-left text-[12px] leading-4 text-[#555555] hover:bg-[#f6f6f6]" type="button" @click="copySvg">Copier le SVG</button>
+              <p v-if="copyStatus" class="mt-1 border-t border-[#e5e5e5] px-2.5 py-1.5 text-[11px] leading-4 text-[#555555]" role="status">{{ copyStatus }}</p>
             </div>
           </details>
           <button
             :aria-label="isFullscreen ? 'Quitter le plein écran' : 'Afficher le graphique en plein écran'"
-            class="agent-focusable flex h-8 shrink-0 items-center justify-center gap-2 border border-[#e5e5e5] bg-white text-[12px] font-medium text-[#3a3a3a] hover:bg-[#f6f6f6]"
+            class="agent-focusable flex h-8 shrink-0 items-center justify-center gap-2 border border-[#e5e5e5] bg-white text-[12px] font-medium text-[#555555] hover:bg-[#f6f6f6]"
             :class="isFullscreen ? 'px-3' : 'w-8'"
             :title="isFullscreen ? 'Quitter le plein écran' : 'Afficher en plein écran'"
             type="button"

@@ -30,10 +30,10 @@ const syntaxTheme = HighlightStyle.define([
   { tag: [tags.keyword, tags.bool, tags.null], color: "#000091", fontWeight: "600" },
   { tag: [tags.string, tags.special(tags.string)], color: "#18753c" },
   { tag: [tags.number, tags.integer, tags.float], color: "#a55800" },
-  { tag: [tags.name, tags.variableName], color: "#3a3a3a" },
+  { tag: [tags.name, tags.variableName], color: "#555555" },
   { tag: [tags.typeName, tags.className, tags.standard(tags.name)], color: "#6e445a" },
-  { tag: [tags.comment, tags.lineComment, tags.blockComment], color: "#777", fontStyle: "italic" },
-  { tag: tags.operator, color: "#666" },
+  { tag: [tags.comment, tags.lineComment, tags.blockComment], color: "#777777", fontStyle: "italic" },
+  { tag: tags.operator, color: "#555555" },
 ]);
 
 function sqlLanguage() {
@@ -90,19 +90,19 @@ onMounted(() => {
             height: "176px",
             backgroundColor: "#fff",
             color: "#161616",
-            fontFamily: "Inconsolata, ui-monospace, SFMono-Regular, monospace",
+            fontFamily: '"Geist Mono Variable", "Geist Mono", ui-monospace, SFMono-Regular, monospace',
             fontSize: "13px",
           },
-          "&.cm-focused": { outline: "2px solid #000091", outlineOffset: "-2px" },
+          "&.cm-focused": { outline: "none" },
           ".cm-content": { padding: "10px 0", caretColor: "#000091" },
           ".cm-line": { padding: "0 10px" },
           ".cm-gutters": {
             backgroundColor: "#f6f6f6",
             borderRight: "1px solid #e5e5e5",
-            color: "#777",
+            color: "#777777",
           },
           ".cm-activeLine, .cm-activeLineGutter": { backgroundColor: "#f5f5fe" },
-          ".cm-tooltip": { border: "1px solid #ddd", borderRadius: "2px" },
+          ".cm-tooltip": { border: "1px solid #e5e5e5", borderRadius: "2px" },
           ".cm-tooltip-autocomplete > ul > li[aria-selected]": {
             backgroundColor: "#ececfe",
             color: "#000091",
@@ -132,3 +132,18 @@ onBeforeUnmount(() => view?.destroy());
 <template>
   <div ref="host" class="sql-code-editor w-full bg-white" />
 </template>
+
+<style scoped>
+.sql-code-editor {
+  position: relative;
+}
+
+.sql-code-editor:focus-within::after {
+  border: 2px solid #000091;
+  content: "";
+  inset: 0;
+  pointer-events: none;
+  position: absolute;
+  z-index: 10;
+}
+</style>

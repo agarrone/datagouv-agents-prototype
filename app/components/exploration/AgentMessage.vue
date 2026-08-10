@@ -20,6 +20,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   applyProposal: [toolCallId: string, sql: string, title: string];
+  clarify: [toolCallId: string, choice: string];
   edit: [messageId: string, content: string];
 }>();
 
@@ -82,14 +83,6 @@ const toolLabel = (type: string) => ({
   "tool-create_chart": "Création du graphique",
   "tool-create_map": "Création de la carte",
 }[type] ?? "Opération");
-const toolIcon = (type: string) => ({
-  "tool-inspect_schema": "ri-table-line",
-  "tool-get_dataset_metadata": "ri-file-info-line",
-  "tool-execute_sql": "ri-terminal-box-line",
-  "tool-propose_explorer_view": "ri-filter-3-line",
-  "tool-create_chart": "ri-bar-chart-box-line",
-  "tool-create_map": "ri-map-2-line",
-}[type] ?? "ri-tools-line");
 const chartTypeLabel = (type: string | undefined) => ({
   bar: "un graphique à barres",
   line: "un graphique en courbes",
@@ -135,10 +128,10 @@ type ToolDetail = { label: string; value: string };
 type ToolTraceEntry = {
   id: string;
   label: string;
-  icon: string;
   description?: string;
   summary: string;
-  sql?: string;
+  code?: string;
+  codeLanguage?: "SQL" | "JSON";
   error?: boolean;
   details?: ToolDetail[];
 };
@@ -149,6 +142,12 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function stringValue(value: unknown, fallback = "Non renseigné") {
   return typeof value === "string" && value.trim() ? value : fallback;
+}
+
+function clarificationChoices(value: unknown): string[] {
+  return Array.isArray(value)
+    ? value.filter((choice): choice is string => typeof choice === "string" && Boolean(choice.trim()))
+    : [];
 }
 
 function chartToolDetails(input: unknown): ToolDetail[] | undefined {
@@ -192,7 +191,14 @@ const toolTraceEntries = computed<ToolTraceEntry[]>(() => displayedToolParts.val
   const base = {
     id: `${part.type}-${"toolCallId" in part ? part.toolCallId : index}`,
     label: toolLabel(part.type),
-    icon: toolIcon(part.type),
+    code: part.type === "tool-execute_sql" || part.type === "tool-propose_explorer_view"
+      ? "input" in part ? part.input?.sql : undefined
+      : part.type === "tool-create_chart" || part.type === "tool-create_map"
+        ? "input" in part && part.input ? JSON.stringify(part.input, null, 2) : undefined
+        : undefined,
+    codeLanguage: part.type === "tool-create_chart" || part.type === "tool-create_map"
+      ? "JSON" as const
+      : "SQL" as const,
   };
   if (part.state === "output-error") {
     return { ...base, summary: part.errorText, error: true };
@@ -224,7 +230,6 @@ const toolTraceEntries = computed<ToolTraceEntry[]>(() => displayedToolParts.val
     return {
       ...base,
       description: "input" in part ? part.input?.purpose : undefined,
-      sql: "input" in part ? part.input?.sql : undefined,
       summary: part.state === "output-available"
         ? `${part.output.rowCount.toLocaleString("fr-FR")} ligne${part.output.rowCount > 1 ? "s" : ""} · ${part.output.elapsedMs} ms${part.output.truncated ? " · résultat limité" : ""}`
         : "Exécution en cours",
@@ -237,7 +242,6 @@ const toolTraceEntries = computed<ToolTraceEntry[]>(() => displayedToolParts.val
     return {
       ...base,
       description: "input" in part ? part.input?.reason : undefined,
-      sql: "input" in part ? part.input?.sql : undefined,
       summary: part.state === "output-available"
         ? `Vue prête · ${part.output.rowCount.toLocaleString("fr-FR")} lignes`
         : "Préparation en cours",
@@ -319,18 +323,18 @@ const observableReasoning = computed(() => {
     :data-message-role="message.role"
   >
     <template v-if="message.role === 'user'">
-      <p class="max-w-full whitespace-pre-wrap rounded bg-[#eee] px-3 py-2 leading-5 text-[#161616]">
+      <p class="max-w-full whitespace-pre-wrap rounded-md bg-[#f6f6f6] px-3 py-2 leading-5 text-[#161616]">
         {{ userText }}
       </p>
       <div class="user-prompt-actions flex h-6 items-center justify-end gap-0.5" aria-label="Actions sur la question">
         <time
           v-if="messageTime"
           :datetime="message.metadata?.createdAt"
-          class="mr-1 text-[10px] tabular-nums text-[#777]"
+          class="mr-1 text-[11px] tabular-nums text-[#777777]"
         >{{ messageTime }}</time>
         <button
           :aria-label="copiedUserMessage ? 'Question copiée' : 'Copier la question'"
-          class="agent-focusable agent-pressable flex h-6 w-6 items-center justify-center rounded text-[#666] hover:bg-[#ddd] hover:text-[#161616]"
+          class="agent-focusable agent-pressable flex h-6 w-6 items-center justify-center rounded-md text-[#555555] hover:bg-[#e5e5e5] hover:text-[#161616]"
           :title="copiedUserMessage ? 'Copié' : 'Copier'"
           type="button"
           @click="copyUserMessage"
@@ -338,18 +342,18 @@ const observableReasoning = computed(() => {
           <i
             aria-hidden="true"
             :class="copiedUserMessage ? 'ri-check-line' : 'ri-file-copy-line'"
-            class="text-[12px] leading-none"
+            class="text-sm leading-none"
           />
         </button>
         <button
           v-if="canEdit"
           aria-label="Modifier la dernière question"
-          class="agent-focusable agent-pressable flex h-6 w-6 items-center justify-center rounded text-[#666] hover:bg-[#ddd] hover:text-[#161616]"
+          class="agent-focusable agent-pressable flex h-6 w-6 items-center justify-center rounded-md text-[#555555] hover:bg-[#e5e5e5] hover:text-[#161616]"
           title="Modifier"
           type="button"
           @click="emit('edit', message.id, userText)"
         >
-          <i aria-hidden="true" class="ri-edit-line text-[12px] leading-none" />
+          <i aria-hidden="true" class="ri-edit-line text-sm leading-none" />
         </button>
         <span class="sr-only" aria-live="polite">{{ copiedUserMessage ? "Question copiée" : "" }}</span>
       </div>
@@ -367,7 +371,7 @@ const observableReasoning = computed(() => {
           icon="ri-brain-line"
           :title="`Analyse terminée · ${toolTraceEntries.length} ${toolTraceEntries.length > 1 ? 'étapes' : 'étape'}`"
         >
-          <p v-if="observableReasoning" class="pb-2 text-[11px] leading-5 text-[#666]">
+          <p v-if="observableReasoning" class="pb-2 text-[11px] leading-5 text-[#555555]">
             {{ observableReasoning }}
           </p>
           <ol class="space-y-1.5 border-t border-[#e5e5e5] pb-1 pt-2">
@@ -377,9 +381,9 @@ const observableReasoning = computed(() => {
               :description="entry.description"
               :details="entry.details"
               :error="entry.error"
-              :icon="entry.icon"
+              :code="entry.code"
+              :code-language="entry.codeLanguage"
               :label="entry.label"
-              :sql="entry.sql"
               :summary="entry.summary"
             />
           </ol>
@@ -395,6 +399,20 @@ const observableReasoning = computed(() => {
         :content="part.text"
         :streaming="responding"
       />
+
+      <template
+        v-for="part in message.parts.filter(item => item.type === 'tool-request_clarification')"
+        :key="part.toolCallId"
+      >
+        <ExplorationAgentClarification
+          v-if="'input' in part && part.input?.question && part.input.choices?.length"
+          :choices="clarificationChoices(part.input.choices)"
+          :disabled="responding && part.state !== 'input-available'"
+          :question="part.input.question"
+          :selected="part.state === 'output-available' ? part.output.choice : undefined"
+          @select="emit('clarify', part.toolCallId, $event)"
+        />
+      </template>
 
       <template
         v-for="part in message.parts.filter(item => item.type === 'tool-propose_explorer_view')"

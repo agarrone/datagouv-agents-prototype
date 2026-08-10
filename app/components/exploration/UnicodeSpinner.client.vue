@@ -60,7 +60,7 @@ onBeforeUnmount(() => {
 <template>
   <span
     aria-hidden="true"
-    class="inline-flex shrink-0 justify-center font-mono text-[1em] font-normal leading-none text-[#777] tabular-nums"
+    class="inline-flex shrink-0 justify-center font-mono text-[1em] font-normal leading-none text-[#777777] tabular-nums"
     :style="{ width: `${frameWidth}ch` }"
   >
     {{ frame }}

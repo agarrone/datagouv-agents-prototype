@@ -41,6 +41,7 @@ export interface ExplorerViewResult extends DatasetQueryResult {
 }
 
 export type ChartType = "bar" | "line" | "area" | "pie" | "scatter";
+export type MapBasemap = "standard" | "light" | "dark";
 
 export interface ChartSeriesSpec {
   field: string;

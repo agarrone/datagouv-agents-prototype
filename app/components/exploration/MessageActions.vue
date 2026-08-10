@@ -64,10 +64,10 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <footer class="mt-2 flex min-h-6 flex-wrap items-center gap-1 text-[#5d5d5d]">
+  <footer class="mt-2 flex min-h-6 flex-wrap items-center gap-1 text-[#555555]">
     <button
       :aria-label="copied ? 'Réponse copiée' : 'Copier la réponse'"
-      class="agent-focusable agent-pressable flex h-6 w-6 items-center justify-center rounded hover:bg-[#f6f6f6] hover:text-[#000091]"
+      class="agent-focusable agent-pressable flex h-6 w-6 items-center justify-center rounded-md hover:bg-[#f6f6f6] hover:text-[#000091]"
       :title="copied ? 'Copié' : 'Copier'"
       type="button"
       @click="copyResponse"
@@ -83,12 +83,12 @@ onBeforeUnmount(() => {
         />
       </span>
     </button>
-    <span aria-hidden="true" class="mx-1 h-3 w-px bg-[#ddd]" />
+    <span aria-hidden="true" class="mx-1 h-3 w-px bg-[#e5e5e5]" />
     <button
       aria-label="Réponse utile"
       :aria-pressed="rating === 'useful'"
       :disabled="feedbackStatus === 'sending' || feedbackStatus === 'sent'"
-      class="agent-focusable agent-pressable flex h-6 w-6 items-center justify-center rounded hover:bg-[#f6f6f6] hover:text-[#000091]"
+      class="agent-focusable agent-pressable flex h-6 w-6 items-center justify-center rounded-md hover:bg-[#f6f6f6] hover:text-[#000091]"
       :class="rating === 'useful' ? 'bg-[#e3fdeb] text-[#18753c]' : ''"
       title="Utile"
       type="button"
@@ -100,8 +100,8 @@ onBeforeUnmount(() => {
       aria-label="Réponse inutile"
       :aria-pressed="rating === 'not-useful'"
       :disabled="feedbackStatus === 'sending' || feedbackStatus === 'sent'"
-      class="agent-focusable agent-pressable flex h-6 w-6 items-center justify-center rounded hover:bg-[#f6f6f6] hover:text-[#000091]"
-      :class="rating === 'not-useful' ? 'bg-[#fef4f4] text-[#e1000f]' : ''"
+      class="agent-focusable agent-pressable flex h-6 w-6 items-center justify-center rounded-md hover:bg-[#f6f6f6] hover:text-[#000091]"
+      :class="rating === 'not-useful' ? 'bg-[#fef4f4] text-[#ce0500]' : ''"
       title="Inutile"
       type="button"
       @click="sendFeedback('not-useful')"
@@ -110,7 +110,7 @@ onBeforeUnmount(() => {
     </button>
     <span
       v-if="feedbackStatus === 'sending'"
-      class="ml-2 text-[11px] text-[#666]"
+      class="ml-2 text-[11px] text-[#555555]"
     >Envoi…</span>
     <span
       v-else-if="feedbackStatus === 'sent'"

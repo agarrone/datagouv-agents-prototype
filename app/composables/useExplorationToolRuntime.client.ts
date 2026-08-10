@@ -34,6 +34,12 @@ export function useExplorationToolRuntime(
     if (toolCall.dynamic) return;
 
     try {
+      if (toolCall.toolName === "request_clarification") {
+        // Ce tool attend un choix explicite dans l’interface. Sa sortie est
+        // ajoutée par la page lorsque l’utilisateur sélectionne une suggestion.
+        return;
+      }
+
       if (toolCall.toolName === "inspect_schema") {
         const output = await dataset.inspectSchema();
         void addToolOutput({

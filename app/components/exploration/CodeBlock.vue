@@ -30,12 +30,12 @@ onBeforeUnmount(() => clearTimeout(copyTimer));
 
 <template>
   <details v-if="collapsible" class="group mt-1" :open="open">
-    <summary class="cursor-pointer list-none text-[11px] text-[#666] hover:text-[#000091]">
+    <summary class="cursor-pointer list-none text-[11px] text-[#555555] hover:text-[#000091]">
       <span class="group-open:hidden">Afficher la requête SQL</span>
       <span class="hidden group-open:inline">Masquer la requête SQL</span>
     </summary>
     <div class="agent-inset-surface mt-2 overflow-hidden">
-      <div class="flex min-h-8 items-center justify-between border-b border-[#ddd] px-2.5 text-[11px] text-[#666]">
+      <div class="flex min-h-8 items-center justify-between border-b border-[#e5e5e5] px-2.5 text-[11px] text-[#555555]">
         <span class="font-mono uppercase">{{ language }}</span>
         <button class="inline-flex items-center gap-1 hover:text-[#000091]" type="button" @click="copyCode">
           <i aria-hidden="true" :class="copied ? 'ri-check-line' : 'ri-file-copy-line'" class="text-sm leading-none" />
@@ -48,7 +48,7 @@ onBeforeUnmount(() => clearTimeout(copyTimer));
     </div>
   </details>
   <div v-else class="agent-inset-surface overflow-hidden">
-    <div class="flex min-h-8 items-center justify-between border-b border-[#ddd] px-2.5 text-[11px] text-[#666]">
+    <div class="flex min-h-8 items-center justify-between border-b border-[#e5e5e5] px-2.5 text-[11px] text-[#555555]">
       <span class="font-mono uppercase">{{ language }}</span>
       <button class="inline-flex items-center gap-1 hover:text-[#000091]" type="button" @click="copyCode">
         <i aria-hidden="true" :class="copied ? 'ri-check-line' : 'ri-file-copy-line'" class="text-sm leading-none" />

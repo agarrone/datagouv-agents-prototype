@@ -1,5 +1,10 @@
 @import "tailwindcss";
 @import "remixicon/fonts/remixicon.css";
+@import "@fontsource-variable/geist-mono/wght.css";
+
+@theme {
+  --font-mono: "Geist Mono Variable", "Geist Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
 
 :root {
   color: #161616;
@@ -28,8 +33,8 @@
   --reveal-ease: var(--ease-in-out);
 
   /* Agent component surfaces */
-  --agent-border-strong: #c6c6c6;
-  --agent-border: #dddddd;
+  --agent-border-strong: #e5e5e5;
+  --agent-border: #e5e5e5;
   --agent-border-soft: #e5e5e5;
   --agent-radius-card: 6px;
   --agent-radius-inner: 2px;
@@ -42,8 +47,8 @@
   --icon-swap-start-scale: 0.25;
   --icon-swap-ease: var(--ease-in-out);
   --shimmer-dur: 2000ms;
-  --shimmer-base: #777;
-  --shimmer-highlight: #3a3a3a;
+  --shimmer-base: #777777;
+  --shimmer-highlight: #555555;
   --shimmer-band: 400%;
   --shimmer-ease: var(--ease-linear);
   --acc-expand: var(--duration-fast);
@@ -68,7 +73,14 @@ body {
 button,
 input,
 textarea {
-  font: inherit;
+  font-family: inherit;
+}
+
+code,
+kbd,
+pre,
+samp {
+  font-family: var(--font-mono);
 }
 
 .agent-surface {
@@ -84,7 +96,7 @@ textarea {
 }
 
 .agent-surface-interactive:hover {
-  border-color: #929292;
+  border-color: #777777;
   box-shadow: 0 1px 2px rgb(0 0 0 / 4%);
 }
 
@@ -96,7 +108,7 @@ textarea {
 
 /* Syntax highlighting — palette aligned with the restrained data.gouv.fr UI. */
 .hljs {
-  color: #3a3a3a;
+  color: #555555;
 }
 
 .hljs-keyword,
@@ -136,7 +148,7 @@ textarea {
 
 .hljs-comment,
 .hljs-quote {
-  color: #777;
+  color: #777777;
   font-style: italic;
 }
 

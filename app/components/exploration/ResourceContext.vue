@@ -16,7 +16,7 @@ const open = ref(false);
   >
     <button
       :aria-expanded="open"
-      class="agent-focusable flex h-8 w-full items-center gap-1.5 px-2 text-left text-[11px] leading-4 text-[#666] transition-colors duration-150 hover:bg-black/[0.025] hover:text-[#161616]"
+      class="agent-focusable flex h-7 w-full items-center gap-1.5 px-2.5 text-left text-[12px] leading-[1.35] text-[#555555] transition-colors duration-150 hover:bg-black/[0.025] hover:text-[#161616]"
       type="button"
       @click="open = !open"
     >
@@ -29,11 +29,11 @@ const open = ref(false);
     </button>
     <div class="resource-context-panel grid grid-rows-[0fr] transition-[grid-template-rows] duration-200 ease-out" :class="open ? 'grid-rows-[1fr]' : ''">
       <div class="min-h-0 overflow-hidden">
-        <div class="flex min-w-0 items-center gap-1.5 overflow-x-auto px-2 pb-2">
+        <div class="flex min-w-0 items-center gap-1.5 overflow-x-auto px-2 pb-2 pt-1.5">
           <span class="inline-flex h-7 min-w-0 max-w-full shrink-0 cursor-default items-center gap-1.5 rounded border border-[#cacafb] bg-[#ececfe] px-2 text-[#000091]" :title="title">
             <i aria-hidden="true" class="ri-table-line shrink-0 text-sm leading-none" />
-            <span class="max-w-64 truncate text-[12px] font-medium leading-4 max-sm:max-w-44">{{ title }}</span>
-            <span class="shrink-0 border-l border-[#cacafb] pl-1.5 text-[10px] uppercase leading-4">{{ format ?? 'PARQUET' }}</span>
+            <span class="max-w-64 truncate text-[12px] font-medium leading-[1.35] max-sm:max-w-44">{{ title }}</span>
+            <span class="shrink-0 border-l border-[#cacafb] pl-1.5 text-[11px] uppercase leading-4">{{ format ?? 'PARQUET' }}</span>
           </span>
         </div>
       </div>

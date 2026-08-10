@@ -12,6 +12,7 @@ import type {
 } from "geojson";
 import type {
   DatasetRow,
+  MapBasemap,
   MapSpec,
 } from "~~/shared/types/exploration";
 import {
@@ -24,6 +25,7 @@ const props = defineProps<{
   rows: DatasetRow[];
   truncated: boolean;
   source?: string;
+  basemap?: MapBasemap;
   playCompletionSound?: boolean;
 }>();
 
@@ -42,22 +44,11 @@ let previousBodyOverflow = "";
 const sourceId = "agent-map-data";
 const interactiveLayers = ["agent-fill", "agent-line", "agent-points"];
 
-const baseStyle = {
-  version: 8 as const,
-  sources: {
-    osm: {
-      type: "raster" as const,
-      tiles: ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"],
-      tileSize: 256,
-      attribution: "© OpenStreetMap contributors",
-    },
-  },
-  layers: [{
-    id: "osm",
-    type: "raster" as const,
-    source: "osm",
-  }],
-};
+const basemapStyle = computed(() => ({
+  standard: "https://tiles.openfreemap.org/styles/bright",
+  light: "https://tiles.openfreemap.org/styles/positron",
+  dark: "https://tiles.openfreemap.org/styles/dark",
+})[props.basemap ?? "standard"]);
 
 function asNumber(value: unknown) {
   const number = typeof value === "number" ? value : Number(value);
@@ -260,6 +251,13 @@ function showPopup(feature: MapGeoJSONFeature, longitude: number, latitude: numb
     .addTo(map);
 }
 
+function collapseAttribution() {
+  const control = map?.getContainer().querySelector<HTMLDetailsElement>(
+    "details.maplibregl-ctrl-attrib",
+  );
+  if (control) control.open = false;
+}
+
 async function renderMap() {
   if (!mapElement.value) return;
   mapError.value = null;
@@ -272,10 +270,10 @@ async function renderMap() {
   if (!map) {
     map = new maplibre.Map({
       container: mapElement.value,
-      style: baseStyle,
+      style: basemapStyle.value,
       center: [2.2, 46.5],
       zoom: 4.2,
-      attributionControl: {},
+      attributionControl: { compact: true },
     });
     map.addControl(
       new maplibre.NavigationControl({ showCompass: false }),
@@ -284,7 +282,11 @@ async function renderMap() {
     map.on("error", (event) => {
       mapError.value = event.error?.message ?? "La carte n’a pas pu être chargée.";
     });
-    map.on("load", () => updateSource(geojson));
+    collapseAttribution();
+    map.on("load", () => {
+      collapseAttribution();
+      updateSource(geojson);
+    });
     return;
   }
   if (map.loaded()) updateSource(geojson);
@@ -331,7 +333,9 @@ function updateSource(geojson: FeatureCollection) {
       filter: ["in", ["geometry-type"], ["literal", ["LineString", "Polygon"]]],
       paint: {
         "line-color": "#000091",
-        "line-width": 2,
+        "line-width": props.spec.type === "choropleth"
+          ? props.spec.boundary === "france-departments" ? 0.45 : 0.7
+          : 2,
       },
     });
     map.addLayer({
@@ -366,7 +370,10 @@ function updateSource(geojson: FeatureCollection) {
 
   if (!maplibre) return;
   const bounds = new maplibre.LngLatBounds();
-  geojson.features.forEach((feature) => {
+  const featuresToFit = props.spec.type === "choropleth"
+    ? geojson.features.filter(feature => feature.properties?.value !== null)
+    : geojson.features;
+  featuresToFit.forEach((feature) => {
     if (feature.geometry.type === "GeometryCollection") {
       feature.geometry.geometries.forEach((geometry) => {
         if ("coordinates" in geometry) extendBounds(bounds, geometry.coordinates);
@@ -445,7 +452,7 @@ onBeforeUnmount(() => {
     >
       <ExplorationResultCard
         class="flex h-full flex-col"
-        :content-class="isFullscreen ? 'min-h-0 flex-1 p-5' : 'p-5'"
+        :content-class="isFullscreen ? 'min-h-0 flex-1' : ''"
         :description="spec.description"
         :source="source"
         :title="spec.title"
@@ -453,7 +460,7 @@ onBeforeUnmount(() => {
         <template #actions>
           <button
             :aria-label="isFullscreen ? 'Quitter le plein écran' : 'Afficher la carte en plein écran'"
-            class="agent-focusable flex h-8 shrink-0 items-center justify-center gap-2 border border-[#e5e5e5] bg-white text-[12px] font-medium text-[#3a3a3a] hover:bg-[#f6f6f6]"
+            class="agent-focusable flex h-8 shrink-0 items-center justify-center gap-2 border border-[#e5e5e5] bg-white text-[12px] font-medium text-[#555555] hover:bg-[#f6f6f6]"
             :class="isFullscreen ? 'px-3' : 'w-8'"
             :title="isFullscreen ? 'Quitter le plein écran' : 'Afficher en plein écran'"
             type="button"
@@ -463,15 +470,15 @@ onBeforeUnmount(() => {
             <span v-if="isFullscreen">Réduire</span>
           </button>
         </template>
-        <div class="relative w-full overflow-hidden border border-[#e5e5e5]" :class="isFullscreen ? 'h-full min-h-0' : 'h-72'">
+        <div class="relative w-full overflow-hidden" :class="isFullscreen ? 'h-full min-h-0' : 'h-72'">
           <div ref="mapElement" class="h-full w-full" />
           <div
             v-if="spec.type === 'choropleth' && legendRange"
-            class="absolute bottom-3 left-3 z-10 w-36 rounded-sm border border-[#929292] bg-white p-3 text-[12px] shadow-sm"
+            class="absolute bottom-3 left-3 z-10 w-36 rounded-md border border-[#e5e5e5] bg-white p-3 text-[12px] shadow-sm"
           >
             <p class="mb-2 font-semibold">{{ spec.valueLabel }}</p>
             <div class="h-2 bg-gradient-to-r from-[#ececfe] to-[#000091]" />
-            <div class="mt-1 flex justify-between gap-2 text-[#666]">
+            <div class="mt-1 flex justify-between gap-2 text-[#555555]">
               <span>{{ legendRange[0].toLocaleString("fr-FR") }}</span>
               <span>{{ legendRange[1].toLocaleString("fr-FR") }}</span>
             </div>
@@ -490,8 +497,8 @@ onBeforeUnmount(() => {
 
 <style scoped>
 :deep(.maplibregl-popup-content) {
-  border: 1px solid #929292;
-  border-radius: 4px;
+  border: 1px solid #e5e5e5;
+  border-radius: 6px;
   box-shadow: 0 2px 8px rgb(0 0 0 / 16%);
   font-family: Marianne, Arial, sans-serif;
   padding: 12px;
@@ -502,7 +509,7 @@ onBeforeUnmount(() => {
 }
 
 :deep(.agent-map-popup-value) {
-  color: #666;
+  color: #555555;
   margin: 4px 0 0;
 }
 
@@ -511,6 +518,6 @@ onBeforeUnmount(() => {
 }
 
 :deep(.agent-map-popup-detail span) {
-  color: #666;
+  color: #555555;
 }
 </style>
