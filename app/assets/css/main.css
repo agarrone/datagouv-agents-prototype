@@ -19,6 +19,14 @@
   --distance-base: 8px;
   --blur-small: 2px;
 
+  /* Skeleton → visualisation reveal */
+  --pulse-dur: 1000ms;
+  --pulse-count: 1;
+  --pulse-min: 0.5;
+  --reveal-dur: var(--duration-slow);
+  --reveal-blur: var(--blur-small);
+  --reveal-ease: var(--ease-in-out);
+
   /* Agent component surfaces */
   --agent-border-strong: #c6c6c6;
   --agent-border: #dddddd;

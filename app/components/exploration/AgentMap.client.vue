@@ -23,10 +23,12 @@ const props = defineProps<{
   spec: MapSpec;
   rows: DatasetRow[];
   truncated: boolean;
+  source?: string;
   playCompletionSound?: boolean;
 }>();
 
 const mapElement = ref<HTMLElement | null>(null);
+const isFullscreen = ref(false);
 const { playUiSound } = useUiSound();
 const renderedCount = ref(0);
 const mapError = ref<string | null>(null);
@@ -35,6 +37,7 @@ let maplibre: typeof import("maplibre-gl") | undefined;
 let map: import("maplibre-gl").Map | undefined;
 let resizeObserver: ResizeObserver | undefined;
 let completionSoundPlayed = false;
+let previousBodyOverflow = "";
 
 const sourceId = "agent-map-data";
 const interactiveLayers = ["agent-fill", "agent-line", "agent-points"];
@@ -402,6 +405,22 @@ onMounted(() => {
     resizeObserver = new ResizeObserver(() => map?.resize());
     resizeObserver.observe(mapElement.value);
   }
+  document.addEventListener("keydown", handleEscape);
+});
+
+function handleEscape(event: KeyboardEvent) {
+  if (event.key === "Escape" && isFullscreen.value) isFullscreen.value = false;
+}
+
+watch(isFullscreen, async (fullscreen) => {
+  if (fullscreen) {
+    previousBodyOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+  } else {
+    document.body.style.overflow = previousBodyOverflow;
+  }
+  await nextTick();
+  map?.resize();
 });
 
 watch(
@@ -411,44 +430,62 @@ watch(
 );
 
 onBeforeUnmount(() => {
+  document.removeEventListener("keydown", handleEscape);
+  if (isFullscreen.value) document.body.style.overflow = previousBodyOverflow;
   resizeObserver?.disconnect();
   map?.remove();
 });
 </script>
 
 <template>
-  <ExplorationResultCard
-    content-class="p-5"
-    :description="spec.description"
-    eyebrow="Carte"
-    :title="spec.title"
-  >
-    <div class="relative h-72 w-full overflow-hidden border border-[#e5e5e5]">
-      <div ref="mapElement" class="h-full w-full" />
-      <div
-        v-if="spec.type === 'choropleth' && legendRange"
-        class="absolute bottom-3 left-3 z-10 w-36 rounded-sm border border-[#929292] bg-white p-3 text-[12px] shadow-sm"
+  <Teleport to="body" :disabled="!isFullscreen">
+    <div
+      :class="isFullscreen ? 'fixed inset-0 z-[150] bg-white' : ''"
+      :data-fullscreen="isFullscreen ? 'true' : 'false'"
+    >
+      <ExplorationResultCard
+        class="flex h-full flex-col"
+        :content-class="isFullscreen ? 'min-h-0 flex-1 p-5' : 'p-5'"
+        :description="spec.description"
+        :source="source"
+        :title="spec.title"
       >
-        <p class="mb-2 font-semibold">{{ spec.valueLabel }}</p>
-        <div class="h-2 bg-gradient-to-r from-[#ececfe] to-[#000091]" />
-        <div class="mt-1 flex justify-between gap-2 text-[#666]">
-          <span>{{ legendRange[0].toLocaleString("fr-FR") }}</span>
-          <span>{{ legendRange[1].toLocaleString("fr-FR") }}</span>
+        <template #actions>
+          <button
+            :aria-label="isFullscreen ? 'Quitter le plein écran' : 'Afficher la carte en plein écran'"
+            class="agent-focusable flex h-8 shrink-0 items-center justify-center gap-2 border border-[#e5e5e5] bg-white text-[12px] font-medium text-[#3a3a3a] hover:bg-[#f6f6f6]"
+            :class="isFullscreen ? 'px-3' : 'w-8'"
+            :title="isFullscreen ? 'Quitter le plein écran' : 'Afficher en plein écran'"
+            type="button"
+            @click="isFullscreen = !isFullscreen"
+          >
+            <i aria-hidden="true" :class="isFullscreen ? 'ri-fullscreen-exit-line' : 'ri-fullscreen-line'" class="text-base leading-none" />
+            <span v-if="isFullscreen">Réduire</span>
+          </button>
+        </template>
+        <div class="relative w-full overflow-hidden border border-[#e5e5e5]" :class="isFullscreen ? 'h-full min-h-0' : 'h-72'">
+          <div ref="mapElement" class="h-full w-full" />
+          <div
+            v-if="spec.type === 'choropleth' && legendRange"
+            class="absolute bottom-3 left-3 z-10 w-36 rounded-sm border border-[#929292] bg-white p-3 text-[12px] shadow-sm"
+          >
+            <p class="mb-2 font-semibold">{{ spec.valueLabel }}</p>
+            <div class="h-2 bg-gradient-to-r from-[#ececfe] to-[#000091]" />
+            <div class="mt-1 flex justify-between gap-2 text-[#666]">
+              <span>{{ legendRange[0].toLocaleString("fr-FR") }}</span>
+              <span>{{ legendRange[1].toLocaleString("fr-FR") }}</span>
+            </div>
+          </div>
+          <div
+            v-if="mapError"
+            class="absolute inset-0 flex items-center justify-center bg-[#fef4f4] p-5 text-center text-[13px] text-[#ce0500]"
+          >
+            {{ mapError }}
+          </div>
         </div>
-      </div>
-      <div
-        v-if="mapError"
-        class="absolute inset-0 flex items-center justify-center bg-[#fef4f4] p-5 text-center text-[13px] text-[#ce0500]"
-      >
-        {{ mapError }}
-      </div>
+      </ExplorationResultCard>
     </div>
-    <template #footer>
-      <span>{{ renderedCount }} entités affichées</span>
-      <span v-if="truncated">Résultat limité aux 5 000 premières lignes</span>
-      <span v-else>Données calculées localement</span>
-    </template>
-  </ExplorationResultCard>
+  </Teleport>
 </template>
 
 <style scoped>

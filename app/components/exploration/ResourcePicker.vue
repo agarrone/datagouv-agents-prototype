@@ -29,17 +29,17 @@ const emit = defineEmits<{
           v-for="resource in resources"
           :key="resource.id"
           :aria-pressed="selected?.id === resource.id"
-          class="flex w-full items-center justify-between gap-4 border bg-white px-4 py-3 text-left transition-colors"
+          class="flex w-full items-center justify-between gap-3 border bg-white px-3 py-2 text-left transition-colors"
           :class="selected?.id === resource.id ? 'border-[#000091] bg-[#f5f5fe]' : 'border-[#ddd] hover:border-[#8585f6]'"
           :disabled="loading"
           type="button"
           @click="emit('select', resource)"
         >
           <span class="min-w-0">
-            <strong class="block text-sm">{{ resource.title }}</strong>
-            <span class="mt-1 block text-xs text-[#666]">{{ resource.organization }}</span>
+            <strong class="block text-[13px] leading-5">{{ resource.title }}</strong>
+            <span class="mt-0.5 block text-[11px] leading-4 text-[#666]">{{ resource.organization }}</span>
           </span>
-          <span class="shrink-0 text-sm" :class="selected?.id === resource.id ? 'text-[#000091]' : 'text-[#666]'">
+          <span class="shrink-0 text-[11px]" :class="selected?.id === resource.id ? 'text-[#000091]' : 'text-[#666]'">
             {{ selected?.id === resource.id ? "Sélectionnée" : "Choisir" }}
           </span>
         </button>
@@ -47,7 +47,7 @@ const emit = defineEmits<{
       <p v-if="error" class="mt-4 border-l-4 border-[#e1000f] bg-[#fef4f4] p-3 text-left text-sm">{{ error }}</p>
       <div class="mt-6 flex justify-end">
         <button
-          class="bg-[#000091] px-5 py-3 font-bold text-white disabled:cursor-not-allowed disabled:bg-[#929292]"
+          class="h-8 rounded-sm bg-[#000091] px-3 text-[12px] font-medium text-white disabled:cursor-not-allowed disabled:bg-[#929292]"
           :disabled="loading || !selected"
           type="button"
           @click="emit('load')"

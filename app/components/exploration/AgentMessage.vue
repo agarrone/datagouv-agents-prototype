@@ -8,6 +8,7 @@ const props = defineProps<{
   message: ExplorationMessage;
   responding?: boolean;
   canEdit?: boolean;
+  source?: string;
   feedbackContext?: {
     question: string;
     resource: string;
@@ -81,40 +82,48 @@ const toolLabel = (type: string) => ({
   "tool-create_chart": "Création du graphique",
   "tool-create_map": "Création de la carte",
 }[type] ?? "Opération");
-const progressSteps = computed<AgentProgressStep[]>(() => toolParts.value.map(part => ({
-  label: toolLabel(part.type),
-  status: part.state === "output-available"
-    ? "complete"
-    : part.state === "output-error"
-      ? "error"
-      : part.state === "input-streaming" || part.state === "input-available"
-        ? "active"
-        : "pending",
-})));
-const observableReasoning = computed(() => {
-  const labels: string[] = [];
-  if (toolParts.value.some(part => part.type === "tool-inspect_schema")) {
-    labels.push("la structure et les colonnes disponibles");
+const toolIcon = (type: string) => ({
+  "tool-inspect_schema": "ri-table-line",
+  "tool-get_dataset_metadata": "ri-file-info-line",
+  "tool-execute_sql": "ri-terminal-box-line",
+  "tool-propose_explorer_view": "ri-filter-3-line",
+  "tool-create_chart": "ri-bar-chart-box-line",
+  "tool-create_map": "ri-map-2-line",
+}[type] ?? "ri-tools-line");
+const chartTypeLabel = (type: string | undefined) => ({
+  bar: "un graphique à barres",
+  line: "un graphique en courbes",
+  area: "un graphique en aires",
+  pie: "un graphique en secteurs",
+  scatter: "un nuage de points",
+}[type ?? ""] ?? "un graphique");
+const progressSteps = computed<AgentProgressStep[]>(() => {
+  const steps = displayedToolParts.value.map((part) => {
+    const recoveredError = part.state === "output-error" && props.responding;
+    return {
+      label: recoveredError
+        ? part.type === "tool-execute_sql"
+          ? "Ajustement de la requête SQL"
+          : `Ajustement : ${toolLabel(part.type).toLocaleLowerCase("fr-FR")}`
+        : toolLabel(part.type),
+      status: part.state === "output-available" || recoveredError
+        ? "complete" as const
+        : part.state === "output-error"
+          ? "error" as const
+          : part.state === "input-streaming" || part.state === "input-available"
+            ? "active" as const
+            : "pending" as const,
+    };
+  });
+
+  if (props.responding && !toolsActive.value) {
+    steps.push({
+      label: assistantText.value ? "Finalisation de la réponse" : "Poursuite de l’analyse",
+      status: "active",
+    });
   }
-  if (toolParts.value.some(part => part.type === "tool-get_dataset_metadata")) {
-    labels.push("les métadonnées de la ressource");
-  }
-  if (toolParts.value.some(part => part.type === "tool-execute_sql")) {
-    labels.push("les résultats d’une requête exécutée sur les données");
-  }
-  if (toolParts.value.some(part => part.type === "tool-create_chart")) {
-    labels.push("la représentation graphique demandée");
-  }
-  if (toolParts.value.some(part => part.type === "tool-create_map")) {
-    labels.push("les informations géographiques nécessaires à la carte");
-  }
-  if (toolParts.value.some(part => part.type === "tool-propose_explorer_view")) {
-    labels.push("une vue applicable à l’explorateur");
-  }
-  if (!labels.length) return "";
-  const last = labels.pop();
-  const inspected = labels.length ? `${labels.join(", ")} et ${last}` : last;
-  return `Pour construire cette réponse, l’assistant a vérifié ${inspected}. Ce résumé décrit uniquement les opérations observables.`;
+
+  return steps;
 });
 const assistantText = computed(() => props.message.parts
   .filter(part => part.type === "text")
@@ -126,6 +135,7 @@ type ToolDetail = { label: string; value: string };
 type ToolTraceEntry = {
   id: string;
   label: string;
+  icon: string;
   description?: string;
   summary: string;
   sql?: string;
@@ -182,6 +192,7 @@ const toolTraceEntries = computed<ToolTraceEntry[]>(() => displayedToolParts.val
   const base = {
     id: `${part.type}-${"toolCallId" in part ? part.toolCallId : index}`,
     label: toolLabel(part.type),
+    icon: toolIcon(part.type),
   };
   if (part.state === "output-error") {
     return { ...base, summary: part.errorText, error: true };
@@ -252,6 +263,51 @@ const toolTraceEntries = computed<ToolTraceEntry[]>(() => displayedToolParts.val
   };
 }));
 
+const observableReasoning = computed(() => {
+  const sentences: string[] = [];
+  const schema = displayedToolParts.value.find(part =>
+    part.type === "tool-inspect_schema" && part.state === "output-available",
+  );
+  const metadata = displayedToolParts.value.find(part =>
+    part.type === "tool-get_dataset_metadata" && part.state === "output-available",
+  );
+  const sqlQueries = displayedToolParts.value.filter(part =>
+    part.type === "tool-execute_sql" && part.state === "output-available",
+  );
+  const lastSql = sqlQueries.at(-1);
+  const chart = displayedToolParts.value.find(part =>
+    part.type === "tool-create_chart" && part.state === "output-available",
+  );
+  const map = displayedToolParts.value.find(part =>
+    part.type === "tool-create_map" && part.state === "output-available",
+  );
+  const proposal = displayedToolParts.value.find(part =>
+    part.type === "tool-propose_explorer_view",
+  );
+
+  if (schema?.type === "tool-inspect_schema") {
+    sentences.push(`Le schéma a été vérifié : ${schema.output.columns.length} colonnes pour ${schema.output.rowCount.toLocaleString("fr-FR")} lignes.`);
+  }
+  if (metadata) {
+    sentences.push("Les métadonnées publiques du jeu de données ont été consultées.");
+  }
+  if (lastSql?.type === "tool-execute_sql") {
+    const purpose = lastSql.input?.purpose?.trim();
+    const queryCount = sqlQueries.length;
+    sentences.push(`${queryCount > 1 ? `${queryCount} requêtes ont été exécutées` : "Une requête a été exécutée"}${purpose ? ` pour ${purpose.charAt(0).toLocaleLowerCase("fr-FR")}${purpose.slice(1)}` : " sur les données"}. Le résultat contient ${lastSql.output.rowCount.toLocaleString("fr-FR")} ligne${lastSql.output.rowCount > 1 ? "s" : ""}.`);
+  }
+  if (chart?.type === "tool-create_chart") {
+    sentences.push(`Ces résultats ont été transformés en ${chartTypeLabel(chart.input?.type)}.`);
+  }
+  if (map?.type === "tool-create_map") {
+    sentences.push(`Ces résultats ont été cartographiés sous forme de ${map.input?.type === "choropleth" ? "carte par territoires" : "carte de points"}.`);
+  }
+  if (proposal) {
+    sentences.push("Une vue distincte a été préparée pour l’explorateur et reste soumise à votre confirmation.");
+  }
+  return sentences.join(" ");
+});
+
 </script>
 
 <template>
@@ -266,7 +322,7 @@ const toolTraceEntries = computed<ToolTraceEntry[]>(() => displayedToolParts.val
       <p class="max-w-full whitespace-pre-wrap rounded bg-[#eee] px-3 py-2 leading-5 text-[#161616]">
         {{ userText }}
       </p>
-      <div class="user-prompt-actions flex h-8 items-center justify-end gap-0.5" aria-label="Actions sur la question">
+      <div class="user-prompt-actions flex h-6 items-center justify-end gap-0.5" aria-label="Actions sur la question">
         <time
           v-if="messageTime"
           :datetime="message.metadata?.createdAt"
@@ -274,7 +330,7 @@ const toolTraceEntries = computed<ToolTraceEntry[]>(() => displayedToolParts.val
         >{{ messageTime }}</time>
         <button
           :aria-label="copiedUserMessage ? 'Question copiée' : 'Copier la question'"
-          class="agent-focusable agent-pressable flex h-8 w-8 items-center justify-center rounded text-[#666] hover:bg-[#ddd] hover:text-[#161616]"
+          class="agent-focusable agent-pressable flex h-6 w-6 items-center justify-center rounded text-[#666] hover:bg-[#ddd] hover:text-[#161616]"
           :title="copiedUserMessage ? 'Copié' : 'Copier'"
           type="button"
           @click="copyUserMessage"
@@ -282,62 +338,50 @@ const toolTraceEntries = computed<ToolTraceEntry[]>(() => displayedToolParts.val
           <i
             aria-hidden="true"
             :class="copiedUserMessage ? 'ri-check-line' : 'ri-file-copy-line'"
-            class="text-sm leading-none"
+            class="text-[12px] leading-none"
           />
         </button>
         <button
           v-if="canEdit"
           aria-label="Modifier la dernière question"
-          class="agent-focusable agent-pressable flex h-8 w-8 items-center justify-center rounded text-[#666] hover:bg-[#ddd] hover:text-[#161616]"
+          class="agent-focusable agent-pressable flex h-6 w-6 items-center justify-center rounded text-[#666] hover:bg-[#ddd] hover:text-[#161616]"
           title="Modifier"
           type="button"
           @click="emit('edit', message.id, userText)"
         >
-          <i aria-hidden="true" class="ri-edit-line text-sm leading-none" />
+          <i aria-hidden="true" class="ri-edit-line text-[12px] leading-none" />
         </button>
         <span class="sr-only" aria-live="polite">{{ copiedUserMessage ? "Question copiée" : "" }}</span>
       </div>
     </template>
 
     <template v-else>
-      <Transition name="agent-analysis-state" mode="out-in">
+      <Transition name="agent-analysis-state">
       <ExplorationAgentProgress
-        v-if="toolsActive"
+        v-if="responding && displayedToolParts.length"
         key="progress"
         :steps="progressSteps"
       />
       <div v-else-if="displayedToolParts.length" key="summary" class="mb-2">
-        <ExplorationReasoning
-          v-if="observableReasoning"
-          :content="observableReasoning"
-        />
         <ExplorationAgentDisclosure
-          class="mt-1"
-          icon="ri-tools-line"
-          :title="`${toolTraceEntries.length} ${toolTraceEntries.length > 1 ? 'outils utilisés' : 'outil utilisé'}`"
+          icon="ri-brain-line"
+          :title="`Analyse terminée · ${toolTraceEntries.length} ${toolTraceEntries.length > 1 ? 'étapes' : 'étape'}`"
         >
-          <ol class="space-y-2 pb-1 pl-[22px] pt-1 text-[11px] leading-5 text-[#666]">
-            <li
-              v-for="(entry, index) in toolTraceEntries"
+          <p v-if="observableReasoning" class="pb-2 text-[11px] leading-5 text-[#666]">
+            {{ observableReasoning }}
+          </p>
+          <ol class="space-y-1.5 border-t border-[#e5e5e5] pb-1 pt-2">
+            <ExplorationAgentToolTrace
+              v-for="entry in toolTraceEntries"
               :key="entry.id"
-              class="grid grid-cols-[14px_minmax(0,1fr)] gap-1"
-            >
-              <span class="tabular-nums text-[#555]">{{ index + 1 }}.</span>
-              <div class="min-w-0">
-                <p>
-                  <strong class="font-semibold text-[#333]">{{ entry.label }}</strong>
-                  <span v-if="entry.description"> : {{ entry.description }}</span>
-                </p>
-                <p class="text-[#666]" :class="entry.error ? 'text-[#ce0500]' : ''">{{ entry.summary }}</p>
-                <dl v-if="entry.details?.length" class="mt-1 space-y-0.5">
-                  <div v-for="detail in entry.details" :key="detail.label" class="flex gap-1">
-                    <dt class="shrink-0 text-[#777]">{{ detail.label }} :</dt>
-                    <dd class="min-w-0 break-words text-[#555]">{{ detail.value }}</dd>
-                  </div>
-                </dl>
-                <ExplorationCodeBlock v-if="entry.sql" class="mt-1" :code="entry.sql" collapsible />
-              </div>
-            </li>
+              :description="entry.description"
+              :details="entry.details"
+              :error="entry.error"
+              :icon="entry.icon"
+              :label="entry.label"
+              :sql="entry.sql"
+              :summary="entry.summary"
+            />
           </ol>
         </ExplorationAgentDisclosure>
       </div>
@@ -345,17 +389,17 @@ const toolTraceEntries = computed<ToolTraceEntry[]>(() => displayedToolParts.val
     </template>
 
     <template v-if="message.role !== 'user'">
-      <template
-        v-for="(part, partIndex) in message.parts"
-        :key="`${message.id}-${partIndex}`"
-      >
       <ExplorationMessageResponse
-        v-if="part.type === 'text'"
+        v-for="(part, partIndex) in message.parts.filter(item => item.type === 'text')"
+        :key="`${message.id}-text-${partIndex}`"
         :content="part.text"
         :streaming="responding"
       />
 
-      <template v-else-if="part.type === 'tool-propose_explorer_view'">
+      <template
+        v-for="part in message.parts.filter(item => item.type === 'tool-propose_explorer_view')"
+        :key="part.toolCallId"
+      >
         <ExplorationExplorerProposal
           v-if="'input' in part && part.input && part.input.title && part.input.reason && part.input.sql"
           :title="part.input.title"
@@ -372,44 +416,61 @@ const toolTraceEntries = computed<ToolTraceEntry[]>(() => displayedToolParts.val
         />
       </template>
 
-      <div v-else-if="part.type === 'tool-create_chart'" class="mt-3">
-        <ExplorationVisualizationLoading
-          v-if="part.state === 'input-streaming' || part.state === 'input-available'"
+      <div
+        v-for="part in message.parts.filter(item => item.type === 'tool-create_chart')"
+        :key="part.toolCallId"
+        class="mt-3"
+      >
+        <ExplorationVisualizationStage
+          v-if="part.state !== 'output-error'"
           kind="graphique"
-        />
-        <ExplorationAgentChart
-          v-else-if="part.state === 'output-available' && 'input' in part && part.input"
-          :spec="part.input"
-          :rows="part.output.rows"
-          :truncated="part.output.truncated"
-        />
+          :ready="part.state === 'output-available'"
+        >
+          <ExplorationAgentChart
+            v-if="part.state === 'output-available' && 'input' in part && part.input"
+            class="h-full"
+            :play-completion-sound="false"
+            :spec="part.input"
+            :rows="part.output.rows"
+            :source="source"
+            :truncated="part.output.truncated"
+          />
+        </ExplorationVisualizationStage>
         <ExplorationStatusMessage
-          v-else-if="part.state === 'output-error'"
+          v-else
           :message="part.errorText"
           title="Le graphique n’a pas pu être créé"
           tone="error"
         />
       </div>
 
-      <div v-else-if="part.type === 'tool-create_map'" class="mt-3">
-        <ExplorationVisualizationLoading
-          v-if="part.state === 'input-streaming' || part.state === 'input-available'"
+      <div
+        v-for="part in message.parts.filter(item => item.type === 'tool-create_map')"
+        :key="part.toolCallId"
+        class="mt-3"
+      >
+        <ExplorationVisualizationStage
+          v-if="part.state !== 'output-error'"
           kind="carte"
-        />
-        <ExplorationAgentMap
-          v-else-if="part.state === 'output-available' && 'input' in part && part.input"
-          :spec="part.input"
-          :rows="part.output.rows"
-          :truncated="part.output.truncated"
-        />
+          :ready="part.state === 'output-available'"
+        >
+          <ExplorationAgentMap
+            v-if="part.state === 'output-available' && 'input' in part && part.input"
+            class="h-full"
+            :play-completion-sound="false"
+            :spec="part.input"
+            :rows="part.output.rows"
+            :source="source"
+            :truncated="part.output.truncated"
+          />
+        </ExplorationVisualizationStage>
         <ExplorationStatusMessage
-          v-else-if="part.state === 'output-error'"
+          v-else
           :message="part.errorText"
           title="La carte n’a pas pu être créée"
           tone="error"
         />
       </div>
-      </template>
       <ExplorationMessageActions
         v-if="assistantText && !toolsActive && !responding"
         :content="assistantText"
