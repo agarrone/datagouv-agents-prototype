@@ -52,6 +52,42 @@ export interface ExplorerViewResult extends DatasetQueryResult {
   sql: string;
 }
 
+export type ExplorerSort = {
+  column: string;
+  direction: "asc" | "desc";
+};
+
+export type ExplorerDateFilter = {
+  mode: "before" | "after" | "between";
+  value: string;
+  endValue?: string;
+};
+
+export interface ExplorerDatasetQuery {
+  columns: string[];
+  search?: string;
+  categoryFilters?: Record<string, string[]>;
+  numberRanges?: Record<string, { min?: string; max?: string }>;
+  dateFilters?: Record<string, ExplorerDateFilter>;
+  sort?: ExplorerSort;
+  limit: number;
+  offset: number;
+  baseSql?: string;
+}
+
+export interface ExplorerDatasetResult {
+  columns: string[];
+  rows: DatasetRow[];
+  totalRows: number;
+  limit: number;
+  offset: number;
+}
+
+export interface ExplorerValueOption {
+  label: string;
+  count: number;
+}
+
 export type ChartType = "bar" | "line" | "area" | "pie" | "scatter";
 export type MapBasemap = "standard" | "light" | "dark";
 

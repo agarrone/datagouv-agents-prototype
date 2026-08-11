@@ -7,6 +7,9 @@ import type {
   DatasetRow,
   DatasetSchemaResult,
   DatasetValue,
+  ExplorerDatasetQuery,
+  ExplorerDatasetResult,
+  ExplorerValueOption,
   ExplorerViewResult,
   MapDatasetResult,
   MapSpec,
@@ -24,6 +27,57 @@ let connectionPromise: Promise<AsyncDuckDBConnection> | undefined;
 let activeWorker: Worker | undefined;
 const verifiedQueries = new Set<string>();
 let latestVerifiedQuery: string | undefined;
+
+function quoteIdentifier(identifier: string) {
+  return `"${identifier.replace(/"/g, '""')}"`;
+}
+
+function quoteLiteral(value: string) {
+  return `'${value.replace(/'/g, "''")}'`;
+}
+
+function buildExplorerWhere(query: ExplorerDatasetQuery) {
+  const conditions: string[] = [];
+  const search = query.search?.trim();
+
+  if (search && query.columns.length > 0) {
+    const pattern = quoteLiteral(`%${search}%`);
+    conditions.push(`(${query.columns.map(column =>
+      `CAST(${quoteIdentifier(column)} AS VARCHAR) ILIKE ${pattern}`,
+    ).join(" OR ")})`);
+  }
+
+  for (const [column, values] of Object.entries(query.categoryFilters ?? {})) {
+    if (values.length > 0) {
+      conditions.push(`${quoteIdentifier(column)} IN (${values.map(quoteLiteral).join(", ")})`);
+    }
+  }
+
+  for (const [column, range] of Object.entries(query.numberRanges ?? {})) {
+    const min = Number(range.min);
+    const max = Number(range.max);
+    if (range.min?.trim() && Number.isFinite(min)) {
+      conditions.push(`TRY_CAST(${quoteIdentifier(column)} AS DOUBLE) >= ${min}`);
+    }
+    if (range.max?.trim() && Number.isFinite(max)) {
+      conditions.push(`TRY_CAST(${quoteIdentifier(column)} AS DOUBLE) <= ${max}`);
+    }
+  }
+
+  for (const [column, filter] of Object.entries(query.dateFilters ?? {})) {
+    const field = `TRY_CAST(${quoteIdentifier(column)} AS TIMESTAMP)`;
+    if (filter.mode === "before" && filter.value) {
+      conditions.push(`${field} < TRY_CAST(${quoteLiteral(filter.value)} AS TIMESTAMP)`);
+    } else if (filter.mode === "after" && filter.value) {
+      conditions.push(`${field} > TRY_CAST(${quoteLiteral(filter.value)} AS TIMESTAMP)`);
+    } else if (filter.mode === "between") {
+      if (filter.value) conditions.push(`${field} >= TRY_CAST(${quoteLiteral(filter.value)} AS TIMESTAMP)`);
+      if (filter.endValue) conditions.push(`${field} <= TRY_CAST(${quoteLiteral(filter.endValue)} AS TIMESTAMP)`);
+    }
+  }
+
+  return conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
+}
 
 function normalizeValue(value: unknown): DatasetValue {
   if (value === null || value === undefined) return null;
@@ -346,6 +400,86 @@ export function useDatasetEngine() {
     };
   }
 
+  async function queryExplorer(query: ExplorerDatasetQuery): Promise<ExplorerDatasetResult> {
+    const connection = await getConnection();
+    const limit = Math.min(200, Math.max(1, Math.floor(query.limit)));
+    const offset = Math.max(0, Math.floor(query.offset));
+    const columns = query.columns.length > 0 ? query.columns : ["*"];
+    const source = query.baseSql?.trim()
+      ? `(${validateReadOnlySql(query.baseSql)}) AS explorer_source`
+      : "data";
+    const select = columns[0] === "*" ? "*" : columns.map(quoteIdentifier).join(", ");
+    const where = buildExplorerWhere(query);
+    const order = query.sort
+      ? `ORDER BY ${quoteIdentifier(query.sort.column)} ${query.sort.direction.toUpperCase()} NULLS LAST`
+      : "";
+    const [table, countTable] = await Promise.all([
+      connection.query(`SELECT ${select} FROM ${source} ${where} ${order} LIMIT ${limit} OFFSET ${offset}`),
+      connection.query(`SELECT COUNT(*) AS count FROM ${source} ${where}`),
+    ]);
+    return {
+      columns: table.schema.fields.map(field => field.name),
+      rows: tableToRows(table),
+      totalRows: Number(tableToRows(countTable)[0]?.count ?? 0),
+      limit,
+      offset,
+    };
+  }
+
+  async function getExplorerValueOptions(
+    column: string,
+    search = "",
+    baseSql?: string,
+  ): Promise<ExplorerValueOption[]> {
+    const connection = await getConnection();
+    const field = quoteIdentifier(column);
+    const source = baseSql?.trim()
+      ? `(${validateReadOnlySql(baseSql)}) AS explorer_source`
+      : "data";
+    const searchClause = search.trim()
+      ? `AND CAST(${field} AS VARCHAR) ILIKE ${quoteLiteral(`%${search.trim()}%`)}`
+      : "";
+    const table = await connection.query(`
+      SELECT CAST(${field} AS VARCHAR) AS value, COUNT(*) AS count
+      FROM ${source}
+      WHERE ${field} IS NOT NULL ${searchClause}
+      GROUP BY value
+      ORDER BY count DESC, value
+      LIMIT 100
+    `);
+    return tableToRows(table).map(row => ({
+      label: String(row.value),
+      count: Number(row.count),
+    }));
+  }
+
+  async function exportExplorerCsv(query: ExplorerDatasetQuery) {
+    const connection = await getConnection();
+    const database = await databasePromise;
+    if (!database) throw new Error("Le moteur DuckDB n’est pas disponible.");
+    const columns = query.columns.length > 0 ? query.columns : ["*"];
+    const source = query.baseSql?.trim()
+      ? `(${validateReadOnlySql(query.baseSql)}) AS explorer_source`
+      : "data";
+    const select = columns[0] === "*" ? "*" : columns.map(quoteIdentifier).join(", ");
+    const where = buildExplorerWhere(query);
+    const order = query.sort
+      ? `ORDER BY ${quoteIdentifier(query.sort.column)} ${query.sort.direction.toUpperCase()} NULLS LAST`
+      : "";
+    const fileName = `explorer-${Date.now()}.csv`;
+    try {
+      await connection.query(`COPY (SELECT ${select} FROM ${source} ${where} ${order}) TO ${quoteLiteral(fileName)} (FORMAT CSV, HEADER)`);
+      const bytes = await database.copyFileToBuffer(fileName);
+      return new Blob([new Uint8Array(bytes)], { type: "text/csv;charset=utf-8" });
+    } finally {
+      try {
+        await database.dropFile(fileName);
+      } catch {
+        // Le nettoyage du fichier temporaire reste sans effet sur le téléchargement.
+      }
+    }
+  }
+
   function resetExplorerView() {
     activeView.value = null;
   }
@@ -358,9 +492,12 @@ export function useDatasetEngine() {
     createMapData,
     error: readonly(error),
     executeSql,
+    exportExplorerCsv,
+    getExplorerValueOptions,
     inspectSchema,
     load,
     preview: readonly(preview),
+    queryExplorer,
     resetExplorerView,
     schema: readonly(schema),
     status: readonly(status),

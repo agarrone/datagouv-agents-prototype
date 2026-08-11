@@ -133,9 +133,10 @@ const tableColumns = computed(() =>
   ?? dataset.schema.value?.columns.map(item => item.name)
   ?? [],
 );
-const tableRows = computed(() =>
-  dataset.activeView.value?.rows ?? dataset.preview.value,
-);
+const explorerColumns = computed(() => tableColumns.value.map(name => ({
+  name,
+  type: dataset.schema.value?.columns.find(column => column.name === name)?.type ?? "VARCHAR",
+})));
 const unresolvedToolErrorCount = computed(() => messages.value.reduce((total, message) => {
   return total + message.parts.filter((part, index) => {
     if (!("state" in part) || part.state !== "output-error") return false;
@@ -321,17 +322,12 @@ async function resolveClarification(toolCallId: string, choice: string) {
         />
 
         <div v-else class="min-w-0">
-          <ExplorationDatasetSummary
-            :column-count="tableColumns.length"
+          <ExplorationDatasetExplorer
+            :base-sql="dataset.activeView.value?.sql"
+            :columns="explorerColumns"
             :row-count="dataset.activeView.value?.rowCount ?? dataset.schema.value?.rowCount ?? 0"
             :view-title="dataset.activeView.value?.title"
-            @reset="dataset.resetExplorerView"
-          />
-          <ExplorationDatasetTable
-            :columns="tableColumns"
-            :rows="tableRows"
-            :schema-columns="dataset.schema.value?.columns ?? []"
-            :show-types="!dataset.activeView.value"
+            @reset-view="dataset.resetExplorerView"
           />
         </div>
       </section>

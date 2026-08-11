@@ -79,7 +79,7 @@ reçoit le contexte courant, le schéma et les résultats nécessaires à la ré
 - ECharts pour les graphiques ;
 - MapLibre GL et les fonds OpenMapTiles de data.gouv.fr pour les cartes ;
 - CodeMirror 6 pour la console SQL ;
-- Tailwind CSS 4 et `@datagouv/components-next` pour l’interface ;
+- Tailwind CSS 4 pour l’interface ;
 - Zod pour les contrats de données ;
 - Vitest pour les tests unitaires.
 

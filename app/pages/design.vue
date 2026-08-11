@@ -934,18 +934,9 @@ const designRisks = [
 
         <section id="explorateur">
           <header class="mb-6"><p class="text-[11px] font-medium uppercase tracking-[0.06em] text-[#555555]">09</p><h2 class="mt-1 text-2xl font-bold">Explorateur</h2></header>
-          <div class="mb-6 rounded-md border border-[#e5e5e5] bg-white">
-            <div class="border-b border-[#e5e5e5] px-4 py-3">
-              <p class="text-[13px] font-bold leading-5">Tabular Explorer de data.gouv.fr</p>
-              <p class="mt-0.5 max-w-3xl text-[11px] leading-4 text-[#555555]">
-                Variante desktop du composant officiel alimenté par l’API tabulaire, affichée avec la ressource réelle « Catalogue des données de data.gouv.fr ». Elle reste défilable horizontalement dans une fenêtre étroite et ne remplace pas l’explorateur local DuckDB du prototype.
-              </p>
-            </div>
-            <div class="min-h-[32rem] overflow-hidden">
-              <DesignDatagouvTabularExplorer resource-id="f868cca6-8da1-4369-a78d-47463f19a9a3" />
-            </div>
+          <div class="mb-4 max-w-3xl text-[13px] leading-5 text-[#555555]">
+            L’explorateur du prototype est exécuté localement avec DuckDB WASM. Il ne dépend ni de l’API tabulaire ni des composants data.gouv.fr.
           </div>
-          <p class="mb-2 text-[11px] font-medium uppercase tracking-[0.04em] text-[#555555]">Explorateur local du prototype</p>
           <div class="overflow-hidden rounded-md border border-[#e5e5e5] bg-white">
             <ExplorationDatasetSummary :column-count="3" :row-count="7283" />
             <ExplorationDatasetTable :columns="tableColumns" :rows="tableRows" :schema-columns="schemaColumns" show-types />
