@@ -18,16 +18,33 @@ const editingMessageId = ref<string | null>(null);
 const composer = ref<{ focus: () => void } | null>(null);
 const dataset = useDatasetEngine();
 const { playUiSound } = useUiSound();
+function queryValue(name: string) {
+  const value = route.query[name];
+  return typeof value === "string" ? value : "";
+}
 const requestedResourceId = typeof route.query.resource === "string"
   ? route.query.resource
   : "";
+const resourceFromQuery = queryValue("dataset") && queryValue("parquet")
+  ? {
+      id: requestedResourceId || queryValue("dataset"),
+      datasetReference: queryValue("dataset"),
+      title: queryValue("title") || "Jeu de données data.gouv.fr",
+      organization: queryValue("organization") || "Producteur non renseigné",
+      parquetUrl: queryValue("parquet"),
+      resourceName: queryValue("resourceName") || "Version Parquet du jeu de données",
+    } satisfies ExplorationResource
+  : null;
 const selectedResource = ref<ExplorationResource | null>(
-  explorationResources.find(resource => resource.id === requestedResourceId)
+  resourceFromQuery
+  ?? explorationResources.find(resource => resource.id === requestedResourceId)
   ?? explorationResources[0]
   ?? null,
 );
 const readySoundPlayed = ref(false);
 const latestResponseUsage = ref<LanguageModelUsage>();
+const conversationFeedbackMessageId = ref<string | null>(null);
+const conversationFeedbackPrompted = ref(false);
 const announcedToolErrorCount = ref(0);
 let settledErrorSoundTimer: ReturnType<typeof setTimeout> | undefined;
 const runtimeBridge: {
@@ -66,7 +83,7 @@ const {
             resourceId: resource.id,
             title: resource.title,
             organization: resource.organization,
-            resourceName: "Version Parquet du jeu de données",
+            resourceName: resource.resourceName ?? "Version Parquet du jeu de données",
             url: resource.parquetUrl,
             schema: dataset.schema.value
               ? {
@@ -82,6 +99,11 @@ const {
   sendAutomaticallyWhen: lastAssistantMessageIsCompleteWithToolCalls,
   onToolCall: toolRuntime.handleToolCall,
   onFinish({ message }) {
+    const questionCount = messages.value.filter(item => item.role === "user").length;
+    if (questionCount >= 6 && !conversationFeedbackPrompted.value) {
+      conversationFeedbackPrompted.value = true;
+      conversationFeedbackMessageId.value = message.id;
+    }
     const usage = message.metadata?.totalUsage;
     if (!usage) return;
     const current = latestResponseUsage.value;
@@ -180,7 +202,7 @@ onBeforeUnmount(() => {
 });
 
 onMounted(() => {
-  if (requestedResourceId && selectedResource.value) {
+  if ((requestedResourceId || resourceFromQuery) && selectedResource.value) {
     void loadSelectedResource();
   }
 });
@@ -320,7 +342,6 @@ async function resolveClarification(toolCallId: string, choice: string) {
           v-show="panelMode === 'assistant'"
           :message-count="messages.length"
           :responding="isResponding"
-          :usage="latestResponseUsage"
         >
           <ExplorationAgentEmptyState
             v-if="messages.length === 0"
@@ -328,6 +349,7 @@ async function resolveClarification(toolCallId: string, choice: string) {
             :loading="dataset.status.value === 'loading'"
             :ready="dataset.status.value === 'ready'"
             :resource-title="selectedResource?.title"
+            :schema-columns="dataset.schema.value?.columns ?? []"
             @load="loadSelectedResource"
             @suggestion="input = $event"
           />
@@ -338,16 +360,18 @@ async function resolveClarification(toolCallId: string, choice: string) {
             :message="message"
             :source="dataset.activeResource.value ? `${dataset.activeResource.value.title} · ${dataset.activeResource.value.organization}` : undefined"
             :responding="isResponding && message.id === lastMessageId && message.role === 'assistant'"
+            :show-feedback-prompt="message.role === 'assistant' && message.id === conversationFeedbackMessageId"
             :feedback-context="message.role === 'assistant' && dataset.activeResource.value ? {
               question: previousUserQuestion(messageIndex),
               resource: dataset.activeResource.value.parquetUrl,
               dataset: dataset.activeResource.value.title,
-              resourceName: 'Version Parquet du jeu de données',
+              resourceName: dataset.activeResource.value.resourceName ?? 'Version Parquet du jeu de données',
               model: 'agent-exploration',
             } : undefined"
             @apply-proposal="applyExplorerProposal"
             @clarify="resolveClarification"
             @edit="editQuestion"
+            @dismiss-feedback-prompt="conversationFeedbackMessageId = null"
           />
           <ExplorationAgentThinking v-if="showInitialThinking" />
           <ExplorationStatusMessage
@@ -366,6 +390,7 @@ async function resolveClarification(toolCallId: string, choice: string) {
           :resource-organization="dataset.activeResource.value?.organization"
           :resource-title="dataset.activeResource.value?.title"
           :responding="isResponding"
+          :usage="latestResponseUsage"
           @cancel-edit="cancelQuestionEditing"
           @stop="stop"
           @submit="submit"

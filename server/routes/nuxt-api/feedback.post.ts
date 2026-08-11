@@ -22,11 +22,17 @@ export default defineEventHandler(async (event) => {
     });
   }
 
+  const originLabel = feedback.data.origin === "after_six_questions"
+    ? "Invitation après 6 questions"
+    : "Feedback sur une réponse";
+
   const fields = {
     Rating: feedback.data.rating,
     Question: feedback.data.question,
     Answer: feedback.data.answer,
-    Details: "",
+    // La table Grist ne possède pas de colonne Feedback_origin. Le champ
+    // Details permet de conserver l’origine sans rendre l’envoi invalide.
+    Details: `Origine : ${originLabel}`,
     Resource: feedback.data.resource,
     Dataset: feedback.data.dataset,
     Ressource_name: feedback.data.resourceName,

@@ -15,17 +15,21 @@ donnée sur data.gouv.fr.
 
 ## Ce que le prototype permet de tester
 
-- sélection de plusieurs ressources Parquet publiques de data.gouv.fr ;
+- sélection d’exemples, recherche dans le catalogue data.gouv.fr ou collage direct de l’URL d’un jeu de données ;
+- choix parmi les ressources Parquet compatibles du jeu de données sélectionné ;
 - chargement et interrogation des données dans le navigateur avec DuckDB-WASM ;
+- trois questions de départ fixes et deux suggestions générées localement à partir du schéma de la ressource ;
 - conversation streamée avec un modèle appelé par Vercel AI SDK ;
+- tableaux Markdown pleine largeur pour les classements, comparaisons, distributions et listes structurées, avec types DuckDB traduits en français ;
 - inspection du schéma et exécution de requêtes SQL DuckDB en lecture seule ;
 - console SQL avec coloration syntaxique, autocomplétion et diagnostic ;
 - proposition de filtres, tris ou vues à appliquer au tableau après confirmation ;
 - graphiques ECharts : barres, courbes, aires, secteurs et nuages de points ;
 - cartes MapLibre : points, GeoJSON et choroplèthes françaises ;
-- fonds vectoriels OpenMapTiles distribués par OpenFreeMap ;
+- fallbacks cartographiques prudents : alias uniques validés, ambiguïtés bloquées, lignes rejetées signalées et regroupement des gros volumes de points ;
+- fonds vectoriels OpenMapTiles distribués par data.gouv.fr ;
 - traces synthétiques des outils utilisés, états de chargement et erreurs ;
-- évaluation utile ou inutile des réponses, envoyée vers Grist ;
+- évaluation utile ou inutile envoyée vers Grist, formulaire détaillé prérempli et sollicitation unique après six questions ;
 - galerie exhaustive des composants et états visuels du prototype.
 
 ## Pages
@@ -73,7 +77,7 @@ reçoit le contexte courant, le schéma et les résultats nécessaires à la ré
 - Vercel AI Gateway ou fournisseur OpenAI-compatible, dont Albert ;
 - DuckDB-WASM pour le SQL local ;
 - ECharts pour les graphiques ;
-- MapLibre GL, OpenMapTiles et OpenFreeMap pour les cartes ;
+- MapLibre GL et les fonds OpenMapTiles de data.gouv.fr pour les cartes ;
 - CodeMirror 6 pour la console SQL ;
 - Tailwind CSS 4 et `@datagouv/components-next` pour l’interface ;
 - Zod pour les contrats de données ;

@@ -1,8 +1,12 @@
 <script setup lang="ts">
-defineProps<{
+import type { DatasetColumn } from "~~/shared/types/exploration";
+import { getStarterQuestions } from "~~/shared/agents/starter-questions";
+
+const props = defineProps<{
   ready: boolean;
   loading?: boolean;
   resourceTitle?: string;
+  schemaColumns?: readonly DatasetColumn[];
 }>();
 
 const emit = defineEmits<{
@@ -10,11 +14,7 @@ const emit = defineEmits<{
   suggestion: [value: string];
 }>();
 
-const suggestions = [
-  "Explique-moi ton fonctionnement",
-  "Explique-moi le contenu de ce jeu de données",
-  "Quelles sont les colonnes de ce jeu de données ?",
-];
+const suggestions = computed(() => getStarterQuestions(props.schemaColumns ?? []));
 </script>
 
 <template>

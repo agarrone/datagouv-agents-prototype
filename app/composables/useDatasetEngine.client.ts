@@ -8,11 +8,14 @@ import type {
   DatasetSchemaResult,
   DatasetValue,
   ExplorerViewResult,
+  MapDatasetResult,
+  MapSpec,
 } from "~~/shared/types/exploration";
 import type {
   ExplorationResource,
 } from "~~/shared/data/exploration-resources";
 import { validateReadOnlySql } from "~~/shared/sql/read-only";
+import { resolveMapFields } from "~~/shared/maps/map-field-resolution";
 
 type EngineStatus = "idle" | "loading" | "ready" | "error";
 
@@ -313,8 +316,8 @@ export function useDatasetEngine() {
   }
 
   async function createMapData(
-    requiredFields: string[],
-  ): Promise<DatasetQueryResult> {
+    spec: MapSpec,
+  ): Promise<MapDatasetResult> {
     const connection = await getConnection();
     if (!latestVerifiedQuery) {
       throw new Error(
@@ -329,22 +332,17 @@ export function useDatasetEngine() {
       LIMIT 5001
     `);
     const columns = table.schema.fields.map(field => field.name);
-    const missingFields = requiredFields.filter(
-      field => !columns.includes(field),
-    );
-    if (missingFields.length > 0) {
-      throw new Error(
-        `Champs absents du résultat SQL : ${missingFields.join(", ")}.`,
-      );
-    }
-
     const allRows = tableToRows(table);
+    const resolution = resolveMapFields(spec, columns, allRows.slice(0, 5000));
     return {
       columns,
       rows: allRows.slice(0, 5000),
       rowCount: Math.min(allRows.length, 5000),
       truncated: allRows.length > 5000,
       elapsedMs: Math.round(performance.now() - startedAt),
+      resolvedSpec: resolution.spec,
+      fieldCorrections: resolution.corrections,
+      warnings: resolution.warnings,
     };
   }
 

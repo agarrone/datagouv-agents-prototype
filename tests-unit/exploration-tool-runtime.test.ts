@@ -13,13 +13,27 @@ const queryResult = {
   truncated: false,
   elapsedMs: 3,
 };
+const mapSpec = {
+  type: "points" as const,
+  title: "Carte",
+  description: "Points",
+  latitudeField: "latitude",
+  longitudeField: "longitude",
+  labelField: "nom",
+};
+const mapResult = {
+  ...queryResult,
+  resolvedSpec: mapSpec,
+  fieldCorrections: [],
+  warnings: [],
+};
 
 function datasetStub(overrides: Partial<ExplorationToolDataset> = {}) {
   return {
     inspectSchema: vi.fn(),
     executeSql: vi.fn().mockResolvedValue(queryResult),
     createChartData: vi.fn().mockResolvedValue(queryResult),
-    createMapData: vi.fn().mockResolvedValue(queryResult),
+    createMapData: vi.fn().mockResolvedValue(mapResult),
     ...overrides,
   } satisfies ExplorationToolDataset;
 }
@@ -97,6 +111,28 @@ describe("exploration tool runtime", () => {
       tool: "execute_sql",
       toolCallId: "sql-2",
       errorText: "SQL invalide",
+    }]);
+  });
+
+  it("passes the complete map specification to the dataset engine", async () => {
+    const dataset = datasetStub();
+    const recorder = toolOutputRecorder();
+    const runtime = useExplorationToolRuntime(dataset, recorder.addToolOutput);
+
+    await runtime.handleToolCall({
+      toolCall: {
+        dynamic: false,
+        toolName: "create_map",
+        toolCallId: "map-1",
+        input: mapSpec,
+      },
+    } as ExplorationToolCallOptions);
+
+    expect(dataset.createMapData).toHaveBeenCalledWith(mapSpec);
+    expect(recorder.outputs).toEqual([{
+      tool: "create_map",
+      toolCallId: "map-1",
+      output: mapResult,
     }]);
   });
 });

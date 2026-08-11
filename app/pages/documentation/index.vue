@@ -53,6 +53,9 @@ useSeoMeta({
       </DocumentationSection>
 
       <DocumentationSection id="fonctionnement" title="Comment fonctionne une réponse ?">
+        <p>Depuis l’accueil, vous pouvez choisir un exemple, rechercher un jeu de données dans le catalogue data.gouv.fr ou coller l’URL de sa page. Le prototype ne propose que les ressources disposant d’une version Parquet compatible et permet de choisir la ressource lorsqu’il en existe plusieurs.</p>
+        <p>Une fois la ressource chargée, trois questions générales sont complétées par deux suggestions calculées localement à partir de son schéma. Elles privilégient une dimension textuelle utile, puis une mesure numérique, une date ou une seconde dimension, en écartant les identifiants et champs techniques.</p>
+        <p>Les résultats naturellement structurés — classements, comparaisons, distributions, listes de colonnes ou exemples — sont présentés sous forme de tableaux étendus à la largeur de la réponse. Les types techniques DuckDB y sont traduits en français.</p>
         <ol>
           <li>L’assistant interprète la demande et repère les ambiguïtés éventuelles.</li>
           <li>Il choisit la preuve la plus légère : métadonnées, schéma ou requête SQL.</li>
@@ -76,7 +79,7 @@ useSeoMeta({
 
       <DocumentationSection id="donnees" title="Données et confidentialité">
         <p>Les ressources proposées sont publiques. Leur version Parquet est téléchargée et interrogée dans le navigateur avec DuckDB-WASM. Les requêtes sont limitées à la lecture et ne modifient jamais la ressource d’origine.</p>
-        <p>Lorsque vous évaluez une réponse, la question, la réponse et le contexte du jeu de données sont envoyés à une table Grist afin d’améliorer le prototype. Aucune identité n’est demandée. Évitez néanmoins de saisir des informations personnelles ou sensibles.</p>
+        <p>Lorsque vous évaluez une réponse, la question, la réponse et le contexte du jeu de données sont envoyés à une table Grist afin d’améliorer le prototype. Vous pouvez ensuite ajouter un commentaire dans un formulaire prérempli. Une invitation facultative est également présentée après six questions. Aucune identité n’est demandée. Évitez néanmoins de saisir des informations personnelles ou sensibles.</p>
       </DocumentationSection>
 
       <DocumentationSection id="limites" title="Limites à garder en tête">
@@ -84,7 +87,7 @@ useSeoMeta({
           <li>Le modèle peut mal interpréter une colonne, une période ou une unité.</li>
           <li>Une requête correcte peut néanmoins répondre imparfaitement à l’intention initiale.</li>
           <li>Les résultats bornés peuvent masquer des lignes supplémentaires ou des ex æquo.</li>
-          <li>Les cartes dépendent de la qualité des coordonnées et des identifiants géographiques.</li>
+          <li>Les cartes en français utilisent les fonds vectoriels de data.gouv.fr : OSM Bright par défaut et Positron pour les choroplèthes. Elles dépendent de la qualité des coordonnées et des identifiants géographiques.</li>
           <li>La conversation n’est pas conservée après le rechargement de la page.</li>
           <li>Les résultats importants doivent être vérifiés avant toute réutilisation.</li>
         </ul>

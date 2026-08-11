@@ -94,7 +94,23 @@ const mapRows: DatasetRow[] = [
   { nom: "Saint-Denis", latitude: 48.9362, longitude: 2.3574, frequentation: 48_000 },
   { nom: "Versailles", latitude: 48.8014, longitude: 2.1301, frequentation: 34_000 },
   { nom: "Créteil", latitude: 48.7904, longitude: 2.4556, frequentation: 21_000 },
+  { nom: "Coordonnées invalides", latitude: 148.7904, longitude: 2.4556, frequentation: 1 },
 ];
+
+const designFeedbackContext = {
+  question: "Quels sont les jeux de données les plus consultés ?",
+  resource: "https://example.test/catalogue.parquet",
+  dataset: "Catalogue des données de data.gouv.fr",
+  resourceName: "Catalogue des jeux de données",
+  model: "agent-exploration",
+};
+
+const clusteredMapRows: DatasetRow[] = Array.from({ length: 140 }, (_, index) => ({
+  nom: `Lieu ${index + 1}`,
+  latitude: 43.1 + (index % 14) * 0.48,
+  longitude: -1.5 + (index % 20) * 0.31,
+  frequentation: 1_000 + index * 175,
+}));
 
 const regionMapSpec: MapSpec = {
   type: "choropleth",
@@ -294,7 +310,7 @@ const designDecisions = [
     group: "Données",
     title: "Graphiques et cartes",
     detail: "Marianne dans les graphiques, boîtes avec header et footer, source complète et actions de copie ou plein écran.",
-    rule: "Graphiques : padding 20 px · Cartes : fond OpenMapTiles sans padding interne",
+    rule: "Graphiques : padding 20 px · Cartes en français : Bright par défaut, Positron pour les choroplèthes",
   },
 ];
 
@@ -625,7 +641,7 @@ const designRisks = [
           <div class="mt-4 grid gap-4 xl:grid-cols-2">
             <div class="rounded-md border border-[#e5e5e5] bg-white p-5">
               <p class="text-[11px] font-medium uppercase tracking-[0.05em] text-[#555555]">Actions de réponse · état initial</p>
-              <ExplorationMessageActions class="mt-2" content="Réponse de démonstration à copier ou évaluer." />
+              <ExplorationMessageActions class="mt-2" content="Réponse de démonstration à copier ou évaluer." :feedback-context="designFeedbackContext" />
             </div>
             <div class="rounded-md border border-[#e5e5e5] bg-white p-5">
               <p class="text-[11px] font-medium uppercase tracking-[0.05em] text-[#555555]">Usage du modèle</p>
@@ -634,6 +650,10 @@ const designRisks = [
                 <span class="text-[11px] text-[#555555]">Cliquer sur l’icône pour afficher le détail.</span>
               </div>
             </div>
+          </div>
+          <div class="mt-4 max-w-2xl rounded-md border border-[#e5e5e5] bg-white p-5">
+            <p class="text-[11px] font-medium uppercase tracking-[0.05em] text-[#555555]">Sollicitation après six questions</p>
+            <ExplorationConversationFeedbackPrompt class="mt-2" answer="Réponse de démonstration associée à l’invitation." :context="designFeedbackContext" />
           </div>
         </section>
 
@@ -739,7 +759,7 @@ const designRisks = [
                 Empty state · Assistant prêt
               </p>
               <div class="h-[24rem] p-4">
-                <ExplorationAgentEmptyState ready />
+                <ExplorationAgentEmptyState ready :schema-columns="schemaColumns" />
               </div>
             </div>
           </div>
@@ -751,6 +771,7 @@ const designRisks = [
                 <ExplorationMessageResponse :content="`Les jeux de données les plus consultés concernent principalement **les transports**, l’environnement et l’économie.\n\n- 128 jeux de données de transport\n- 104 jeux de données environnementaux`" />
                 <ExplorationMessageActions content="Les jeux de données les plus consultés concernent principalement les transports." />
               </div>
+              <ExplorationMessageResponse :content="`| Colonne | Type |\n| --- | --- |\n| \`title\` | texte |\n| \`organization\` | texte |\n| \`metric.views\` | nombre entier |`" />
               <ExplorationMessageResponse content="Je prépare une synthèse des résultats" streaming />
               <ExplorationAgentThinking />
               <div class="grid gap-2 md:grid-cols-2">
@@ -913,6 +934,18 @@ const designRisks = [
 
         <section id="explorateur">
           <header class="mb-6"><p class="text-[11px] font-medium uppercase tracking-[0.06em] text-[#555555]">09</p><h2 class="mt-1 text-2xl font-bold">Explorateur</h2></header>
+          <div class="mb-6 rounded-md border border-[#e5e5e5] bg-white">
+            <div class="border-b border-[#e5e5e5] px-4 py-3">
+              <p class="text-[13px] font-bold leading-5">Tabular Explorer de data.gouv.fr</p>
+              <p class="mt-0.5 max-w-3xl text-[11px] leading-4 text-[#555555]">
+                Variante desktop du composant officiel alimenté par l’API tabulaire, affichée avec la ressource réelle « Catalogue des données de data.gouv.fr ». Elle reste défilable horizontalement dans une fenêtre étroite et ne remplace pas l’explorateur local DuckDB du prototype.
+              </p>
+            </div>
+            <div class="min-h-[32rem] overflow-hidden">
+              <DesignDatagouvTabularExplorer resource-id="f868cca6-8da1-4369-a78d-47463f19a9a3" />
+            </div>
+          </div>
+          <p class="mb-2 text-[11px] font-medium uppercase tracking-[0.04em] text-[#555555]">Explorateur local du prototype</p>
           <div class="overflow-hidden rounded-md border border-[#e5e5e5] bg-white">
             <ExplorationDatasetSummary :column-count="3" :row-count="7283" />
             <ExplorationDatasetTable :columns="tableColumns" :rows="tableRows" :schema-columns="schemaColumns" show-types />
@@ -987,9 +1020,9 @@ const designRisks = [
             <div class="mt-5 grid gap-5 xl:grid-cols-3">
               <div
                 v-for="basemap in [
-                  { id: 'standard', label: 'Standard · OpenMapTiles Bright' },
-                  { id: 'light', label: 'Clair · OpenMapTiles Positron' },
-                  { id: 'dark', label: 'Sombre · OpenMapTiles Dark' },
+                  { id: 'standard', label: 'Standard · data.gouv.fr OSM Bright' },
+                  { id: 'light', label: 'Clair · data.gouv.fr Positron' },
+                  { id: 'dark', label: 'Sombre · data.gouv.fr Dark Matter' },
                 ]"
                 :key="basemap.id"
                 class="min-w-0"
@@ -1008,13 +1041,28 @@ const designRisks = [
           </div>
 
           <div class="mt-10 border-t border-[#e5e5e5] pt-7">
+            <h3 class="text-[18px] font-bold">Résilience et volumes</h3>
+            <p class="mt-1 max-w-2xl text-[12px] leading-5 text-[#555555]">
+              Les correspondances évidentes de colonnes sont corrigées et consignées. Les ambiguïtés restent bloquantes. Les lignes géographiques invalides sont comptées, tandis que les gros jeux de points sont regroupés selon le niveau de zoom.
+            </p>
+            <div class="mt-5 max-w-2xl">
+              <AgentMap
+                :play-completion-sound="false"
+                :rows="clusteredMapRows"
+                source="Données fictives de démonstration · data.gouv.fr"
+                :spec="mapSpec"
+                :truncated="false"
+              />
+            </div>
+          </div>
+
+          <div class="mt-10 border-t border-[#e5e5e5] pt-7">
             <h3 class="text-[18px] font-bold">Cartes choroplèthes</h3>
             <p class="mt-1 max-w-2xl text-[12px] leading-5 text-[#555555]">
               Deux niveaux géographiques permettent d’auditer la palette quantitative, les valeurs absentes, la légende et les tooltips.
             </p>
             <div class="mt-5 grid gap-5 xl:grid-cols-2">
               <AgentMap
-                basemap="light"
                 :play-completion-sound="false"
                 :rows="regionMapRows"
                 source="Données fictives de démonstration · data.gouv.fr"
@@ -1022,7 +1070,6 @@ const designRisks = [
                 :truncated="false"
               />
               <AgentMap
-                basemap="standard"
                 :play-completion-sound="false"
                 :rows="departmentMapRows"
                 source="Données fictives de démonstration · data.gouv.fr"

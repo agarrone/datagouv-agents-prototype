@@ -153,12 +153,17 @@ const rendered = computed(() => renderAssistantMarkdown(props.content, props.str
   padding-left: 12px;
 }
 
-.agent-message-response :deep(table) {
-  border-collapse: collapse;
-  display: block;
+.agent-message-response :deep(.agent-markdown-table) {
+  border: 1px solid #e5e5e5;
+  border-radius: 6px;
   margin-top: 10px;
   max-width: 100%;
   overflow-x: auto;
+}
+
+.agent-message-response :deep(table) {
+  border-collapse: collapse;
+  min-width: 100%;
   width: max-content;
   font-size: 12px;
   line-height: 18px;
@@ -166,7 +171,8 @@ const rendered = computed(() => renderAssistantMarkdown(props.content, props.str
 
 .agent-message-response :deep(th),
 .agent-message-response :deep(td) {
-  border: 1px solid #e5e5e5;
+  border-bottom: 1px solid #e5e5e5;
+  border-right: 1px solid #e5e5e5;
   padding: 7px 9px;
   text-align: left;
   vertical-align: top;
@@ -174,6 +180,9 @@ const rendered = computed(() => renderAssistantMarkdown(props.content, props.str
 }
 
 .agent-message-response :deep(th) { background: #f6f6f6; font-weight: 600; }
+.agent-message-response :deep(th:last-child),
+.agent-message-response :deep(td:last-child) { border-right: 0; }
+.agent-message-response :deep(tbody tr:last-child td) { border-bottom: 0; }
 
 .agent-message-response--streaming :deep(p:last-child)::after {
   background: #000091;

@@ -8,6 +8,7 @@ export const feedbackSchema = z.object({
   dataset: z.string().trim().max(500).default(""),
   resourceName: z.string().trim().max(500).default(""),
   model: z.string().trim().max(200).default(""),
+  origin: z.enum(["response_feedback", "after_six_questions"]).default("response_feedback"),
   createdAt: z.iso.datetime().optional(),
 });
 

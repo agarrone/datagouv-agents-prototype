@@ -21,6 +21,7 @@ describe("renderAssistantMarkdown", () => {
 
     expect(html).toContain("<h2>Résultat</h2>");
     expect(html).toContain("<ul>");
+    expect(html).toContain('class="agent-markdown-table"');
     expect(html).toContain("<table>");
   });
 

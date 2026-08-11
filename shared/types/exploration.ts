@@ -35,6 +35,18 @@ export interface DatasetQueryResult {
   elapsedMs: number;
 }
 
+export interface MapFieldCorrection {
+  role: "latitude" | "longitude" | "geometry" | "territory" | "label" | "value";
+  from: string;
+  to: string;
+}
+
+export interface MapDatasetResult extends DatasetQueryResult {
+  resolvedSpec: MapSpec;
+  fieldCorrections: MapFieldCorrection[];
+  warnings: string[];
+}
+
 export interface ExplorerViewResult extends DatasetQueryResult {
   title: string;
   sql: string;

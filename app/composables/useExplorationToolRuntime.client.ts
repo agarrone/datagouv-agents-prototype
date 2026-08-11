@@ -4,9 +4,10 @@ import type {
 } from "ai";
 import {
   chartRequiredFields,
-  mapRequiredFields,
 } from "~~/shared/agents/visualization-fields";
 import type {
+  MapDatasetResult,
+  MapSpec,
   DatasetQueryResult,
   DatasetSchemaResult,
   ExplorationMessage,
@@ -16,7 +17,7 @@ export interface ExplorationToolDataset {
   inspectSchema: () => Promise<DatasetSchemaResult>;
   executeSql: (sql: string) => Promise<DatasetQueryResult>;
   createChartData: (requiredFields: string[]) => Promise<DatasetQueryResult>;
-  createMapData: (requiredFields: string[]) => Promise<DatasetQueryResult>;
+  createMapData: (spec: MapSpec) => Promise<MapDatasetResult>;
 }
 
 export type ExplorationToolCallOptions = Parameters<
@@ -74,7 +75,7 @@ export function useExplorationToolRuntime(
 
       if (toolCall.toolName === "create_map") {
         const output = await dataset.createMapData(
-          mapRequiredFields(toolCall.input),
+          toolCall.input,
         );
         void addToolOutput({
           tool: "create_map",

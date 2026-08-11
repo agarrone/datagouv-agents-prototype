@@ -38,5 +38,7 @@ describe("exploration prompt", () => {
     expect(instructions).toContain("table locale : data");
     expect(instructions).toContain("schéma déjà chargé : 42 lignes");
     expect(instructions).toContain("title (VARCHAR)");
+    expect(instructions).toContain("utilise un tableau Markdown pour un top");
+    expect(instructions).toContain("nombre entier");
   });
 });

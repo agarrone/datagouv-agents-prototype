@@ -3,6 +3,7 @@ import { identityPrompt } from "./identity";
 import { responsePrompt } from "./response";
 import { routingPrompt } from "./routing";
 import { sqlPrompt } from "./sql";
+import { tablesPrompt } from "./tables";
 import { visualizationsPrompt } from "./visualizations";
 
 export interface ExplorationPromptContext {
@@ -23,6 +24,7 @@ export const explorationPromptSections = [
   sqlPrompt,
   explorerPrompt,
   visualizationsPrompt,
+  tablesPrompt,
   responsePrompt,
 ] as const;
 

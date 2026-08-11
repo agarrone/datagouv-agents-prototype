@@ -4,6 +4,22 @@ export interface ExplorationResource {
   title: string;
   organization: string;
   parquetUrl: string;
+  resourceName?: string;
+}
+
+export interface DatagouvResourceChoice {
+  id: string;
+  title: string;
+  format: string;
+  parquetUrl: string;
+}
+
+export interface DatagouvDatasetChoice {
+  id: string;
+  slug: string;
+  title: string;
+  organization: string;
+  resources: DatagouvResourceChoice[];
 }
 
 export const explorationResources: ExplorationResource[] = [

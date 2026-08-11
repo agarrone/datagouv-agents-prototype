@@ -33,6 +33,9 @@ const mapElement = ref<HTMLElement | null>(null);
 const isFullscreen = ref(false);
 const { playUiSound } = useUiSound();
 const renderedCount = ref(0);
+const rejectedCount = ref(0);
+const unmatchedCount = ref(0);
+const pointsAreClustered = ref(false);
 const mapError = ref<string | null>(null);
 const legendRange = ref<[number, number] | null>(null);
 let maplibre: typeof import("maplibre-gl") | undefined;
@@ -44,11 +47,29 @@ let previousBodyOverflow = "";
 const sourceId = "agent-map-data";
 const interactiveLayers = ["agent-fill", "agent-line", "agent-points"];
 
+const resolvedBasemap = computed<MapBasemap>(() => props.basemap ?? (
+  props.spec.type === "choropleth" ? "light" : "standard"
+));
+
 const basemapStyle = computed(() => ({
-  standard: "https://tiles.openfreemap.org/styles/bright",
-  light: "https://tiles.openfreemap.org/styles/positron",
-  dark: "https://tiles.openfreemap.org/styles/dark",
-})[props.basemap ?? "standard"]);
+  standard: "https://openmaptiles.geo.data.gouv.fr/styles/osm-bright/style.json",
+  light: "https://openmaptiles.geo.data.gouv.fr/styles/positron/style.json",
+  dark: "https://openmaptiles.geo.data.gouv.fr/styles/dark-matter/style.json",
+})[resolvedBasemap.value]);
+
+function localizeMapLabels() {
+  if (!map) return;
+  map.getStyle().layers?.forEach((layer) => {
+    if (layer.type !== "symbol") return;
+    const textField = layer.layout?.["text-field"];
+    if (!textField || !JSON.stringify(textField).includes("name")) return;
+    map?.setLayoutProperty(layer.id, "text-field", [
+      "coalesce",
+      ["get", "name:fr"],
+      textField,
+    ]);
+  });
+}
 
 function asNumber(value: unknown) {
   const number = typeof value === "number" ? value : Number(value);
@@ -103,7 +124,14 @@ function localCollection(): FeatureCollection {
     if (props.spec.type === "points") {
       const latitude = asNumber(row[props.spec.latitudeField]);
       const longitude = asNumber(row[props.spec.longitudeField]);
-      if (latitude === undefined || longitude === undefined) return [];
+      if (
+        latitude === undefined
+        || longitude === undefined
+        || latitude < -90
+        || latitude > 90
+        || longitude < -180
+        || longitude > 180
+      ) return [];
       geometry = { type: "Point", coordinates: [longitude, latitude] };
       excludedFields.push(props.spec.latitudeField, props.spec.longitudeField);
     } else if (props.spec.type === "geojson") {
@@ -134,6 +162,9 @@ function localCollection(): FeatureCollection {
     }];
   });
   renderedCount.value = features.length;
+  rejectedCount.value = props.rows.length - features.length;
+  unmatchedCount.value = 0;
+  pointsAreClustered.value = props.spec.type === "points" && features.length >= 100;
   return { type: "FeatureCollection", features };
 }
 
@@ -152,9 +183,19 @@ async function choroplethCollection(): Promise<FeatureCollection> {
 
   const byCode = new Map<string, DatasetRow>();
   const byName = new Map<string, DatasetRow>();
+  const boundaryCodes = new Set<string>();
+  const boundaryNames = new Set<string>();
+  boundaries.features.forEach((feature) => {
+    boundaryCodes.add(normalizeTerritoryCode(feature.properties?.code));
+    boundaryNames.add(normalizeTerritoryName(feature.properties?.nom));
+  });
+  let unmatchedRows = 0;
   props.rows.forEach((row) => {
-    byCode.set(normalizeTerritoryCode(row[spec.dataKey]), row);
-    byName.set(normalizeTerritoryName(row[spec.dataKey]), row);
+    const code = normalizeTerritoryCode(row[spec.dataKey]);
+    const name = normalizeTerritoryName(row[spec.dataKey]);
+    byCode.set(code, row);
+    byName.set(name, row);
+    if (!boundaryCodes.has(code) && !boundaryNames.has(name)) unmatchedRows += 1;
   });
 
   let matched = 0;
@@ -194,6 +235,9 @@ async function choroplethCollection(): Promise<FeatureCollection> {
     .filter((value): value is number => value !== undefined);
   legendRange.value = [Math.min(...values), Math.max(...values)];
   renderedCount.value = matched;
+  rejectedCount.value = 0;
+  unmatchedCount.value = unmatchedRows;
+  pointsAreClustered.value = false;
   return { type: "FeatureCollection", features };
 }
 
@@ -282,6 +326,7 @@ async function renderMap() {
     map.on("error", (event) => {
       mapError.value = event.error?.message ?? "La carte n’a pas pu être chargée.";
     });
+    map.on("style.load", localizeMapLabels);
     collapseAttribution();
     map.on("load", () => {
       collapseAttribution();
@@ -298,7 +343,13 @@ function updateSource(geojson: FeatureCollection) {
   if (existingSource) {
     existingSource.setData(geojson);
   } else {
-    map.addSource(sourceId, { type: "geojson", data: geojson });
+    map.addSource(sourceId, {
+      type: "geojson",
+      data: geojson,
+      cluster: pointsAreClustered.value,
+      clusterMaxZoom: 13,
+      clusterRadius: 48,
+    });
     map.addLayer({
       id: "agent-fill",
       type: "fill",
@@ -339,10 +390,35 @@ function updateSource(geojson: FeatureCollection) {
       },
     });
     map.addLayer({
+      id: "agent-clusters",
+      type: "circle",
+      source: sourceId,
+      filter: ["has", "point_count"],
+      paint: {
+        "circle-color": "#000091",
+        "circle-opacity": 0.86,
+        "circle-radius": ["step", ["get", "point_count"], 16, 25, 20, 100, 25],
+        "circle-stroke-color": "#ffffff",
+        "circle-stroke-width": 1.5,
+      },
+    });
+    map.addLayer({
+      id: "agent-cluster-count",
+      type: "symbol",
+      source: sourceId,
+      filter: ["has", "point_count"],
+      layout: {
+        "text-field": ["get", "point_count_abbreviated"],
+        "text-font": ["Noto Sans Regular"],
+        "text-size": 12,
+      },
+      paint: { "text-color": "#ffffff" },
+    });
+    map.addLayer({
       id: "agent-points",
       type: "circle",
       source: sourceId,
-      filter: ["==", ["geometry-type"], "Point"],
+      filter: ["all", ["==", ["geometry-type"], "Point"], ["!", ["has", "point_count"]]],
       paint: {
         "circle-color": "#000091",
         "circle-opacity": 0.82,
@@ -365,6 +441,20 @@ function updateSource(geojson: FeatureCollection) {
         const feature = event.features?.[0];
         if (feature) showPopup(feature, event.lngLat.lng, event.lngLat.lat);
       });
+    });
+    map.on("mouseenter", "agent-clusters", () => {
+      if (map) map.getCanvas().style.cursor = "pointer";
+    });
+    map.on("mouseleave", "agent-clusters", () => {
+      if (map) map.getCanvas().style.cursor = "";
+    });
+    map.on("click", "agent-clusters", async (event) => {
+      const feature = event.features?.[0];
+      const clusterId = feature?.properties?.cluster_id;
+      const source = map?.getSource(sourceId) as GeoJSONSource | undefined;
+      if (!source || typeof clusterId !== "number") return;
+      const zoom = await source.getClusterExpansionZoom(clusterId);
+      map?.easeTo({ center: event.lngLat, zoom });
     });
   }
 
@@ -490,6 +580,15 @@ onBeforeUnmount(() => {
             {{ mapError }}
           </div>
         </div>
+        <template #footer>
+          <span v-if="rejectedCount > 0">
+            {{ rejectedCount.toLocaleString("fr-FR") }} ligne{{ rejectedCount > 1 ? "s" : "" }} ignorée{{ rejectedCount > 1 ? "s" : "" }} : coordonnées ou géométrie invalides
+          </span>
+          <span v-if="unmatchedCount > 0">
+            {{ unmatchedCount.toLocaleString("fr-FR") }} territoire{{ unmatchedCount > 1 ? "s" : "" }} non apparié{{ unmatchedCount > 1 ? "s" : "" }}
+          </span>
+          <span v-if="pointsAreClustered">Les points proches sont regroupés au dézoom.</span>
+        </template>
       </ExplorationResultCard>
     </div>
   </Teleport>

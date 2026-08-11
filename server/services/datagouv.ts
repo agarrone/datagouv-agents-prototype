@@ -2,6 +2,10 @@ import type { z } from "zod";
 import type {
   datasetMetadataOutputSchema,
 } from "~~/shared/agents/exploration-tools";
+import type {
+  DatagouvDatasetChoice,
+  DatagouvResourceChoice,
+} from "~~/shared/data/exploration-resources";
 
 type DatasetMetadata = z.infer<typeof datasetMetadataOutputSchema>;
 
@@ -32,6 +36,65 @@ interface DatagouvDatasetResponse {
 }
 
 const apiBaseUrl = "https://www.data.gouv.fr/api/1";
+
+function extractDatasetReference(input: string) {
+  const value = input.trim();
+  try {
+    const url = new URL(value);
+    const match = url.pathname.match(/\/datasets\/([^/]+)/);
+    if (match?.[1]) return match[1];
+  } catch {
+    // The value may already be a dataset slug or identifier.
+  }
+  return value.replace(/^\/+|\/+$/g, "");
+}
+
+function parquetResources(dataset: DatagouvDatasetResponse): DatagouvResourceChoice[] {
+  return (dataset.resources ?? []).flatMap((resource, index) => {
+    const format = resource.format?.trim().toUpperCase() || "FICHIER";
+    const parquetUrl = resource.extras?.["analysis:parsing:parquet_url"]
+      ?? (format === "PARQUET" ? resource.url ?? null : null);
+    return parquetUrl
+      ? [{
+          id: resource.id ?? `resource-${index}`,
+          title: resource.title?.trim() || "Ressource sans titre",
+          format,
+          parquetUrl,
+        }]
+      : [];
+  });
+}
+
+function datasetChoice(dataset: DatagouvDatasetResponse): DatagouvDatasetChoice {
+  const id = dataset.id ?? "";
+  return {
+    id,
+    slug: dataset.slug ?? id,
+    title: dataset.title ?? "Jeu de données",
+    organization: dataset.organization?.name ?? "Producteur non renseigné",
+    resources: parquetResources(dataset),
+  };
+}
+
+export async function searchDatasets(query: string): Promise<DatagouvDatasetChoice[]> {
+  const params = new URLSearchParams({ q: query, page_size: "8" });
+  const response = await fetch(`${apiBaseUrl}/datasets/?${params}`, {
+    headers: { accept: "application/json" },
+  });
+  if (!response.ok) throw new Error(`La recherche data.gouv.fr répond ${response.status}.`);
+  const payload = await response.json() as { data?: DatagouvDatasetResponse[] };
+  return (payload.data ?? []).map(datasetChoice).filter(dataset => dataset.resources.length > 0);
+}
+
+export async function resolveDataset(input: string): Promise<DatagouvDatasetChoice> {
+  const reference = extractDatasetReference(input);
+  const response = await fetch(
+    `${apiBaseUrl}/datasets/${encodeURIComponent(reference)}/`,
+    { headers: { accept: "application/json" } },
+  );
+  if (!response.ok) throw new Error(`Le jeu de données data.gouv.fr répond ${response.status}.`);
+  return datasetChoice(await response.json() as DatagouvDatasetResponse);
+}
 
 function licenseLabel(license?: string | null) {
   if (!license) return "Licence non renseignée";

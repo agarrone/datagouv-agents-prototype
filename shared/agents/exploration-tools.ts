@@ -9,6 +9,38 @@ const datasetValueSchema = z.union([
 ]);
 const datasetRowSchema = z.record(z.string(), datasetValueSchema);
 
+export const mapSpecSchema = z.discriminatedUnion("type", [
+  z.object({
+    type: z.literal("points"),
+    title: z.string().min(1),
+    description: z.string().min(1),
+    latitudeField: z.string().min(1),
+    longitudeField: z.string().min(1),
+    labelField: z.string().min(1),
+    valueField: z.string().min(1).optional(),
+    valueLabel: z.string().min(1).optional(),
+  }),
+  z.object({
+    type: z.literal("geojson"),
+    title: z.string().min(1),
+    description: z.string().min(1),
+    geojsonField: z.string().min(1),
+    labelField: z.string().min(1),
+    valueField: z.string().min(1).optional(),
+    valueLabel: z.string().min(1).optional(),
+  }),
+  z.object({
+    type: z.literal("choropleth"),
+    title: z.string().min(1),
+    description: z.string().min(1),
+    boundary: z.enum(["france-regions", "france-departments"]),
+    dataKey: z.string().min(1),
+    valueField: z.string().min(1),
+    labelField: z.string().min(1).optional(),
+    valueLabel: z.string().min(1),
+  }),
+]);
+
 export const datasetMetadataOutputSchema = z.object({
   id: z.string(),
   slug: z.string(),
@@ -144,46 +176,20 @@ export const explorationTools = {
   create_map: tool({
     description:
       "Affiche réellement une carte MapLibre dans la conversation à partir du résultat de la dernière requête execute_sql réussie. Pour créer une carte, appeler impérativement ce tool juste après execute_sql : ne jamais recopier la requête SQL ni simuler la carte dans le texte.",
-    inputSchema: z.discriminatedUnion("type", [
-      z.object({
-        type: z.literal("points"),
-        title: z.string().min(1),
-        description: z.string().min(1),
-        latitudeField: z.string().min(1),
-        longitudeField: z.string().min(1),
-        labelField: z.string().min(1),
-        valueField: z.string().min(1).optional(),
-        valueLabel: z.string().min(1).optional(),
-      }),
-      z.object({
-        type: z.literal("geojson"),
-        title: z.string().min(1),
-        description: z.string().min(1),
-        geojsonField: z.string().min(1),
-        labelField: z.string().min(1),
-        valueField: z.string().min(1).optional(),
-        valueLabel: z.string().min(1).optional(),
-      }),
-      z.object({
-        type: z.literal("choropleth"),
-        title: z.string().min(1),
-        description: z.string().min(1),
-        boundary: z.enum(["france-regions", "france-departments"]),
-        dataKey: z
-          .string()
-          .min(1)
-          .describe("Champ contenant le code officiel ou le nom du territoire."),
-        valueField: z.string().min(1),
-        labelField: z.string().min(1).optional(),
-        valueLabel: z.string().min(1),
-      }),
-    ]),
+    inputSchema: mapSpecSchema,
     outputSchema: z.object({
       columns: z.array(z.string()),
       rows: z.array(datasetRowSchema),
       rowCount: z.number(),
       truncated: z.boolean(),
       elapsedMs: z.number(),
+      resolvedSpec: mapSpecSchema,
+      fieldCorrections: z.array(z.object({
+        role: z.enum(["latitude", "longitude", "geometry", "territory", "label", "value"]),
+        from: z.string(),
+        to: z.string(),
+      })),
+      warnings: z.array(z.string()),
     }),
   }),
 };

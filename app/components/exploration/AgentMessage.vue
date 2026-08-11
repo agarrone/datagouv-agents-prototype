@@ -3,25 +3,22 @@ import ExplorationAgentChart from "./AgentChart.client.vue";
 import ExplorationAgentMap from "./AgentMap.client.vue";
 import type { AgentProgressStep } from "./AgentProgress.vue";
 import type { ExplorationMessage } from "~~/shared/types/exploration";
+import type { FeedbackContext } from "~~/shared/types/feedback";
 
 const props = defineProps<{
   message: ExplorationMessage;
   responding?: boolean;
   canEdit?: boolean;
   source?: string;
-  feedbackContext?: {
-    question: string;
-    resource: string;
-    dataset: string;
-    resourceName: string;
-    model: string;
-  };
+  feedbackContext?: FeedbackContext;
+  showFeedbackPrompt?: boolean;
 }>();
 
 const emit = defineEmits<{
   applyProposal: [toolCallId: string, sql: string, title: string];
   clarify: [toolCallId: string, choice: string];
   edit: [messageId: string, content: string];
+  dismissFeedbackPrompt: [];
 }>();
 
 const copiedUserMessage = ref(false);
@@ -188,13 +185,16 @@ function mapToolDetails(input: unknown): ToolDetail[] | undefined {
 }
 
 const toolTraceEntries = computed<ToolTraceEntry[]>(() => displayedToolParts.value.map((part, index) => {
+  const effectiveInput = part.type === "tool-create_map" && part.state === "output-available"
+    ? part.output.resolvedSpec
+    : "input" in part ? part.input : undefined;
   const base = {
     id: `${part.type}-${"toolCallId" in part ? part.toolCallId : index}`,
     label: toolLabel(part.type),
     code: part.type === "tool-execute_sql" || part.type === "tool-propose_explorer_view"
       ? "input" in part ? part.input?.sql : undefined
       : part.type === "tool-create_chart" || part.type === "tool-create_map"
-        ? "input" in part && part.input ? JSON.stringify(part.input, null, 2) : undefined
+        ? effectiveInput ? JSON.stringify(effectiveInput, null, 2) : undefined
         : undefined,
     codeLanguage: part.type === "tool-create_chart" || part.type === "tool-create_map"
       ? "JSON" as const
@@ -261,9 +261,22 @@ const toolTraceEntries = computed<ToolTraceEntry[]>(() => displayedToolParts.val
     ...base,
     description: "input" in part ? part.input?.description : undefined,
     summary: part.state === "output-available"
-      ? `${part.output.rows.length.toLocaleString("fr-FR")} lignes cartographiées`
+      ? `${part.output.rows.length.toLocaleString("fr-FR")} lignes préparées${part.output.fieldCorrections.length > 0 ? ` · ${part.output.fieldCorrections.length} champ${part.output.fieldCorrections.length > 1 ? "s" : ""} ajusté${part.output.fieldCorrections.length > 1 ? "s" : ""}` : ""}`
       : "Création en cours",
-    details: mapToolDetails("input" in part ? part.input : undefined),
+    details: [
+      ...(mapToolDetails(effectiveInput) ?? []),
+      ...(part.state === "output-available" && part.output.fieldCorrections.length > 0
+        ? [{
+            label: "Ajustements",
+            value: part.output.fieldCorrections
+              .map(item => `${item.from} → ${item.to}`)
+              .join(", "),
+          }]
+        : []),
+      ...(part.state === "output-available"
+        ? part.output.warnings.map(warning => ({ label: "Attention", value: warning }))
+        : []),
+    ],
   };
 }));
 
@@ -476,7 +489,7 @@ const observableReasoning = computed(() => {
             v-if="part.state === 'output-available' && 'input' in part && part.input"
             class="h-full"
             :play-completion-sound="false"
-            :spec="part.input"
+            :spec="part.output.resolvedSpec"
             :rows="part.output.rows"
             :source="source"
             :truncated="part.output.truncated"
@@ -493,6 +506,12 @@ const observableReasoning = computed(() => {
         v-if="assistantText && !toolsActive && !responding"
         :content="assistantText"
         :feedback-context="feedbackContext"
+      />
+      <ExplorationConversationFeedbackPrompt
+        v-if="showFeedbackPrompt && feedbackContext && assistantText && !responding"
+        :answer="assistantText"
+        :context="feedbackContext"
+        @dismiss="emit('dismissFeedbackPrompt')"
       />
     </template>
   </article>

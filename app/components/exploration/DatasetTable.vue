@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { DatasetColumn, DatasetRow } from "~~/shared/types/exploration";
+import { humanizeDuckDbType } from "~~/shared/data/duckdb-types";
 
 const props = defineProps<{
   columns: readonly string[];
@@ -9,7 +10,8 @@ const props = defineProps<{
 }>();
 
 function typeFor(column: string) {
-  return props.schemaColumns.find(item => item.name === column)?.type;
+  const type = props.schemaColumns.find(item => item.name === column)?.type;
+  return type ? humanizeDuckDbType(type) : undefined;
 }
 </script>
 

@@ -19,6 +19,9 @@ markdown.renderer.rules.link_open = (tokens, index, options, environment, render
   return defaultLinkOpen(tokens, index, options, environment, renderer);
 };
 
+markdown.renderer.rules.table_open = () => '<div class="agent-markdown-table"><table>';
+markdown.renderer.rules.table_close = () => "</table></div>";
+
 function completeStreamingMarkdown(content: string) {
   let completed = content;
   const fences = completed.match(/^```/gm)?.length ?? 0;

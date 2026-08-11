@@ -1,4 +1,4 @@
-@import "tailwindcss";
+@import "@datagouv/components-next/assets/main.css";
 @import "remixicon/fonts/remixicon.css";
 @import "@fontsource-variable/geist-mono/wght.css";
 
@@ -81,6 +81,126 @@ kbd,
 pre,
 samp {
   font-family: var(--font-mono);
+}
+
+/* Adaptation du TabularExplorer officiel au langage visuel du prototype. */
+.datagouv-tabular-specimen {
+  color: #161616;
+  font-family: Marianne, Arial, sans-serif;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.datagouv-tabular-specimen > div > div > div:first-child {
+  min-height: 48px;
+  padding: 8px 16px !important;
+  border-bottom: 1px solid #e5e5e5;
+}
+
+.datagouv-tabular-specimen > div > div > div:first-child button,
+#tooltips button {
+  border-radius: 6px !important;
+  font-size: 12px !important;
+}
+
+.datagouv-tabular-specimen > div > div > div:first-child svg {
+  width: 14px !important;
+  height: 14px !important;
+  color: #555555 !important;
+}
+
+.datagouv-tabular-specimen > div > div > .hidden.md\:block {
+  max-height: 34rem !important;
+  margin-inline: 0 !important;
+  scrollbar-color: #777777 #f6f6f6;
+  scrollbar-width: thin;
+}
+
+.datagouv-tabular-specimen table {
+  font-size: 12px !important;
+  line-height: 18px !important;
+}
+
+.datagouv-tabular-specimen thead {
+  background: #f6f6f6 !important;
+  box-shadow: inset 0 -1px 0 #e5e5e5 !important;
+}
+
+.datagouv-tabular-specimen th {
+  height: 48px !important;
+  padding: 5px 12px !important;
+  border-color: #e5e5e5 !important;
+}
+
+.datagouv-tabular-specimen th .font-extrabold {
+  color: #161616 !important;
+  font-size: 13px !important;
+  font-weight: 700 !important;
+  line-height: 18px !important;
+}
+
+.datagouv-tabular-specimen th .font-mono {
+  color: #555555 !important;
+  font-family: var(--font-mono) !important;
+  font-size: 11px !important;
+  font-weight: 400 !important;
+  line-height: 16px !important;
+}
+
+.datagouv-tabular-specimen th button {
+  display: inline-flex;
+  width: 20px;
+  height: 20px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px !important;
+  color: #555555 !important;
+}
+
+.datagouv-tabular-specimen th button:hover,
+.datagouv-tabular-specimen > div > div > div:first-child button:hover {
+  background: #eeeeee !important;
+  color: #000091 !important;
+}
+
+.datagouv-tabular-specimen th svg {
+  width: 14px !important;
+  height: 14px !important;
+}
+
+.datagouv-tabular-specimen td {
+  height: 36px !important;
+  padding: 8px 12px !important;
+  border-color: #e5e5e5 !important;
+  color: #161616 !important;
+  font-size: 12px !important;
+  line-height: 18px !important;
+}
+
+.datagouv-tabular-specimen tbody tr:hover td {
+  background: #f6f6f6 !important;
+}
+
+.datagouv-tabular-specimen .font-mono {
+  font-family: var(--font-mono) !important;
+}
+
+#tooltips [role="dialog"],
+#tooltips [data-headlessui-state="open"] {
+  border-color: #e5e5e5 !important;
+  border-radius: 6px !important;
+  background: #ffffff !important;
+  color: #161616 !important;
+  font-size: 12px !important;
+  box-shadow: 0 4px 12px rgb(0 0 0 / 12%) !important;
+}
+
+/* components-next génère ses rayons dans la couche utilities avec !important.
+   La surcharge doit donc vivre dans cette même couche. */
+@layer utilities {
+  #tooltips [data-headlessui-state="open"] {
+    border-radius: 6px !important;
+  }
 }
 
 .agent-surface {

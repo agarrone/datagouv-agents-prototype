@@ -39,17 +39,13 @@ withDefaults(defineProps<{
       <slot />
     </div>
 
-    <p
-      v-if="source"
-      class="flex h-8 items-center truncate border-t border-[#e5e5e5] px-5 text-[11px] leading-4 text-[#555555]"
-      :title="source"
-    >
-      Source : {{ source }}
-    </p>
     <footer
-      v-else-if="$slots.footer"
-      class="flex min-h-10 flex-wrap items-center justify-between gap-x-4 gap-y-1 border-t border-[#e5e5e5] px-5 py-2.5 text-[11px] text-[#555555]"
+      v-if="source || $slots.footer"
+      class="flex min-h-8 flex-wrap items-center justify-between gap-x-4 gap-y-1 border-t border-[#e5e5e5] px-5 py-2 text-[11px] text-[#555555]"
     >
+      <p v-if="source" class="min-w-0 flex-1 truncate" :title="source">
+        Source : {{ source }}
+      </p>
       <slot name="footer" />
     </footer>
   </section>
