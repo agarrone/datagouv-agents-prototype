@@ -1,5 +1,7 @@
 <script setup lang="ts">
 const mode = defineModel<"assistant" | "sql">({ default: "assistant" });
+defineProps<{ closable?: boolean }>();
+const emit = defineEmits<{ close: [] }>();
 </script>
 
 <template>
@@ -10,6 +12,9 @@ const mode = defineModel<"assistant" | "sql">({ default: "assistant" });
         <h2 class="text-[13px] font-medium">Interroger ces données</h2>
         <p class="text-[12px] text-[#555555]">Assistant d’exploration</p>
       </div>
+      <button v-if="closable" aria-label="Fermer le panneau" class="ml-auto grid size-7 place-items-center rounded hover:bg-[#f6f6f6] focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[#000091]" type="button" @click="emit('close')">
+        <i class="ri-close-line text-base text-[#555555]" />
+      </button>
     </div>
     <nav
       aria-label="Modes d’interrogation"

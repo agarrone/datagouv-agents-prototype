@@ -1,0 +1,68 @@
+<script setup lang="ts">
+import type { ExplorationResource } from "~~/shared/data/exploration-resources";
+
+const props = defineProps<{
+  collapsed: boolean;
+  loading: boolean;
+  resources: ExplorationResource[];
+  selectedId?: string;
+}>();
+
+const emit = defineEmits<{
+  select: [resource: ExplorationResource];
+  "update:collapsed": [value: boolean];
+}>();
+
+const search = ref("");
+const filteredResources = computed(() => {
+  const needle = search.value.trim().toLocaleLowerCase("fr");
+  if (!needle) return props.resources;
+  return props.resources.filter(resource =>
+    `${resource.title} ${resource.organization}`.toLocaleLowerCase("fr").includes(needle),
+  );
+});
+</script>
+
+<template>
+  <aside class="flex min-h-0 flex-col border-r border-[#e5e5e5] bg-[#fafafa]">
+    <div class="flex h-11 shrink-0 items-center justify-between border-b border-[#e5e5e5] px-3">
+      <strong v-if="!collapsed" class="text-[12px]">Ressources</strong>
+      <button
+        :aria-label="collapsed ? 'Déplier les ressources' : 'Replier les ressources'"
+        class="grid size-6 place-items-center rounded hover:bg-[#eeeeee] focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[#000091]"
+        type="button"
+        @click="emit('update:collapsed', !collapsed)"
+      >
+        <i :class="collapsed ? 'ri-sidebar-unfold-line' : 'ri-sidebar-fold-line'" class="text-sm text-[#777777]" />
+      </button>
+    </div>
+
+    <div v-if="!collapsed" class="min-h-0 flex-1 overflow-auto p-2">
+      <label class="flex h-8 items-center gap-1 rounded border border-[#e5e5e5] bg-[#f6f6f6] px-2">
+        <i class="ri-search-line text-sm text-[#555555]" />
+        <input v-model="search" class="min-w-0 flex-1 bg-transparent text-[12px] outline-none placeholder:text-[#777777]" placeholder="Rechercher une ressource">
+      </label>
+      <p class="px-1 pb-1 pt-3 text-[10px] font-medium uppercase tracking-[0.04em] text-[#777777]">
+        {{ filteredResources.length }} ressource{{ filteredResources.length > 1 ? "s" : "" }} disponible{{ filteredResources.length > 1 ? "s" : "" }}
+      </p>
+      <nav aria-label="Ressources du laboratoire" class="space-y-0.5">
+        <button
+          v-for="resource in filteredResources"
+          :key="resource.id"
+          class="grid min-h-9 w-full grid-cols-[auto_minmax(0,1fr)] items-center gap-1.5 rounded px-1.5 py-1 text-left"
+          :class="selectedId === resource.id ? 'bg-[#eeeeee]' : 'hover:bg-[#f6f6f6]'"
+          :disabled="loading"
+          type="button"
+          @click="emit('select', resource)"
+        >
+          <span class="grid size-5 place-items-center rounded-sm bg-[#c3fad5] text-[#18753c]"><i class="ri-table-line text-sm" /></span>
+          <span class="min-w-0">
+            <span class="block truncate text-[11px]" :class="selectedId === resource.id ? 'font-bold' : 'font-medium'">{{ resource.title }}</span>
+            <span class="block truncate text-[10px] text-[#777777]">{{ resource.organization }} · Parquet</span>
+          </span>
+        </button>
+      </nav>
+      <p v-if="filteredResources.length === 0" class="px-2 py-5 text-center text-[11px] text-[#777777]">Aucune ressource trouvée.</p>
+    </div>
+  </aside>
+</template>

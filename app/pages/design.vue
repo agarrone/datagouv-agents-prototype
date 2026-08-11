@@ -161,12 +161,6 @@ const departmentMapRows: DatasetRow[] = [
   { code: "34", departement: "Hérault", ressources: 280 },
 ];
 
-const tableColumns = ["title", "organization", "metric.views"];
-const tableRows: DatasetRow[] = [
-  { title: "Catalogue des données", organization: "data.gouv.fr", "metric.views": 182_430 },
-  { title: "Répertoire national des élus", organization: "Ministère de l’Intérieur", "metric.views": 96_240 },
-  { title: "Liste des festivals en France", organization: "Ministère de la Culture", "metric.views": 74_810 },
-];
 const schemaColumns = [
   { name: "title", type: "VARCHAR" },
   { name: "organization", type: "VARCHAR" },
@@ -935,12 +929,9 @@ const designRisks = [
         <section id="explorateur">
           <header class="mb-6"><p class="text-[11px] font-medium uppercase tracking-[0.06em] text-[#555555]">09</p><h2 class="mt-1 text-2xl font-bold">Explorateur</h2></header>
           <div class="mb-4 max-w-3xl text-[13px] leading-5 text-[#555555]">
-            L’explorateur du prototype est exécuté localement avec DuckDB WASM. Il ne dépend ni de l’API tabulaire ni des composants data.gouv.fr.
+            Spécimen interactif dédié aux arbitrages de design. Il reprend la structure de l’ancien explorateur sans être encore branché au moteur DuckDB du laboratoire.
           </div>
-          <div class="overflow-hidden rounded-md border border-[#e5e5e5] bg-white">
-            <ExplorationDatasetSummary :column-count="3" :row-count="7283" />
-            <ExplorationDatasetTable :columns="tableColumns" :rows="tableRows" :schema-columns="schemaColumns" show-types />
-          </div>
+          <DesignExplorerSpecimen />
           <div class="mt-4 grid gap-4 xl:grid-cols-3">
             <ExplorationExplorerProposal
               reason="La requête conserve les colonnes du tableau et filtre uniquement les lignes concernées."

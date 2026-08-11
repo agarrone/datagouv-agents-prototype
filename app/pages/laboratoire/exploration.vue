@@ -14,6 +14,9 @@ import type { ExplorationMessage } from "~~/shared/types/exploration";
 const input = ref("");
 const route = useRoute();
 const panelMode = ref<"assistant" | "sql">("assistant");
+const assistantOpen = ref(true);
+const assistantWidth = ref(576);
+const resourcesCollapsed = ref(false);
 const editingMessageId = ref<string | null>(null);
 const composer = ref<{ focus: () => void } | null>(null);
 const dataset = useDatasetEngine();
@@ -247,6 +250,40 @@ async function loadSelectedResource() {
   }
 }
 
+async function selectResource(resource: ExplorationResource) {
+  const changesResource = dataset.activeResource.value?.id !== resource.id;
+  if (changesResource && isResponding.value) stop();
+  selectedResource.value = resource;
+  try {
+    await dataset.load(resource);
+    if (changesResource) {
+      messages.value = [];
+      input.value = "";
+      editingMessageId.value = null;
+      latestResponseUsage.value = undefined;
+      conversationFeedbackMessageId.value = null;
+      conversationFeedbackPrompted.value = false;
+    }
+  } catch {
+    // Le moteur expose directement l’erreur dans l’interface.
+  }
+}
+
+function startAssistantResize(event: MouseEvent) {
+  event.preventDefault();
+  const startX = event.clientX;
+  const startWidth = assistantWidth.value;
+  const move = (moveEvent: MouseEvent) => {
+    assistantWidth.value = Math.max(420, Math.min(820, startWidth + startX - moveEvent.clientX));
+  };
+  const stop = () => {
+    window.removeEventListener("mousemove", move);
+    window.removeEventListener("mouseup", stop);
+  };
+  window.addEventListener("mousemove", move);
+  window.addEventListener("mouseup", stop);
+}
+
 async function applyExplorerProposal(
   toolCallId: string,
   sql: string,
@@ -289,7 +326,7 @@ async function resolveClarification(toolCallId: string, choice: string) {
 </script>
 
 <template>
-  <main class="flex min-h-screen flex-col bg-white lg:h-dvh lg:overflow-hidden">
+  <main class="flex h-dvh min-w-[64rem] flex-col overflow-hidden bg-white">
     <header class="border-b border-[#e5e5e5] px-5 py-4">
       <div class="mx-auto flex w-full max-w-[90rem] items-center justify-between">
         <div>
@@ -300,28 +337,36 @@ async function resolveClarification(toolCallId: string, choice: string) {
       </div>
     </header>
 
-    <div class="mx-auto grid w-full max-w-[96rem] flex-1 lg:min-h-0 lg:grid-cols-[minmax(0,1fr)_36rem]">
-      <section class="min-w-0 border-b border-[#777777] lg:min-h-0 lg:overflow-auto lg:border-b-0">
-        <div class="border-b border-[#e5e5e5] px-5 py-4">
-          <p class="text-[13px] font-bold">{{ dataset.activeResource.value?.title ?? "Ressources de test" }}</p>
-          <p class="mt-1 text-[13px] text-[#555555]">
-            {{ dataset.activeResource.value
-              ? `${dataset.activeResource.value.organization} · Parquet`
-              : "Sélectionnez une ressource issue de data.gouv.fr" }}
-          </p>
+    <div class="grid min-h-0 w-full flex-1" :style="{ gridTemplateColumns: `${resourcesCollapsed ? 44 : 216}px minmax(0, 1fr)${assistantOpen ? ` ${assistantWidth}px` : ''}` }">
+      <ExplorationResourceSidebar
+        v-model:collapsed="resourcesCollapsed"
+        :loading="dataset.status.value === 'loading'"
+        :resources="explorationResources"
+        :selected-id="selectedResource?.id"
+        @select="selectResource"
+      />
+
+      <section class="flex min-h-0 min-w-0 flex-col overflow-hidden">
+        <div class="flex min-h-14 shrink-0 items-center gap-2 border-b border-[#e5e5e5] bg-[#f6f6f6] px-4">
+          <div class="min-w-0 flex-1">
+            <p class="truncate text-[12px] font-bold">{{ dataset.activeResource.value?.title ?? "Ressources de test" }}</p>
+            <p class="mt-0.5 truncate text-[11px] text-[#555555]">{{ dataset.activeResource.value ? `${dataset.activeResource.value.organization} · Parquet` : "Sélectionnez une ressource issue de data.gouv.fr" }}</p>
+          </div>
+          <button v-if="!assistantOpen" class="inline-flex h-8 items-center gap-1.5 rounded-md border border-[#000091] bg-[#ebedff] px-2.5 text-[12px] font-medium text-[#000091]" type="button" @click="assistantOpen = true; panelMode = 'assistant'">
+            <i class="ri-message-ai-3-line text-sm" />Poser une question
+          </button>
         </div>
 
-        <ExplorationResourcePicker
-          v-if="dataset.status.value !== 'ready'"
-          :error="dataset.error.value"
-          :loading="dataset.status.value === 'loading'"
-          :resources="explorationResources"
-          :selected="selectedResource"
-          @load="selectedResource && dataset.load(selectedResource)"
-          @select="selectedResource = $event"
-        />
+        <div v-if="dataset.status.value !== 'ready'" class="grid min-h-0 flex-1 place-items-center bg-[#fafafa] p-8 text-center">
+          <div class="max-w-md">
+            <i :class="dataset.status.value === 'loading' ? 'ri-loader-4-line animate-spin' : dataset.status.value === 'error' ? 'ri-error-warning-line text-[#ce0500]' : 'ri-table-line text-[#777777]'" class="text-2xl" />
+            <h2 class="mt-3 text-[14px] font-bold">{{ dataset.status.value === 'loading' ? 'Chargement de la ressource' : dataset.status.value === 'error' ? 'Impossible de charger la ressource' : 'Choisissez une ressource' }}</h2>
+            <p class="mt-1 text-[11px] leading-5 text-[#555555]">{{ dataset.status.value === 'loading' ? 'DuckDB prépare les données et inspecte leur structure dans votre navigateur.' : dataset.error.value || 'Sélectionnez une ressource dans le panneau de gauche pour afficher ses données et préparer le contexte de l’assistant.' }}</p>
+            <button v-if="dataset.status.value === 'error' && selectedResource" class="mt-3 h-8 rounded-md border border-[#ce0500] px-3 text-[11px] text-[#ce0500]" type="button" @click="selectResource(selectedResource)">Réessayer</button>
+          </div>
+        </div>
 
-        <div v-else class="min-w-0">
+        <div v-else class="min-h-0 min-w-0 flex-1 overflow-hidden">
           <ExplorationDatasetExplorer
             :base-sql="dataset.activeView.value?.sql"
             :columns="explorerColumns"
@@ -332,8 +377,9 @@ async function resolveClarification(toolCallId: string, choice: string) {
         </div>
       </section>
 
-      <aside class="chat-sidebar flex min-h-[44rem] flex-col border-l border-[#777777] bg-[linear-gradient(to_bottom,rgba(235,237,255,0.30)_0%,rgba(235,237,255,0.01)_100%)] shadow-[-4px_0_12px_rgba(0,0,0,0.05)] lg:h-full lg:min-h-0 lg:overflow-hidden">
-        <ExplorationAgentPanelHeader v-model="panelMode" />
+      <aside v-if="assistantOpen" class="chat-sidebar relative flex min-h-0 flex-col border-l border-[#777777] bg-[linear-gradient(to_bottom,rgba(235,237,255,0.30)_0%,rgba(235,237,255,0.01)_100%)] shadow-[-4px_0_12px_rgba(0,0,0,0.05)]">
+        <button aria-label="Redimensionner le panneau assistant" class="absolute inset-y-0 -left-1 z-30 w-2 cursor-col-resize" type="button" @mousedown="startAssistantResize"><span class="mx-auto block h-full w-px bg-transparent hover:bg-[#000091]" /></button>
+        <ExplorationAgentPanelHeader v-model="panelMode" closable @close="assistantOpen = false" />
         <ExplorationConversationScroller
           v-show="panelMode === 'assistant'"
           :message-count="messages.length"
