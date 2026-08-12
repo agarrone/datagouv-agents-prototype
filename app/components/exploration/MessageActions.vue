@@ -42,6 +42,8 @@ async function sendFeedback(nextRating: "useful" | "not-useful") {
         answer: props.content,
         resource: props.feedbackContext.resource,
         dataset: props.feedbackContext.dataset,
+        datasetName: props.feedbackContext.datasetName,
+        datasetUrl: props.feedbackContext.datasetUrl,
         resourceName: props.feedbackContext.resourceName,
         model: props.feedbackContext.model,
         origin: "response_feedback",

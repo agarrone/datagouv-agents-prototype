@@ -14,6 +14,14 @@ export interface DatagouvResourceChoice {
   parquetUrl: string;
 }
 
+export interface DatagouvDatasetResource {
+  id: string;
+  title: string;
+  format: string;
+  url: string | null;
+  parquetUrl: string | null;
+}
+
 export interface DatagouvDatasetChoice {
   id: string;
   slug: string;

@@ -1,4 +1,5 @@
 import { feedbackSchema } from "~~/shared/schemas/feedback";
+import { buildFeedbackFields } from "~~/server/services/feedback";
 
 const gristFeedbackEndpoint =
   "https://grist.numerique.gouv.fr/o/datagouv/api/s/iMKAxQa486jfLdQ5AJEyHj/tables/Retours_assistant/records?utm_source=grist-forms";
@@ -22,23 +23,7 @@ export default defineEventHandler(async (event) => {
     });
   }
 
-  const originLabel = feedback.data.origin === "after_six_questions"
-    ? "Invitation après 6 questions"
-    : "Feedback sur une réponse";
-
-  const fields = {
-    Rating: feedback.data.rating,
-    Question: feedback.data.question,
-    Answer: feedback.data.answer,
-    // La table Grist ne possède pas de colonne Feedback_origin. Le champ
-    // Details permet de conserver l’origine sans rendre l’envoi invalide.
-    Details: `Origine : ${originLabel}`,
-    Resource: feedback.data.resource,
-    Dataset: feedback.data.dataset,
-    Ressource_name: feedback.data.resourceName,
-    Model: feedback.data.model,
-    CreatedAt: feedback.data.createdAt ?? new Date().toISOString(),
-  };
+  const fields = buildFeedbackFields(feedback.data);
 
   try {
     await $fetch(gristFeedbackEndpoint, {

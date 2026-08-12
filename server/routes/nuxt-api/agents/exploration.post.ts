@@ -8,6 +8,10 @@ import { resourceContextSchema } from "~~/shared/schemas/agent";
 import type { ExplorationMessage } from "~~/shared/types/exploration";
 import { useAgentModel } from "~~/server/agents/provider";
 import { buildExplorationInstructions } from "~~/server/agents/prompts/exploration";
+import {
+  countSqlCallsForCurrentQuestion,
+  MAX_SQL_CALLS_PER_QUESTION,
+} from "~~/server/agents/tool-budget";
 import { fetchDatasetMetadata } from "~~/server/services/datagouv";
 
 function agentErrorMessage(error: unknown) {
@@ -48,6 +52,8 @@ export default defineEventHandler(async (event) => {
     },
   };
   const instructions = buildExplorationInstructions(resource.data);
+  const previousSqlCalls = countSqlCallsForCurrentQuestion(body.messages);
+  const allToolNames = Object.keys(tools) as Array<keyof typeof tools>;
 
   const result = streamText({
     model: useAgentModel(),
@@ -56,6 +62,27 @@ export default defineEventHandler(async (event) => {
       tools,
     }),
     tools,
+    prepareStep({ steps, instructions: stepInstructions }) {
+      const currentSqlCalls = steps.reduce(
+        (count, step) => count + step.toolCalls.filter(
+          call => call.toolName === "execute_sql",
+        ).length,
+        0,
+      );
+      if (previousSqlCalls + currentSqlCalls < MAX_SQL_CALLS_PER_QUESTION) {
+        return undefined;
+      }
+
+      const currentInstructions = typeof stepInstructions === "string"
+        ? stepInstructions
+        : instructions;
+      return {
+        activeTools: allToolNames.filter(name => name !== "execute_sql"),
+        instructions: currentInstructions.includes("Limite technique SQL atteinte")
+          ? currentInstructions
+          : `${currentInstructions}\n\nLimite technique SQL atteinte : les trois appels autorisés pour cette question ont été consommés. N’appelle plus execute_sql ; réponds avec les résultats déjà obtenus ou explique sobrement pourquoi ils ne suffisent pas.`,
+      };
+    },
     stopWhen: isStepCount(5),
     abortSignal: event.node.req.signal,
   });

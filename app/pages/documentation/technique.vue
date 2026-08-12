@@ -19,6 +19,9 @@ const tools = [
 
 const promptLayers = [
   ["Identité et preuves", "Définit le rôle de l’assistant, la table locale et l’interdiction de répondre sans résultat attesté.", "server/agents/prompts/identity.ts"],
+  ["Périmètre", "Réévalue chaque message, refuse les demandes hors sujet et distingue une capacité pertinente mais indisponible.", "server/agents/prompts/scope.ts"],
+  ["Données non fiables", "Empêche les métadonnées, colonnes, valeurs et sorties de tools d’être interprétées comme des instructions.", "server/agents/prompts/untrusted-data.ts"],
+  ["Économie et limites des preuves", "Réutilise les preuves existantes et encadre l’interprétation des échantillons, top-N, limites et ex æquo.", "server/agents/prompts/evidence.ts"],
   ["Planification et clarification", "Choisit la preuve la plus légère et demande une précision lorsque plusieurs interprétations changeraient le résultat.", "server/agents/prompts/routing.ts"],
   ["Politique SQL", "Encadre les colonnes, les correspondances exactes, les agrégations, les limites et la correction des requêtes.", "server/agents/prompts/sql.ts"],
   ["Politique de l’explorateur", "Distingue une réponse conversationnelle d’une demande explicite de modification du tableau.", "server/agents/prompts/explorer.ts"],
@@ -107,7 +110,8 @@ useSeoMeta({
           <div><h3 class="font-semibold text-[#161616]">Envoyé au modèle</h3><ul class="mt-2"><li>Question et historique de la conversation.</li><li>Contexte de la ressource et schéma chargé.</li><li>Appels d’outils et sorties nécessaires.</li><li>Erreurs SQL utiles à une éventuelle correction.</li></ul></div>
         </div>
         <p>Le validateur SQL accepte une seule requête commençant par <code>SELECT</code> ou <code>WITH</code>. Il refuse notamment INSERT, UPDATE, DELETE, DROP, ALTER, CREATE, COPY, ATTACH, INSTALL, LOAD, CALL et PRAGMA.</p>
-        <p>Une requête doit avoir été exécutée avec succès avant de pouvoir être appliquée à l’explorateur ou utilisée comme source d’une visualisation.</p>
+        <p>Une requête doit avoir été exécutée avec succès avant de pouvoir être appliquée à l’explorateur ou utilisée comme source d’une visualisation. Le prompt demande au modèle de ne pas dépasser trois essais SQL par question ; la route serveur impose aussi ce plafond en retirant réellement <code>execute_sql</code> des tools disponibles une fois le budget consommé.</p>
+        <p>Les métadonnées, noms de colonnes, valeurs, échantillons et sorties de tools sont explicitement traités comme des données non fiables. Le contexte actif est sérialisé dans un bloc délimité afin qu’une instruction malveillante contenue dans une ressource ne soit pas confondue avec une instruction système.</p>
       </DocumentationSection>
 
       <DocumentationSection id="visualizations" eyebrow="Rendu" title="Graphiques et cartes" description="Les visualisations sont toujours construites à partir du dernier résultat SQL vérifié.">
@@ -118,7 +122,7 @@ useSeoMeta({
       </DocumentationSection>
 
       <DocumentationSection id="feedback" eyebrow="Amélioration continue" title="Mécanisme de feedback" description="Chaque réponse peut recevoir une évaluation utile ou inutile, complétée si nécessaire par un commentaire.">
-        <ol><li>L’utilisateur choisit un pouce sous une réponse. Un tooltip précise les données transmises.</li><li>La route serveur valide le contenu avec Zod, vérifie l’origine de la requête et enregistre immédiatement l’évaluation dans Grist. L’origine fonctionnelle est conservée dans le champ de détails existant.</li><li>Après l’envoi, l’interface propose d’ouvrir un formulaire Grist prérempli avec la question, la réponse, la ressource, le jeu de données, le nom de la ressource, le modèle et la date.</li><li>Après six questions, une invitation unique propose également ce formulaire et préfixe la question avec « Invitation après 6 questions ».</li><li>L’interface indique le succès ou permet de réessayer en cas d’échec.</li></ol>
+        <ol><li>L’utilisateur choisit un pouce sous une réponse. Un tooltip précise les données transmises.</li><li>La route serveur valide le contenu avec Zod, vérifie l’origine de la requête et enregistre immédiatement l’évaluation dans Grist. L’origine fonctionnelle est conservée dans le champ de détails existant.</li><li>Quand ils sont disponibles, le nom du jeu de données, son URL data.gouv.fr et le nom de la ressource sont enregistrés dans <code>Dataset_name</code>, <code>Dataset_url</code> et <code>Ressource_name</code>.</li><li>Après l’envoi, l’interface propose d’ouvrir un formulaire Grist prérempli avec la question, la réponse, la ressource, le jeu de données, le modèle et la date.</li><li>Après six questions, une invitation unique propose également ce formulaire et préfixe la question avec « Invitation après 6 questions ».</li><li>L’interface indique le succès ou permet de réessayer en cas d’échec.</li></ol>
         <p>Le prototype n’envoie pas d’identité, mais le texte de la question et de la réponse fait partie du retour. Le formulaire détaillé reste facultatif.</p>
       </DocumentationSection>
 
@@ -132,7 +136,7 @@ useSeoMeta({
             <code class="mt-2 inline-block text-[11px]">{{ layer[2] }}</code>
           </article>
         </div>
-        <p>À chaque requête, ces couches sont assemblées avec le contexte actif : titre, producteur, références, ressource et schéma déjà chargé. Les contenus complets restent versionnés dans les fichiers indiqués plutôt que publiés automatiquement par une route publique.</p>
+        <p>À chaque requête, ces couches sont assemblées avec le contexte actif : titre, producteur, références, ressource et schéma déjà chargé. Le périmètre est réévalué sur le dernier message à chaque tour. Une demande hors sujet reçoit un refus bref sans tool ; une demande pertinente mais non prise en charge reçoit une explication de la limite et une alternative disponible. Les contenus complets restent versionnés dans les fichiers indiqués plutôt que publiés automatiquement par une route publique.</p>
       </DocumentationSection>
 
       <DocumentationSection id="limits" eyebrow="État du prototype" title="Limites connues et travaux à poursuivre" description="Ces éléments doivent être pris en compte pendant une démonstration ou un test utilisateur.">

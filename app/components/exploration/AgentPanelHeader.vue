@@ -6,13 +6,12 @@ const emit = defineEmits<{ close: [] }>();
 
 <template>
   <header class="shrink-0 bg-white">
-    <div class="flex h-14 items-center gap-2 border-b border-[#e5e5e5] px-5">
-      <i aria-hidden="true" class="ri-sparkling-line text-xl leading-none text-[#000091]" />
-      <div>
-        <h2 class="text-[13px] font-medium">Interroger ces données</h2>
-        <p class="text-[12px] text-[#555555]">Assistant d’exploration</p>
+    <div class="flex h-14 items-center gap-2 border-b border-[#e5e5e5] bg-[#f6f6f6] px-4">
+      <div class="min-w-0 flex-1">
+        <h2 class="truncate text-[12px] font-bold">Interroger ces données</h2>
+        <p class="mt-0.5 truncate text-[11px] text-[#555555]">Assistant d’exploration</p>
       </div>
-      <button v-if="closable" aria-label="Fermer le panneau" class="ml-auto grid size-7 place-items-center rounded hover:bg-[#f6f6f6] focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[#000091]" type="button" @click="emit('close')">
+      <button v-if="closable" aria-label="Fermer le panneau" class="grid size-7 shrink-0 place-items-center rounded hover:bg-[#f6f6f6] focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[#000091]" type="button" @click="emit('close')">
         <i class="ri-close-line text-base text-[#555555]" />
       </button>
     </div>
@@ -23,7 +22,7 @@ const emit = defineEmits<{ close: [] }>();
     >
       <button
         :aria-selected="mode === 'assistant'"
-        class="relative flex items-center gap-1.5 border-b-2 px-0.5 text-[12px] font-medium"
+        class="relative flex items-center gap-1.5 border-b-2 px-0.5 text-[12px] font-normal"
         :class="mode === 'assistant'
           ? 'border-[#000091] text-[#000091]'
           : 'border-transparent text-[#555555] hover:text-[#161616]'"
@@ -31,12 +30,12 @@ const emit = defineEmits<{ close: [] }>();
         type="button"
         @click="mode = 'assistant'"
       >
-        <i aria-hidden="true" class="ri-sparkling-line text-base leading-none" />
+        <i aria-hidden="true" class="ri-sparkling-line text-base leading-none" :class="mode === 'assistant' ? 'text-[#000091]' : 'text-[#555555]'" />
         Assistant
       </button>
       <button
         :aria-selected="mode === 'sql'"
-        class="relative flex items-center gap-1.5 border-b-2 px-0.5 text-[12px] font-medium"
+        class="relative flex items-center gap-1.5 border-b-2 px-0.5 text-[12px] font-normal"
         :class="mode === 'sql'
           ? 'border-[#000091] text-[#000091]'
           : 'border-transparent text-[#555555] hover:text-[#161616]'"
@@ -44,7 +43,7 @@ const emit = defineEmits<{ close: [] }>();
         type="button"
         @click="mode = 'sql'"
       >
-        <i aria-hidden="true" class="ri-terminal-line text-base leading-none text-[#555555]" />
+        <i aria-hidden="true" class="ri-terminal-line text-base leading-none" :class="mode === 'sql' ? 'text-[#000091]' : 'text-[#555555]'" />
         Console SQL
       </button>
     </nav>

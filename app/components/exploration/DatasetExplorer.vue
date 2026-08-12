@@ -17,7 +17,6 @@ const props = defineProps<{
 const emit = defineEmits<{ resetView: [] }>();
 const dataset = useDatasetEngine();
 
-const mode = ref<"data" | "structure">("data");
 const search = ref("");
 const columnSearch = ref("");
 const selectedColumns = ref<string[]>([]);
@@ -35,7 +34,6 @@ const loading = ref(false);
 const loadingMore = ref(false);
 const error = ref<string>();
 const exporting = ref(false);
-const fullscreen = ref(false);
 const batchSize = 50;
 const columnWidths = reactive<Record<string, number>>({});
 let requestSequence = 0;
@@ -234,7 +232,7 @@ onBeforeUnmount(() => { if (searchTimer) clearTimeout(searchTimer); });
 </script>
 
 <template>
-  <div class="flex h-full min-w-0 flex-col overflow-hidden bg-white" :class="fullscreen ? 'fixed inset-4 z-[100] rounded-md border border-[#e5e5e5] shadow-2xl' : ''">
+  <div class="flex h-full min-w-0 flex-col overflow-hidden bg-white">
     <div v-if="viewTitle" class="flex min-h-10 shrink-0 items-center gap-2 border-b border-[#cacafb] bg-[#ebedff] px-3 py-2 text-[11px]">
       <i class="ri-filter-line text-sm text-[#000091]" />
       <span class="min-w-0 flex-1 truncate"><strong>Vue de l’assistant :</strong> {{ viewTitle }}</span>
@@ -242,13 +240,6 @@ onBeforeUnmount(() => { if (searchTimer) clearTimeout(searchTimer); });
       <button aria-label="Télécharger les données filtrées" class="grid size-7 place-items-center text-[#000091]" :disabled="exporting" type="button" @click="download"><i class="ri-download-line text-sm" /></button>
     </div>
 
-    <div class="flex h-11 shrink-0 items-center gap-1 border-b border-[#e5e5e5] px-3">
-      <button v-for="item in [{ id: 'data', label: 'Données' }, { id: 'structure', label: 'Structure' }]" :key="item.id" class="relative h-11 px-2 text-[12px] font-medium" :class="mode === item.id ? 'text-[#000091]' : 'text-[#555555]'" type="button" @click="mode = item.id as 'data' | 'structure'">{{ item.label }}<span v-if="mode === item.id" class="absolute inset-x-1 bottom-0 h-0.5 bg-[#000091]" /></button>
-      <span class="ml-auto text-[11px] text-[#777777]">Exécution locale avec DuckDB WASM</span>
-      <button :aria-label="fullscreen ? 'Quitter le plein écran' : 'Afficher en plein écran'" class="ml-2 grid size-7 place-items-center rounded border border-[#e5e5e5] text-[#555555]" type="button" @click="fullscreen = !fullscreen"><i :class="fullscreen ? 'ri-fullscreen-exit-line' : 'ri-fullscreen-line'" class="text-sm" /></button>
-    </div>
-
-    <template v-if="mode === 'data'">
       <div class="flex min-h-12 shrink-0 items-center gap-2 border-b border-[#e5e5e5] px-2">
         <label class="flex h-8 w-[220px] min-w-0 items-center gap-1 rounded border border-[#e5e5e5] bg-[#f6f6f6] px-2">
           <i class="ri-search-line text-sm text-[#555555]" /><input v-model="search" class="min-w-0 flex-1 bg-transparent text-[12px] outline-none" placeholder="Rechercher dans les données" @input="scheduleSearch">
@@ -272,7 +263,7 @@ onBeforeUnmount(() => { if (searchTimer) clearTimeout(searchTimer); });
       </div>
 
       <div v-if="error" class="flex min-h-0 flex-1 items-center justify-center bg-[#fef4f4] p-6 text-center"><div><i class="ri-error-warning-line text-xl text-[#ce0500]" /><p class="mt-2 text-[12px] font-bold">Impossible de charger les données</p><p class="mt-1 max-w-md text-[11px] text-[#555555]">{{ error }}</p><button class="mt-3 h-8 rounded-md border border-[#ce0500] px-3 text-[11px] text-[#ce0500]" type="button" @click="refresh()">Réessayer</button></div></div>
-      <div v-else-if="loading" class="min-h-0 flex-1 animate-pulse overflow-hidden bg-white p-3"><div class="h-11 rounded border border-[#e5e5e5] bg-[#f6f6f6]" /><div v-for="index in 10" :key="index" class="mt-px grid h-9 grid-cols-5 gap-px bg-[#e5e5e5]"><span v-for="cell in 5" :key="cell" class="bg-white p-3"><span class="block h-2 rounded bg-[#eeeeee]" /></span></div></div>
+      <ExplorationDatasetTableSkeleton v-else-if="loading" />
       <div v-else-if="rows.length === 0" class="grid min-h-0 flex-1 place-items-center p-6 text-center"><div><i class="ri-table-line text-xl text-[#929292]" /><p class="mt-2 text-[12px] font-bold">Aucune ligne à afficher</p><p class="mt-1 text-[11px] text-[#555555]">Aucun résultat ne correspond aux filtres actifs.</p><button class="mt-2 text-[11px] text-[#000091] underline" type="button" @click="resetFilters">Réinitialiser la vue</button></div></div>
       <div v-else class="min-h-0 flex-1 overflow-auto" @scroll="onScroll">
         <table class="w-full border-collapse text-[12px]">
@@ -290,11 +281,5 @@ onBeforeUnmount(() => { if (searchTimer) clearTimeout(searchTimer); });
         </table>
         <div class="sticky bottom-0 flex h-9 items-center justify-center gap-2 border-t border-[#e5e5e5] bg-white/95 text-[11px] text-[#777777] backdrop-blur-sm"><template v-if="loadingMore"><i class="ri-loader-4-line animate-spin text-sm" />Chargement des lignes suivantes…</template><template v-else-if="hasMore">Faites défiler pour charger la suite</template><template v-else><i class="ri-check-line text-sm" />Toutes les lignes disponibles sont affichées</template></div>
       </div>
-    </template>
-
-    <div v-else class="grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_13rem] overflow-auto">
-      <div><div class="border-b border-[#e5e5e5] px-4 py-3"><strong class="text-[12px]">Structure de la ressource</strong><p class="mt-0.5 text-[11px] text-[#777777]">Types détectés par DuckDB lors du chargement.</p></div><div v-for="column in columns" :key="column.name" class="grid grid-cols-[minmax(0,1fr)_10rem] items-center border-b border-[#e5e5e5] px-4 py-2 text-[11px]"><span class="flex min-w-0 items-center gap-2"><i :class="typeIcon(column)" class="text-sm text-[#555555]" /><strong class="truncate">{{ column.name }}</strong></span><span class="text-[#555555]">{{ humanizeDuckDbType(column.type) }}</span></div></div>
-      <aside class="border-l border-[#e5e5e5] bg-[#fafafa] p-3"><p class="text-[10px] font-medium uppercase text-[#777777]">Résumé</p><dl class="mt-2 space-y-2 text-[11px]"><div><dt class="text-[#777777]">Lignes</dt><dd class="font-bold">{{ rowCount.toLocaleString('fr-FR') }}</dd></div><div><dt class="text-[#777777]">Colonnes</dt><dd class="font-bold">{{ columns.length }}</dd></div></dl></aside>
-    </div>
   </div>
 </template>

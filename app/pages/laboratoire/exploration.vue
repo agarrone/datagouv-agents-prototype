@@ -7,6 +7,7 @@ import {
 import type { ChatAddToolOutputFunction, LanguageModelUsage } from "ai";
 import {
   explorationResources,
+  type DatagouvDatasetResource,
   type ExplorationResource,
 } from "~~/shared/data/exploration-resources";
 import type { ExplorationMessage } from "~~/shared/types/exploration";
@@ -15,8 +16,14 @@ const input = ref("");
 const route = useRoute();
 const panelMode = ref<"assistant" | "sql">("assistant");
 const assistantOpen = ref(true);
-const assistantWidth = ref(576);
+const DEFAULT_ASSISTANT_WIDTH = 576;
+const DEFAULT_RESOURCES_WIDTH = 216;
+const assistantWidth = ref(DEFAULT_ASSISTANT_WIDTH);
+const resourcesWidth = ref(DEFAULT_RESOURCES_WIDTH);
 const resourcesCollapsed = ref(false);
+const workspaceFullscreen = ref(false);
+const datasetResources = ref<DatagouvDatasetResource[]>([]);
+const datasetResourcesLoading = ref(false);
 const editingMessageId = ref<string | null>(null);
 const composer = ref<{ focus: () => void } | null>(null);
 const dataset = useDatasetEngine();
@@ -205,11 +212,43 @@ onBeforeUnmount(() => {
   if (settledErrorSoundTimer) clearTimeout(settledErrorSoundTimer);
 });
 
-onMounted(() => {
+onMounted(async () => {
+  if (selectedResource.value) await loadDatasetResources(selectedResource.value);
   if ((requestedResourceId || resourceFromQuery) && selectedResource.value) {
-    void loadSelectedResource();
+    await loadSelectedResource();
   }
 });
+
+async function loadDatasetResources(resource: ExplorationResource) {
+  datasetResourcesLoading.value = true;
+  try {
+    const response = await $fetch<{ resources: DatagouvDatasetResource[] }>("/nuxt-api/datasets/resources", {
+      query: { dataset: resource.datasetReference },
+    });
+    datasetResources.value = response.resources;
+    const matchingResource = response.resources.find(item =>
+      item.id === resource.id || item.parquetUrl === resource.parquetUrl,
+    );
+    if (matchingResource?.parquetUrl) {
+      selectedResource.value = {
+        ...resource,
+        id: matchingResource.id,
+        parquetUrl: matchingResource.parquetUrl,
+        resourceName: matchingResource.title,
+      };
+    }
+  } catch {
+    datasetResources.value = [{
+      id: resource.id,
+      title: resource.resourceName ?? "Version Parquet du jeu de données",
+      format: "PARQUET",
+      url: resource.parquetUrl,
+      parquetUrl: resource.parquetUrl,
+    }];
+  } finally {
+    datasetResourcesLoading.value = false;
+  }
+}
 
 async function submit() {
   const text = input.value.trim();
@@ -269,12 +308,40 @@ async function selectResource(resource: ExplorationResource) {
   }
 }
 
+async function selectDatasetResource(resource: DatagouvDatasetResource) {
+  if (!resource.parquetUrl || !selectedResource.value) return;
+  await selectResource({
+    id: resource.id,
+    datasetReference: selectedResource.value.datasetReference,
+    title: selectedResource.value.title,
+    organization: selectedResource.value.organization,
+    parquetUrl: resource.parquetUrl,
+    resourceName: resource.title,
+  });
+}
+
 function startAssistantResize(event: MouseEvent) {
   event.preventDefault();
   const startX = event.clientX;
   const startWidth = assistantWidth.value;
   const move = (moveEvent: MouseEvent) => {
     assistantWidth.value = Math.max(420, Math.min(820, startWidth + startX - moveEvent.clientX));
+  };
+  const stop = () => {
+    window.removeEventListener("mousemove", move);
+    window.removeEventListener("mouseup", stop);
+  };
+  window.addEventListener("mousemove", move);
+  window.addEventListener("mouseup", stop);
+}
+
+function startResourcesResize(event: MouseEvent) {
+  if (resourcesCollapsed.value) return;
+  event.preventDefault();
+  const startX = event.clientX;
+  const startWidth = resourcesWidth.value;
+  const move = (moveEvent: MouseEvent) => {
+    resourcesWidth.value = Math.max(176, Math.min(420, startWidth + moveEvent.clientX - startX));
   };
   const stop = () => {
     window.removeEventListener("mousemove", move);
@@ -326,42 +393,59 @@ async function resolveClarification(toolCallId: string, choice: string) {
 </script>
 
 <template>
-  <main class="flex h-dvh min-w-[64rem] flex-col overflow-hidden bg-white">
-    <header class="border-b border-[#e5e5e5] px-5 py-4">
-      <div class="mx-auto flex w-full max-w-[90rem] items-center justify-between">
-        <div>
-          <p class="text-[13px] text-[#555555]">Prototype autonome · Spike technique</p>
-          <h1 class="text-2xl font-bold">Agent d’exploration</h1>
-        </div>
-        <NuxtLink class="text-[13px] text-[#000091] underline" to="/">Retour</NuxtLink>
+  <main class="flex h-dvh min-w-[64rem] flex-col overflow-hidden bg-white" :class="workspaceFullscreen ? 'fixed inset-0 z-[100]' : ''">
+    <header class="flex h-16 shrink-0 items-center gap-3 border-b border-[#e5e5e5] bg-[#f6f6f6] px-4">
+      <div class="min-w-0 flex-1">
+        <h1 class="truncate text-[13px] font-bold">{{ selectedResource?.title ?? "Agent d’exploration" }}</h1>
+        <p class="mt-0.5 truncate text-[11px] text-[#555555]">{{ selectedResource?.organization ?? "Prototype autonome" }}</p>
       </div>
+      <button
+        :aria-pressed="assistantOpen && panelMode === 'assistant'"
+        class="inline-flex h-8 items-center gap-1.5 rounded-md border px-2.5 text-[12px] font-medium"
+        :class="assistantOpen && panelMode === 'assistant' ? 'border-[#000091] bg-[#ebedff] text-[#000091]' : 'border-[#e5e5e5] bg-white text-[#555555] hover:border-[#000091] hover:text-[#000091]'"
+        type="button"
+        @click="assistantOpen = true; panelMode = 'assistant'"
+      >
+        <i class="ri-message-ai-3-line text-sm" />Poser une question
+      </button>
+      <button :aria-label="workspaceFullscreen ? 'Quitter le plein écran' : 'Afficher en plein écran'" class="grid size-8 place-items-center rounded-md border border-[#e5e5e5] bg-white text-[#555555]" type="button" @click="workspaceFullscreen = !workspaceFullscreen"><i :class="workspaceFullscreen ? 'ri-fullscreen-exit-line' : 'ri-fullscreen-line'" class="text-base" /></button>
+      <NuxtLink v-if="!workspaceFullscreen" class="ml-1 text-[12px] text-[#000091] underline" to="/">Retour</NuxtLink>
     </header>
 
-    <div class="grid min-h-0 w-full flex-1" :style="{ gridTemplateColumns: `${resourcesCollapsed ? 44 : 216}px minmax(0, 1fr)${assistantOpen ? ` ${assistantWidth}px` : ''}` }">
+    <div class="relative grid min-h-0 w-full flex-1" :style="{ gridTemplateColumns: `${resourcesCollapsed ? 44 : resourcesWidth}px minmax(0, 1fr)${assistantOpen ? ` ${assistantWidth}px` : ''}` }">
       <ExplorationResourceSidebar
         v-model:collapsed="resourcesCollapsed"
-        :loading="dataset.status.value === 'loading'"
-        :resources="explorationResources"
+        :loading="dataset.status.value === 'loading' || datasetResourcesLoading"
+        :resources="datasetResources"
         :selected-id="selectedResource?.id"
-        @select="selectResource"
+        @select="selectDatasetResource"
       />
 
+      <button
+        v-if="!resourcesCollapsed"
+        aria-label="Redimensionner le panneau des ressources"
+        class="group absolute inset-y-0 z-40 w-2 cursor-col-resize"
+        :style="{ left: `${resourcesWidth - 4}px` }"
+        title="Glisser pour redimensionner · Double-cliquer pour réinitialiser"
+        type="button"
+        @dblclick="resourcesWidth = DEFAULT_RESOURCES_WIDTH"
+        @mousedown="startResourcesResize"
+      ><span class="mx-auto block h-full w-px bg-transparent group-hover:bg-[#000091]" /></button>
+
       <section class="flex min-h-0 min-w-0 flex-col overflow-hidden">
-        <div class="flex min-h-14 shrink-0 items-center gap-2 border-b border-[#e5e5e5] bg-[#f6f6f6] px-4">
+        <div class="flex h-14 shrink-0 items-center gap-2 border-b border-[#e5e5e5] bg-[#f6f6f6] px-4">
           <div class="min-w-0 flex-1">
-            <p class="truncate text-[12px] font-bold">{{ dataset.activeResource.value?.title ?? "Ressources de test" }}</p>
-            <p class="mt-0.5 truncate text-[11px] text-[#555555]">{{ dataset.activeResource.value ? `${dataset.activeResource.value.organization} · Parquet` : "Sélectionnez une ressource issue de data.gouv.fr" }}</p>
+            <p class="truncate text-[12px] font-bold">Ressource : {{ dataset.activeResource.value?.resourceName ?? selectedResource?.resourceName ?? "Aucune ressource chargée" }}</p>
+            <p class="mt-0.5 truncate text-[11px] text-[#555555]">{{ dataset.activeResource.value ? `${dataset.activeResource.value.title} · ${dataset.activeResource.value.organization}` : "Sélectionnez une ressource dans le panneau de gauche" }}</p>
           </div>
-          <button v-if="!assistantOpen" class="inline-flex h-8 items-center gap-1.5 rounded-md border border-[#000091] bg-[#ebedff] px-2.5 text-[12px] font-medium text-[#000091]" type="button" @click="assistantOpen = true; panelMode = 'assistant'">
-            <i class="ri-message-ai-3-line text-sm" />Poser une question
-          </button>
         </div>
 
-        <div v-if="dataset.status.value !== 'ready'" class="grid min-h-0 flex-1 place-items-center bg-[#fafafa] p-8 text-center">
+        <ExplorationDatasetTableSkeleton v-if="dataset.status.value === 'loading'" />
+        <div v-else-if="dataset.status.value !== 'ready'" class="grid min-h-0 flex-1 place-items-center bg-[#fafafa] p-8 text-center">
           <div class="max-w-md">
-            <i :class="dataset.status.value === 'loading' ? 'ri-loader-4-line animate-spin' : dataset.status.value === 'error' ? 'ri-error-warning-line text-[#ce0500]' : 'ri-table-line text-[#777777]'" class="text-2xl" />
-            <h2 class="mt-3 text-[14px] font-bold">{{ dataset.status.value === 'loading' ? 'Chargement de la ressource' : dataset.status.value === 'error' ? 'Impossible de charger la ressource' : 'Choisissez une ressource' }}</h2>
-            <p class="mt-1 text-[11px] leading-5 text-[#555555]">{{ dataset.status.value === 'loading' ? 'DuckDB prépare les données et inspecte leur structure dans votre navigateur.' : dataset.error.value || 'Sélectionnez une ressource dans le panneau de gauche pour afficher ses données et préparer le contexte de l’assistant.' }}</p>
+            <i :class="dataset.status.value === 'error' ? 'ri-error-warning-line text-[#ce0500]' : 'ri-table-line text-[#777777]'" class="text-2xl" />
+            <h2 class="mt-3 text-[14px] font-bold">{{ dataset.status.value === 'error' ? 'Impossible de charger la ressource' : 'Choisissez une ressource' }}</h2>
+            <p class="mt-1 text-[11px] leading-5 text-[#555555]">{{ dataset.error.value || 'Sélectionnez une ressource dans le panneau de gauche pour afficher ses données et préparer le contexte de l’assistant.' }}</p>
             <button v-if="dataset.status.value === 'error' && selectedResource" class="mt-3 h-8 rounded-md border border-[#ce0500] px-3 text-[11px] text-[#ce0500]" type="button" @click="selectResource(selectedResource)">Réessayer</button>
           </div>
         </div>
@@ -378,7 +462,7 @@ async function resolveClarification(toolCallId: string, choice: string) {
       </section>
 
       <aside v-if="assistantOpen" class="chat-sidebar relative flex min-h-0 flex-col border-l border-[#777777] bg-[linear-gradient(to_bottom,rgba(235,237,255,0.30)_0%,rgba(235,237,255,0.01)_100%)] shadow-[-4px_0_12px_rgba(0,0,0,0.05)]">
-        <button aria-label="Redimensionner le panneau assistant" class="absolute inset-y-0 -left-1 z-30 w-2 cursor-col-resize" type="button" @mousedown="startAssistantResize"><span class="mx-auto block h-full w-px bg-transparent hover:bg-[#000091]" /></button>
+        <button aria-label="Redimensionner le panneau assistant" class="group absolute inset-y-0 -left-1 z-30 w-2 cursor-col-resize" title="Glisser pour redimensionner · Double-cliquer pour réinitialiser" type="button" @dblclick="assistantWidth = DEFAULT_ASSISTANT_WIDTH" @mousedown="startAssistantResize"><span class="mx-auto block h-full w-px bg-transparent group-hover:bg-[#000091]" /></button>
         <ExplorationAgentPanelHeader v-model="panelMode" closable @close="assistantOpen = false" />
         <ExplorationConversationScroller
           v-show="panelMode === 'assistant'"
@@ -406,7 +490,9 @@ async function resolveClarification(toolCallId: string, choice: string) {
             :feedback-context="message.role === 'assistant' && dataset.activeResource.value ? {
               question: previousUserQuestion(messageIndex),
               resource: dataset.activeResource.value.parquetUrl,
-              dataset: dataset.activeResource.value.title,
+              dataset: dataset.activeResource.value.datasetReference,
+              datasetName: dataset.activeResource.value.title,
+              datasetUrl: `https://www.data.gouv.fr/fr/datasets/${encodeURIComponent(dataset.activeResource.value.datasetReference)}/`,
               resourceName: dataset.activeResource.value.resourceName ?? 'Version Parquet du jeu de données',
               model: 'agent-exploration',
             } : undefined"

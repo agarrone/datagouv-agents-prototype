@@ -8,7 +8,9 @@ describe("feedbackSchema", () => {
       question: "Quelles sont les colonnes ?",
       answer: "Le jeu contient trois colonnes.",
       resource: "https://example.test/resource.parquet",
-      dataset: "Jeu de test",
+      dataset: "jeu-de-test",
+      datasetName: "Jeu de test",
+      datasetUrl: "https://www.data.gouv.fr/fr/datasets/jeu-de-test/",
       resourceName: "Ressource Parquet",
       model: "agent-exploration",
       origin: "after_six_questions",
@@ -16,7 +18,11 @@ describe("feedbackSchema", () => {
     });
 
     expect(result.success).toBe(true);
-    if (result.success) expect(result.data.origin).toBe("after_six_questions");
+    if (result.success) {
+      expect(result.data.origin).toBe("after_six_questions");
+      expect(result.data.datasetName).toBe("Jeu de test");
+      expect(result.data.datasetUrl).toBe("https://www.data.gouv.fr/fr/datasets/jeu-de-test/");
+    }
   });
 
   it("identifie par défaut un feedback sur une réponse", () => {
@@ -28,6 +34,14 @@ describe("feedbackSchema", () => {
     expect(feedbackSchema.safeParse({
       rating: "Moyen",
       answer: "Réponse",
+    }).success).toBe(false);
+  });
+
+  it("refuse une URL de jeu de données invalide", () => {
+    expect(feedbackSchema.safeParse({
+      rating: "Utile",
+      answer: "Réponse",
+      datasetUrl: "pas une URL",
     }).success).toBe(false);
   });
 });

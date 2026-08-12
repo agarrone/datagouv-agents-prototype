@@ -100,7 +100,9 @@ const mapRows: DatasetRow[] = [
 const designFeedbackContext = {
   question: "Quels sont les jeux de données les plus consultés ?",
   resource: "https://example.test/catalogue.parquet",
-  dataset: "Catalogue des données de data.gouv.fr",
+  dataset: "catalogue-des-donnees-de-data-gouv-fr",
+  datasetName: "Catalogue des données de data.gouv.fr",
+  datasetUrl: "https://www.data.gouv.fr/fr/datasets/catalogue-des-donnees-de-data-gouv-fr/",
   resourceName: "Catalogue des jeux de données",
   model: "agent-exploration",
 };

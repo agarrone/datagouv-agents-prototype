@@ -20,8 +20,9 @@ const formUrl = computed(() => {
   url.searchParams.set("Question", `${questionPrefix}${props.context.question}`.slice(0, 2_000));
   url.searchParams.set("Answer", props.answer.slice(0, 5_000));
   url.searchParams.set("Resource", props.context.resource);
-  url.searchParams.set("Dataset", props.context.dataset);
-  url.searchParams.set("Ressource_name", props.context.resourceName);
+  if (props.context.datasetName) url.searchParams.set("Dataset_name", props.context.datasetName);
+  if (props.context.datasetUrl) url.searchParams.set("Dataset_url", props.context.datasetUrl);
+  if (props.context.resourceName) url.searchParams.set("Ressource_name", props.context.resourceName);
   url.searchParams.set("Model", props.context.model);
   url.searchParams.set("CreatedAt", new Date().toISOString());
   return url.toString();
