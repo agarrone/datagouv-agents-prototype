@@ -6,6 +6,7 @@ export interface AgentProgressStep {
 
 defineProps<{
   steps: AgentProgressStep[];
+  title: string;
 }>();
 </script>
 
@@ -13,7 +14,7 @@ defineProps<{
   <section class="py-1" aria-label="Progression de l’analyse" role="status" aria-live="polite">
     <div class="mb-2 flex items-center gap-1.5 text-[11px] leading-4 text-[#555555]">
       <ExplorationUnicodeSpinner name="dna" class="w-5 text-[#777777]" />
-      <span>Analyse en cours</span>
+      <span>{{ title }}</span>
     </div>
     <ol class="space-y-1">
       <li

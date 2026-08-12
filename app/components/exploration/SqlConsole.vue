@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { DatasetQueryResult, DatasetValue } from "~~/shared/types/exploration";
+import { classifyExplorationError } from "~~/shared/errors/exploration";
 
 const props = defineProps<{ ready: boolean }>();
 const dataset = useDatasetEngine();
@@ -10,6 +11,10 @@ const result = ref<DatasetQueryResult | null>(null);
 const error = ref("");
 const running = ref(false);
 const applied = ref(false);
+const editor = ref<{ focus: () => void } | null>(null);
+const errorPresentation = computed(() => error.value
+  ? classifyExplorationError(error.value, "sql")
+  : undefined);
 
 watch(query, () => {
   if (query.value.trim() !== executedQuery.value) applied.value = false;
@@ -80,6 +85,7 @@ async function applyToExplorer() {
         </span>
       </div>
       <ExplorationSqlEditor
+        ref="editor"
         v-model="query"
         :columns="dataset.schema.value?.columns.map(column => column.name) ?? []"
         :disabled="!ready || running"
@@ -105,11 +111,14 @@ async function applyToExplorer() {
       tone="info"
     />
     <ExplorationStatusMessage
-      v-else-if="error"
+      v-else-if="errorPresentation"
       class="mt-3"
-      :message="error"
-      title="La requête n’a pas pu être exécutée"
+      action-label="Corriger la requête"
+      :details="errorPresentation.technicalDetails"
+      :message="errorPresentation.message"
+      :title="errorPresentation.title"
       tone="error"
+      @action="editor?.focus()"
     />
 
     <div v-if="result" class="agent-surface mt-3 min-h-0 !rounded-[2px] overflow-hidden">

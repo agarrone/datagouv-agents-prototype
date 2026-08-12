@@ -7,6 +7,7 @@ import type {
   ExplorerValueOption,
 } from "~~/shared/types/exploration";
 import { humanizeDuckDbType } from "~~/shared/data/duckdb-types";
+import { classifyExplorationError } from "~~/shared/errors/exploration";
 
 const props = defineProps<{
   columns: readonly DatasetColumn[];
@@ -34,6 +35,9 @@ const loading = ref(false);
 const loadingMore = ref(false);
 const error = ref<string>();
 const exporting = ref(false);
+const errorPresentation = computed(() => error.value
+  ? classifyExplorationError(error.value, "duckdb")
+  : undefined);
 const batchSize = 50;
 const columnWidths = reactive<Record<string, number>>({});
 let requestSequence = 0;
@@ -203,6 +207,7 @@ function startResize(name: string, event: MouseEvent) {
 }
 
 async function download() {
+  if (exporting.value) return;
   exporting.value = true;
   try {
     const blob = await dataset.exportExplorerCsv(query());
@@ -214,6 +219,8 @@ async function download() {
     URL.revokeObjectURL(href);
   } finally { exporting.value = false; }
 }
+
+defineExpose({ download });
 
 function displayValue(value: unknown, column: DatasetColumn) {
   if (value === null || value === undefined || value === "") return "Valeur manquante";
@@ -238,12 +245,11 @@ onBeforeUnmount(() => { if (searchTimer) clearTimeout(searchTimer); });
       <i class="ri-filter-line text-sm text-[#000091]" />
       <span class="min-w-0 flex-1 truncate"><strong>Vue de l’assistant :</strong> {{ viewTitle }}</span>
       <button class="shrink-0 text-[#000091] underline" type="button" @click="emit('resetView')">Revenir aux données initiales</button>
-      <button aria-label="Télécharger les données filtrées" class="grid size-7 place-items-center text-[#000091]" :disabled="exporting" type="button" @click="download"><i class="ri-download-line text-sm" /></button>
     </div>
 
       <div class="flex min-h-12 shrink-0 items-center gap-2 border-b border-[#e5e5e5] px-2">
-        <label class="flex h-8 w-[220px] min-w-0 items-center gap-1 rounded border border-[#e5e5e5] bg-[#f6f6f6] px-2">
-          <i class="ri-search-line text-sm text-[#555555]" /><input v-model="search" class="min-w-0 flex-1 bg-transparent text-[12px] outline-none" placeholder="Rechercher dans les données" @input="scheduleSearch">
+        <label class="explorer-search-field w-[220px]">
+          <i class="ri-search-line" /><input v-model="search" placeholder="Rechercher dans les données" @input="scheduleSearch">
         </label>
         <div class="relative ml-auto">
           <button class="inline-flex h-7 items-center gap-1 rounded px-1.5 text-[11px] hover:bg-[#eeeeee]" type="button" @click="columnsOpen = !columnsOpen; openFilter = undefined"><i class="ri-layout-vertical-line text-sm" />Colonnes {{ visibleColumns.length }} sur {{ columns.length }}<i class="ri-arrow-down-s-line text-sm" /></button>
@@ -254,7 +260,6 @@ onBeforeUnmount(() => { if (searchTimer) clearTimeout(searchTimer); });
           </div>
         </div>
         <span class="inline-flex items-center gap-1 whitespace-nowrap text-[11px] text-[#3a3a3a]"><i class="ri-layout-horizontal-line text-sm" />{{ totalRows.toLocaleString('fr-FR') }} lignes</span>
-        <button aria-label="Télécharger" class="grid size-8 place-items-center rounded-md border border-[#e5e5e5] text-[#000091]" :disabled="exporting" type="button" @click="download"><i class="ri-download-line text-sm" /></button>
       </div>
 
       <div v-if="activeFilters.length" class="flex min-h-9 shrink-0 flex-wrap items-center gap-1.5 border-b border-[#e5e5e5] px-2 py-1.5 text-[10px]">
@@ -263,7 +268,17 @@ onBeforeUnmount(() => { if (searchTimer) clearTimeout(searchTimer); });
         <button class="ml-auto text-[#000091] underline" type="button" @click="resetFilters">Tout effacer</button>
       </div>
 
-      <div v-if="error" class="flex min-h-0 flex-1 items-center justify-center bg-[#fef4f4] p-6 text-center"><div><i class="ri-error-warning-line text-xl text-[#ce0500]" /><p class="mt-2 text-[12px] font-bold">Impossible de charger les données</p><p class="mt-1 max-w-md text-[11px] text-[#555555]">{{ error }}</p><button class="mt-3 h-8 rounded-md border border-[#ce0500] px-3 text-[11px] text-[#ce0500]" type="button" @click="refresh()">Réessayer</button></div></div>
+      <div v-if="errorPresentation" class="grid min-h-0 flex-1 place-items-center bg-[#fef4f4] p-6">
+        <ExplorationStatusMessage
+          class="max-w-lg text-left"
+          action-label="Réessayer"
+          :details="errorPresentation.technicalDetails"
+          :message="errorPresentation.message"
+          :title="errorPresentation.title"
+          tone="error"
+          @action="refresh()"
+        />
+      </div>
       <ExplorationDatasetTableSkeleton v-else-if="loading" />
       <div v-else-if="rows.length === 0" class="grid min-h-0 flex-1 place-items-center p-6 text-center"><div><i class="ri-table-line text-xl text-[#929292]" /><p class="mt-2 text-[12px] font-bold">Aucune ligne à afficher</p><p class="mt-1 text-[11px] text-[#555555]">Aucun résultat ne correspond aux filtres actifs.</p><button class="mt-2 text-[11px] text-[#000091] underline" type="button" @click="resetFilters">Réinitialiser la vue</button></div></div>
       <div v-else class="min-h-0 flex-1 overflow-auto" @scroll="onScroll">

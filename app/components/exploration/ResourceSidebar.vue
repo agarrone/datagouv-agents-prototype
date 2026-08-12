@@ -41,9 +41,9 @@ const filteredResources = computed(() => {
     </div>
 
     <div v-if="!collapsed" class="min-h-0 flex-1 overflow-auto p-2">
-      <label class="flex h-8 items-center gap-1 rounded border border-[#e5e5e5] bg-[#f6f6f6] px-2">
-        <i class="ri-search-line text-sm text-[#555555]" />
-        <input v-model="search" class="min-w-0 flex-1 bg-transparent text-[12px] outline-none placeholder:text-[#777777]" placeholder="Rechercher une ressource">
+      <label class="explorer-search-field">
+        <i class="ri-search-line" />
+        <input v-model="search" placeholder="Rechercher une ressource">
       </label>
       <p v-if="search" class="px-1 pb-1 pt-3 text-[10px] font-medium uppercase tracking-[0.04em] text-[#777777]">{{ filteredResources.length }} résultat{{ filteredResources.length > 1 ? "s" : "" }}</p>
       <nav aria-label="Ressources du laboratoire" class="space-y-0.5" :class="search ? 'mt-1' : 'mt-3'">

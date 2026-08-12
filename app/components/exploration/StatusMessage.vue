@@ -3,10 +3,16 @@ const props = withDefaults(defineProps<{
   tone?: "info" | "success" | "warning" | "error";
   title: string;
   message?: string;
+  details?: string;
+  actionLabel?: string;
 }>(), {
+  actionLabel: undefined,
+  details: undefined,
   tone: "info",
   message: undefined,
 });
+
+const emit = defineEmits<{ action: [] }>();
 
 const styles = computed(() => ({
   info: {
@@ -38,6 +44,20 @@ const styles = computed(() => ({
     <div class="min-w-0">
       <p class="font-medium" :class="styles.tone">{{ title }}</p>
       <p v-if="message" class="mt-0.5 text-[#555555]">{{ message }}</p>
+      <details v-if="details" class="group/details mt-1.5 text-[11px] text-[#555555]">
+        <summary class="agent-focusable inline-flex cursor-pointer list-none items-center gap-1 underline underline-offset-2 [&::-webkit-details-marker]:hidden">
+          Détails techniques
+          <i aria-hidden="true" class="ri-arrow-down-s-line text-sm transition-transform group-open/details:rotate-180" />
+        </summary>
+        <pre class="mt-1.5 max-h-32 overflow-auto whitespace-pre-wrap rounded-[2px] border border-[#e5e5e5] bg-white p-2 font-mono text-[11px] leading-4 text-[#555555]">{{ details }}</pre>
+      </details>
+      <button
+        v-if="actionLabel"
+        class="agent-focusable agent-pressable mt-2 h-7 rounded-md border px-2.5 text-[11px] font-medium"
+        :class="tone === 'error' ? 'border-[#ce0500] text-[#ce0500] hover:bg-white' : 'border-[#000091] text-[#000091] hover:bg-white'"
+        type="button"
+        @click="emit('action')"
+      >{{ actionLabel }}</button>
     </div>
   </div>
 </template>

@@ -12,6 +12,10 @@ import {
   type ExplorationResource,
 } from "~~/shared/data/exploration-resources";
 import type { ExplorationMessage } from "~~/shared/types/exploration";
+import {
+  classifyExplorationError,
+  type ExplorationRecoveryAction,
+} from "~~/shared/errors/exploration";
 
 const input = ref("");
 const route = useRoute();
@@ -23,6 +27,9 @@ const assistantWidth = ref(DEFAULT_ASSISTANT_WIDTH);
 const resourcesWidth = ref(DEFAULT_RESOURCES_WIDTH);
 const resourcesCollapsed = ref(false);
 const workspaceFullscreen = ref(false);
+const pageScrolled = ref(false);
+const explorer = ref<{ download: () => Promise<void> } | null>(null);
+const explorerDownloadInProgress = ref(false);
 const datasetResources = ref<DatagouvDatasetResource[]>([]);
 const datasetResourcesLoading = ref(false);
 const datasetMetadata = ref<DatagouvDatasetPageMetadata>();
@@ -76,6 +83,7 @@ const {
   clearError,
   error: chatError,
   messages,
+  regenerate,
   sendMessage,
   status: chatStatus,
   stop,
@@ -168,6 +176,12 @@ const showInitialThinking = computed(() => {
     || lastMessage.role === "user"
     || lastMessage.parts.length === 0;
 });
+const chatErrorPresentation = computed(() => chatError.value
+  ? classifyExplorationError(chatError.value)
+  : undefined);
+const datasetErrorPresentation = computed(() => dataset.error.value
+  ? classifyExplorationError(dataset.error.value, "duckdb")
+  : undefined);
 const lastMessageId = computed(() => messages.value.at(-1)?.id);
 const lastUserMessageId = computed(() => [...messages.value]
   .reverse()
@@ -214,6 +228,19 @@ watch(chatStatus, (status) => {
 
 onBeforeUnmount(() => {
   if (settledErrorSoundTimer) clearTimeout(settledErrorSoundTimer);
+});
+
+function updatePageScrollState() {
+  pageScrolled.value = window.scrollY > 8;
+}
+
+onMounted(() => {
+  updatePageScrollState();
+  window.addEventListener("scroll", updatePageScrollState, { passive: true });
+});
+
+onBeforeUnmount(() => {
+  window.removeEventListener("scroll", updatePageScrollState);
 });
 
 onMounted(async () => {
@@ -305,12 +332,39 @@ async function cancelQuestionEditing() {
   composer.value?.focus();
 }
 
+async function recoverFromError(action: ExplorationRecoveryAction, messageId?: string) {
+  if (isResponding.value) return;
+  if (action === "reload-resource") {
+    if (selectedResource.value) await selectResource(selectedResource.value);
+    return;
+  }
+  if (action === "clarify") {
+    panelMode.value = "assistant";
+    assistantOpen.value = true;
+    await nextTick();
+    composer.value?.focus();
+    return;
+  }
+  clearError();
+  await regenerate({ messageId });
+}
+
 async function loadSelectedResource() {
   if (!selectedResource.value || dataset.status.value === "loading") return;
   try {
     await dataset.load(selectedResource.value);
   } catch {
     // L’erreur est déjà exposée par le moteur de données et le sélecteur.
+  }
+}
+
+async function downloadExplorerData() {
+  if (!explorer.value || explorerDownloadInProgress.value) return;
+  explorerDownloadInProgress.value = true;
+  try {
+    await explorer.value.download();
+  } finally {
+    explorerDownloadInProgress.value = false;
   }
 }
 
@@ -418,7 +472,7 @@ async function resolveClarification(toolCallId: string, choice: string) {
 </script>
 
 <template>
-  <main class="min-h-dvh min-w-[64rem] bg-white">
+  <main class="min-h-dvh min-w-[64rem] bg-white pb-6">
     <ExplorationDatasetOverview
       v-if="!workspaceFullscreen && selectedResource"
       :dataset="datasetMetadata"
@@ -429,19 +483,36 @@ async function resolveClarification(toolCallId: string, choice: string) {
     />
 
     <section
-      class="flex h-[calc(100dvh-24px)] min-h-[680px] max-h-[860px] flex-col overflow-hidden border-b border-[#e5e5e5] bg-white"
-      :class="workspaceFullscreen ? 'fixed inset-0 z-[100] h-dvh min-h-0' : ''"
+      class="flex flex-col overflow-hidden bg-white"
+      :class="workspaceFullscreen
+        ? 'fixed inset-0 z-[100] h-dvh min-h-0 w-full max-w-none rounded-none border-0'
+        : 'mx-auto mt-6 h-[calc(100dvh-48px)] min-h-[680px] max-h-[860px] w-[calc(100%-2rem)] max-w-[90rem] rounded-md border border-[#e5e5e5]'"
       aria-label="Espace d’exploration du jeu de données"
     >
-      <header class="flex h-16 shrink-0 items-center gap-3 border-b border-[#e5e5e5] bg-[#f6f6f6] px-4">
+      <header
+        class="workspace-header flex h-16 shrink-0 items-center gap-3 border-b px-4"
+        :class="pageScrolled && !workspaceFullscreen
+          ? 'border-[#cfcfcf] bg-[#f6f6f6]/85 shadow-[0_1px_8px_rgba(0,0,0,0.08)] backdrop-blur-md'
+          : 'border-[#e5e5e5] bg-[#f6f6f6]'"
+      >
       <div class="min-w-0 flex-1">
         <h1 class="truncate text-[13px] font-bold">{{ selectedResource?.title ?? "Agent d’exploration" }}</h1>
         <p class="mt-0.5 truncate text-[11px] text-[#555555]">{{ selectedResource?.organization ?? "Prototype autonome" }}</p>
       </div>
       <button
-        :aria-pressed="assistantOpen && panelMode === 'assistant'"
+        aria-label="Télécharger les données affichées"
+        class="grid size-8 place-items-center rounded-md border border-[#e5e5e5] bg-white text-[#000091] disabled:text-[#929292]"
+        :disabled="dataset.status.value !== 'ready' || explorerDownloadInProgress"
+        title="Télécharger les données affichées"
+        type="button"
+        @click="downloadExplorerData"
+      >
+        <i :class="explorerDownloadInProgress ? 'ri-loader-4-line animate-spin' : 'ri-download-line'" class="text-sm" />
+      </button>
+      <button
+        :aria-pressed="assistantOpen"
         class="inline-flex h-8 items-center gap-1.5 rounded-md border px-2.5 text-[12px] font-medium"
-        :class="assistantOpen && panelMode === 'assistant' ? 'border-[#000091] bg-[#ebedff] text-[#000091]' : 'border-[#e5e5e5] bg-white text-[#555555] hover:border-[#000091] hover:text-[#000091]'"
+        :class="assistantOpen ? 'border-[#000091] bg-[#ebedff] text-[#000091]' : 'border-[#e5e5e5] bg-white text-[#555555] hover:border-[#000091] hover:text-[#000091]'"
         type="button"
         @click="assistantOpen = true; panelMode = 'assistant'"
       >
@@ -481,15 +552,26 @@ async function resolveClarification(toolCallId: string, choice: string) {
         <ExplorationDatasetTableSkeleton v-if="dataset.status.value === 'loading'" />
         <div v-else-if="dataset.status.value !== 'ready'" class="grid min-h-0 flex-1 place-items-center bg-[#fafafa] p-8 text-center">
           <div class="max-w-md">
-            <i :class="dataset.status.value === 'error' ? 'ri-error-warning-line text-[#ce0500]' : 'ri-table-line text-[#777777]'" class="text-2xl" />
-            <h2 class="mt-3 text-[14px] font-bold">{{ dataset.status.value === 'error' ? 'Impossible de charger la ressource' : 'Choisissez une ressource' }}</h2>
-            <p class="mt-1 text-[11px] leading-5 text-[#555555]">{{ dataset.error.value || 'Sélectionnez une ressource dans le panneau de gauche pour afficher ses données et préparer le contexte de l’assistant.' }}</p>
-            <button v-if="dataset.status.value === 'error' && selectedResource" class="mt-3 h-8 rounded-md border border-[#ce0500] px-3 text-[11px] text-[#ce0500]" type="button" @click="selectResource(selectedResource)">Réessayer</button>
+            <ExplorationStatusMessage
+              v-if="datasetErrorPresentation"
+              action-label="Recharger la ressource"
+              :details="datasetErrorPresentation.technicalDetails"
+              :message="datasetErrorPresentation.message"
+              :title="datasetErrorPresentation.title"
+              tone="error"
+              @action="selectedResource && selectResource(selectedResource)"
+            />
+            <template v-else>
+              <i class="ri-table-line text-2xl text-[#777777]" />
+              <h2 class="mt-3 text-[14px] font-bold">Choisissez une ressource</h2>
+              <p class="mt-1 text-[11px] leading-5 text-[#555555]">Sélectionnez une ressource dans le panneau de gauche pour afficher ses données et préparer le contexte de l’assistant.</p>
+            </template>
           </div>
         </div>
 
         <div v-else class="min-h-0 min-w-0 flex-1 overflow-hidden">
           <ExplorationDatasetExplorer
+            ref="explorer"
             :base-sql="dataset.activeView.value?.sql"
             :columns="explorerColumns"
             :row-count="dataset.activeView.value?.rowCount ?? dataset.schema.value?.rowCount ?? 0"
@@ -538,13 +620,17 @@ async function resolveClarification(toolCallId: string, choice: string) {
             @clarify="resolveClarification"
             @edit="editQuestion"
             @dismiss-feedback-prompt="conversationFeedbackMessageId = null"
+            @recover="recoverFromError"
           />
           <ExplorationAgentThinking v-if="showInitialThinking" />
           <ExplorationStatusMessage
-            v-if="chatError && !isResponding"
-            :message="chatError.message"
-            title="La réponse a été interrompue"
+            v-if="chatErrorPresentation && !isResponding"
+            :action-label="chatErrorPresentation.actionLabel"
+            :details="chatErrorPresentation.technicalDetails"
+            :message="chatErrorPresentation.message"
+            :title="chatErrorPresentation.title"
             tone="error"
+            @action="recoverFromError(chatErrorPresentation.action)"
           />
         </ExplorationConversationScroller>
         <ExplorationAgentComposer
@@ -570,3 +656,15 @@ async function resolveClarification(toolCallId: string, choice: string) {
     </section>
   </main>
 </template>
+
+<style scoped>
+.workspace-header {
+  transition-property: background-color, border-color, box-shadow, backdrop-filter;
+  transition-duration: var(--duration-quick);
+  transition-timing-function: var(--ease-smooth-out);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .workspace-header { transition: none; }
+}
+</style>

@@ -154,7 +154,7 @@ function resourceIcon(type: string) {
 </script>
 
 <template>
-  <div class="overflow-hidden rounded-md border border-[#e5e5e5] bg-white" :class="fullscreen ? 'fixed inset-4 z-[100] flex flex-col shadow-2xl' : ''">
+  <div class="overflow-hidden rounded-md border border-[#e5e5e5] bg-white" :class="fullscreen ? 'fixed inset-0 z-[100] flex flex-col rounded-none border-0 shadow-none' : ''">
     <div class="flex min-h-14 items-center gap-2 border-b border-[#e5e5e5] bg-[#f6f6f6] px-4 max-sm:px-2">
       <div class="min-w-0 flex-1">
         <div class="flex items-center gap-2 text-[12px] font-bold">
@@ -164,6 +164,9 @@ function resourceIcon(type: string) {
         </div>
         <p class="mt-0.5 truncate text-[11px] text-[#777777]">Catalogue des données de data.gouv.fr · data.gouv.fr</p>
       </div>
+      <button aria-label="Télécharger les données affichées" class="grid size-8 place-items-center rounded-md border border-[#e5e5e5] bg-white text-[#000091]" title="Télécharger les données affichées" type="button">
+        <i aria-hidden="true" class="ri-download-line text-sm" />
+      </button>
       <button class="inline-flex h-8 items-center gap-1.5 rounded-md border border-[#000091] bg-[#ebedff] px-2.5 text-[12px] font-medium text-[#000091] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#000091]" type="button">
         <i aria-hidden="true" class="ri-message-ai-3-line text-sm leading-none" />
         <span class="max-sm:hidden">Poser une question</span>
@@ -177,15 +180,15 @@ function resourceIcon(type: string) {
     </div>
 
     <div class="grid min-h-[35rem] flex-1" :class="sidebarCollapsed ? 'grid-cols-[2.75rem_minmax(0,1fr)] max-lg:grid-cols-1' : 'grid-cols-[13.5rem_minmax(0,1fr)] max-lg:grid-cols-1'">
-      <aside class="border-r border-[#e5e5e5] bg-[#fafafa] max-lg:border-b max-lg:border-r-0" :class="sidebarCollapsed ? '' : 'max-lg:max-h-44'">
+      <aside class="border-r border-[#e5e5e5] bg-white max-lg:border-b max-lg:border-r-0" :class="sidebarCollapsed ? '' : 'max-lg:max-h-44'">
         <div class="flex h-11 items-center justify-between border-b border-[#e5e5e5] px-3">
           <strong v-if="!sidebarCollapsed" class="text-[12px]">Ressources</strong>
           <button :aria-label="sidebarCollapsed ? 'Déplier les ressources' : 'Replier les ressources'" class="grid size-6 place-items-center rounded hover:bg-[#eeeeee]" type="button" @click="sidebarCollapsed = !sidebarCollapsed"><i aria-hidden="true" :class="sidebarCollapsed ? 'ri-sidebar-unfold-line' : 'ri-sidebar-fold-line'" class="text-sm text-[#777777]" /></button>
         </div>
         <div v-if="!sidebarCollapsed" class="p-2">
-          <label class="flex h-8 w-full items-center gap-1 rounded border border-[#e5e5e5] bg-[#f6f6f6] px-2">
-            <i aria-hidden="true" class="ri-search-line text-sm text-[#3a3a3a]" />
-            <input class="min-w-0 flex-1 bg-transparent text-[12px] text-[#3a3a3a] outline-none placeholder:text-[#777777]" placeholder="Rechercher une ressource">
+          <label class="explorer-search-field w-full">
+            <i aria-hidden="true" class="ri-search-line" />
+            <input placeholder="Rechercher une ressource">
           </label>
           <p class="px-1 pb-1 pt-3 text-[10px] font-medium uppercase tracking-[0.04em] text-[#777777]">3 fichiers disponibles</p>
           <nav aria-label="Ressources du jeu de données" class="space-y-0.5">
@@ -213,19 +216,6 @@ function resourceIcon(type: string) {
           <i aria-hidden="true" class="ri-filter-line text-sm text-[#000091]" />
           <span class="min-w-0 flex-1 truncate"><strong>Vue de l’assistant :</strong> organisations contenant « Ministère »</span>
           <button class="text-[#000091] underline" type="button" @click="filteredView = false">Revenir aux données initiales</button>
-          <button aria-label="Télécharger les données filtrées" class="grid size-7 place-items-center text-[#000091]" type="button"><i class="ri-download-line text-sm" /></button>
-        </div>
-
-        <div class="flex min-h-11 items-center gap-1 border-b border-[#e5e5e5] px-3">
-          <button class="relative h-11 px-2 text-[12px] font-medium" :class="mode === 'data' ? 'text-[#000091]' : 'text-[#555555]'" type="button" @click="mode = 'data'">
-            Données
-            <span v-if="mode === 'data'" class="absolute inset-x-1 bottom-0 h-0.5 bg-[#000091]" />
-          </button>
-          <button class="relative h-11 px-2 text-[12px] font-medium" :class="mode === 'structure' ? 'text-[#000091]' : 'text-[#555555]'" type="button" @click="mode = 'structure'">
-            Structure
-            <span v-if="mode === 'structure'" class="absolute inset-x-1 bottom-0 h-0.5 bg-[#000091]" />
-          </button>
-          <span class="ml-auto text-[11px] text-[#777777]">Exécution locale avec DuckDB WASM</span>
         </div>
 
         <template v-if="activeResource.type !== 'table'">
@@ -242,9 +232,9 @@ function resourceIcon(type: string) {
 
         <template v-else-if="mode === 'data'">
           <div class="flex min-h-12 flex-wrap items-center gap-2 border-b border-[#e5e5e5] px-2 py-2 xl:flex-nowrap xl:py-0">
-            <label class="flex h-8 w-[220px] min-w-0 items-center gap-1 rounded border border-[#e5e5e5] bg-[#f6f6f6] px-2 max-md:w-full">
-              <i aria-hidden="true" class="ri-search-line text-sm text-[#3a3a3a]" />
-              <input v-model="search" class="min-w-0 flex-1 bg-transparent text-[12px] text-[#3a3a3a] outline-none placeholder:text-[#3a3a3a]" placeholder="Rechercher dans les données">
+            <label class="explorer-search-field w-[220px] max-md:w-full">
+              <i aria-hidden="true" class="ri-search-line" />
+              <input v-model="search" placeholder="Rechercher dans les données">
             </label>
             <span class="hidden text-[11px] text-[#555555] xl:inline">Recherche et filtres exécutés localement</span>
             <div class="relative">
@@ -281,7 +271,6 @@ function resourceIcon(type: string) {
               </div>
             </div>
             <span class="ml-auto inline-flex items-center gap-1 whitespace-nowrap text-[11px] text-[#3a3a3a]"><i aria-hidden="true" class="ri-layout-horizontal-line text-sm" />{{ filteredView ? '42 318 lignes sur 130 412' : '130 412 lignes' }}</span>
-            <button aria-label="Télécharger" class="grid size-8 place-items-center rounded-md border border-[#e5e5e5] text-[#000091]" type="button"><i class="ri-download-line text-sm" /></button>
           </div>
 
           <div v-if="activeFilterCount" class="flex min-h-9 flex-wrap items-center gap-1.5 border-b border-[#e5e5e5] px-2 py-1.5 text-[10px]">

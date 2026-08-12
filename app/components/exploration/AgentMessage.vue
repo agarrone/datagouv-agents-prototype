@@ -4,6 +4,10 @@ import ExplorationAgentMap from "./AgentMap.client.vue";
 import type { AgentProgressStep } from "./AgentProgress.vue";
 import type { ExplorationMessage } from "~~/shared/types/exploration";
 import type { FeedbackContext } from "~~/shared/types/feedback";
+import {
+  classifyExplorationError,
+  type ExplorationRecoveryAction,
+} from "~~/shared/errors/exploration";
 
 const props = defineProps<{
   message: ExplorationMessage;
@@ -19,6 +23,7 @@ const emit = defineEmits<{
   clarify: [toolCallId: string, choice: string];
   edit: [messageId: string, content: string];
   dismissFeedbackPrompt: [];
+  recover: [action: ExplorationRecoveryAction, messageId: string];
 }>();
 
 const copiedUserMessage = ref(false);
@@ -60,10 +65,10 @@ const toolParts = computed(() => props.message.parts.filter(part =>
   || part.type === "tool-create_map",
 ));
 const displayedToolParts = computed(() => toolParts.value.filter((part, index, parts) => {
-  if (part.type !== "tool-execute_sql" || part.state !== "output-error") return true;
+  if (part.state !== "output-error") return true;
 
   return !parts.slice(index + 1).some(nextPart =>
-    nextPart.type === "tool-execute_sql"
+    nextPart.type === part.type
     && nextPart.state === "output-available",
   );
 }));
@@ -80,6 +85,14 @@ const toolLabel = (type: string) => ({
   "tool-create_chart": "Création du graphique",
   "tool-create_map": "Création de la carte",
 }[type] ?? "Opération");
+const activeToolLabel = (type: string) => ({
+  "tool-inspect_schema": "Lecture de la structure des données",
+  "tool-get_dataset_metadata": "Récupération des métadonnées publiques",
+  "tool-execute_sql": "Interrogation des données en SQL",
+  "tool-propose_explorer_view": "Préparation d’une vue pour l’explorateur",
+  "tool-create_chart": "Préparation des données du graphique",
+  "tool-create_map": "Préparation des données cartographiques",
+}[type] ?? "Exécution d’une opération");
 const chartTypeLabel = (type: string | undefined) => ({
   bar: "un graphique à barres",
   line: "un graphique en courbes",
@@ -93,9 +106,11 @@ const progressSteps = computed<AgentProgressStep[]>(() => {
     return {
       label: recoveredError
         ? part.type === "tool-execute_sql"
-          ? "Ajustement de la requête SQL"
-          : `Ajustement : ${toolLabel(part.type).toLocaleLowerCase("fr-FR")}`
-        : toolLabel(part.type),
+          ? "Une requête a échoué, recherche d’une correction"
+          : `${toolLabel(part.type)} à ajuster avant de poursuivre`
+        : part.state === "output-available"
+          ? toolLabel(part.type)
+          : activeToolLabel(part.type),
       status: part.state === "output-available" || recoveredError
         ? "complete" as const
         : part.state === "output-error"
@@ -108,13 +123,18 @@ const progressSteps = computed<AgentProgressStep[]>(() => {
 
   if (props.responding && !toolsActive.value) {
     steps.push({
-      label: assistantText.value ? "Finalisation de la réponse" : "Poursuite de l’analyse",
+      label: assistantText.value ? "Rédaction de la réponse" : "Interprétation des résultats obtenus",
       status: "active",
     });
   }
 
   return steps;
 });
+const progressTitle = computed(() => toolsActive.value
+  ? "Utilisation des outils"
+  : assistantText.value
+    ? "Rédaction de la réponse"
+    : "Interprétation des résultats");
 const assistantText = computed(() => props.message.parts
   .filter(part => part.type === "text")
   .map(part => part.text)
@@ -325,6 +345,27 @@ const observableReasoning = computed(() => {
   return sentences.join(" ");
 });
 
+function errorPresentation(
+  error: string,
+  context?: "sql" | "duckdb" | "visualization" | "provider",
+) {
+  return classifyExplorationError(error, context);
+}
+
+const terminalDataErrors = computed(() => displayedToolParts.value.filter(part =>
+  part.state === "output-error"
+  && part.type !== "tool-create_chart"
+  && part.type !== "tool-create_map"
+  && part.type !== "tool-propose_explorer_view",
+));
+
+function toolErrorContext(type: string) {
+  if (type === "tool-execute_sql") return "sql" as const;
+  if (type === "tool-inspect_schema") return "duckdb" as const;
+  if (type === "tool-get_dataset_metadata") return undefined;
+  return undefined;
+}
+
 </script>
 
 <template>
@@ -378,11 +419,12 @@ const observableReasoning = computed(() => {
         v-if="responding && displayedToolParts.length"
         key="progress"
         :steps="progressSteps"
+        :title="progressTitle"
       />
       <div v-else-if="displayedToolParts.length" key="summary" class="mb-2">
         <ExplorationAgentDisclosure
           icon="ri-brain-line"
-          :title="`Analyse terminée · ${toolTraceEntries.length} ${toolTraceEntries.length > 1 ? 'étapes' : 'étape'}`"
+          :title="`Opérations effectuées · ${toolTraceEntries.length}`"
         >
           <p v-if="observableReasoning" class="pb-2 text-[11px] leading-5 text-[#555555]">
             {{ observableReasoning }}
@@ -435,6 +477,7 @@ const observableReasoning = computed(() => {
           v-if="'input' in part && part.input && part.input.title && part.input.reason && part.input.sql"
           :title="part.input.title"
           :reason="part.input.reason"
+          :recovering="responding"
           :sql="part.input.sql"
           :state="part.state"
           :error="part.state === 'output-error' ? part.errorText : undefined"
@@ -449,6 +492,7 @@ const observableReasoning = computed(() => {
 
       <div
         v-for="part in message.parts.filter(item => item.type === 'tool-create_chart')"
+        v-show="part.state !== 'output-error' || !responding"
         :key="part.toolCallId"
         class="mt-3"
       >
@@ -469,14 +513,18 @@ const observableReasoning = computed(() => {
         </ExplorationVisualizationStage>
         <ExplorationStatusMessage
           v-else
-          :message="part.errorText"
-          title="Le graphique n’a pas pu être créé"
+          :action-label="errorPresentation(part.errorText, 'visualization').actionLabel"
+          :details="errorPresentation(part.errorText, 'visualization').technicalDetails"
+          :message="errorPresentation(part.errorText, 'visualization').message"
+          :title="errorPresentation(part.errorText, 'visualization').title"
           tone="error"
+          @action="emit('recover', errorPresentation(part.errorText, 'visualization').action, message.id)"
         />
       </div>
 
       <div
         v-for="part in message.parts.filter(item => item.type === 'tool-create_map')"
+        v-show="part.state !== 'output-error' || !responding"
         :key="part.toolCallId"
         class="mt-3"
       >
@@ -497,11 +545,26 @@ const observableReasoning = computed(() => {
         </ExplorationVisualizationStage>
         <ExplorationStatusMessage
           v-else
-          :message="part.errorText"
-          title="La carte n’a pas pu être créée"
+          :action-label="errorPresentation(part.errorText, 'visualization').actionLabel"
+          :details="errorPresentation(part.errorText, 'visualization').technicalDetails"
+          :message="errorPresentation(part.errorText, 'visualization').message"
+          :title="errorPresentation(part.errorText, 'visualization').title"
           tone="error"
+          @action="emit('recover', errorPresentation(part.errorText, 'visualization').action, message.id)"
         />
       </div>
+      <ExplorationStatusMessage
+        v-for="part in terminalDataErrors"
+        v-show="!responding"
+        :key="`terminal-error-${part.toolCallId}`"
+        class="mt-3"
+        :action-label="errorPresentation(part.errorText, toolErrorContext(part.type)).actionLabel"
+        :details="errorPresentation(part.errorText, toolErrorContext(part.type)).technicalDetails"
+        :message="errorPresentation(part.errorText, toolErrorContext(part.type)).message"
+        :title="errorPresentation(part.errorText, toolErrorContext(part.type)).title"
+        tone="error"
+        @action="emit('recover', errorPresentation(part.errorText, toolErrorContext(part.type)).action, message.id)"
+      />
       <ExplorationMessageActions
         v-if="assistantText && !toolsActive && !responding"
         :content="assistantText"

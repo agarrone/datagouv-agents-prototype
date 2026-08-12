@@ -26,6 +26,12 @@ const language = new Compartment();
 const editable = new Compartment();
 let view: EditorView | undefined;
 
+function focus() {
+  view?.focus();
+}
+
+defineExpose({ focus });
+
 const syntaxTheme = HighlightStyle.define([
   { tag: [tags.keyword, tags.bool, tags.null], color: "#000091", fontWeight: "600" },
   { tag: [tags.string, tags.special(tags.string)], color: "#18753c" },

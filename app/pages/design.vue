@@ -7,7 +7,10 @@ import type {
   DatasetRow,
   MapSpec,
 } from "~~/shared/types/exploration";
-import { explorationResources } from "~~/shared/data/exploration-resources";
+import {
+  explorationResources,
+  type DatagouvDatasetPageMetadata,
+} from "~~/shared/data/exploration-resources";
 
 useSeoMeta({
   title: "Design system · Agents data.gouv.fr",
@@ -19,6 +22,21 @@ const editingComposerValue = ref("Quels sont les jeux de données les plus consu
 const designSqlMode = ref<"assistant" | "sql">("sql");
 const selectedResource = ref(explorationResources[0] ?? null);
 const visualizationDemo = ref(0);
+const datasetOverview: DatagouvDatasetPageMetadata = {
+  id: "catalogue",
+  slug: "catalogue-des-donnees-de-data-gouv-fr",
+  title: "Catalogue des données de data.gouv.fr",
+  acronym: null,
+  description: "La plateforme data.gouv.fr rassemble et met à disposition les informations publiques. Ce jeu de données décrit le catalogue, ses ressources, ses producteurs et ses indicateurs.",
+  page: "https://www.data.gouv.fr/fr/datasets/catalogue-des-donnees-de-data-gouv-fr/",
+  license: "Licence Ouverte / Open Licence version 2.0",
+  lastUpdate: "2026-08-12",
+  qualityScore: null,
+  organization: { name: "data.gouv.fr", logo: null, page: "https://www.data.gouv.fr/fr/organizations/data-gouv-fr/" },
+  metrics: { views: 0, downloads: 0, reuses: 0, discussions: 0 },
+  resourceCount: 8,
+  communityResourceCount: 0,
+};
 const designUsage = {
   inputTokens: 2840,
   outputTokens: 612,
@@ -293,14 +311,38 @@ const designDecisions = [
   {
     group: "Assistant",
     title: "Tools et raisonnement",
-    detail: "Chaque tool est une carte dépliable avec une clé à molette. SQL et spécifications utilisent le même composant de code avec coloration syntaxique.",
-    rule: "Masquer les essais SQL en échec lorsqu’une exécution suivante réussit",
+    detail: "Le cycle distingue planification, utilisation des tools, interprétation et rédaction. Chaque tool terminé reste consultable dans une carte dépliable avec une clé à molette.",
+    rule: "Ne rendre une erreur définitive qu’après l’arrêt de la boucle · Synthèse courte des opérations",
+  },
+  {
+    group: "Assistant",
+    title: "Erreurs et récupération",
+    detail: "Les erreurs réseau, fournisseur, SQL, DuckDB et visualisation ont un message orienté utilisateur, une action adaptée et un détail technique secondaire.",
+    rule: "Réessayer · Recharger la ressource · Préciser la question ou la demande",
   },
   {
     group: "Mouvement",
     title: "Animations",
     detail: "Transitions courtes et fonctionnelles, spinner DNA pendant la réflexion et remplacement dimensionnellement stable des visualisations.",
     rule: "Respect systématique de prefers-reduced-motion",
+  },
+  {
+    group: "Données",
+    title: "Contexte du jeu de données",
+    detail: "La page rappelle avant l’explorateur le titre, la description, le producteur, la licence et la date de mise à jour provenant de data.gouv.fr.",
+    rule: "Pas de fil d’Ariane ni d’indicateurs d’audience · Description repliable",
+  },
+  {
+    group: "Données",
+    title: "Cadre de l’explorateur",
+    detail: "L’explorateur est une boîte centrée distincte de la page. Son header accentue sa bordure, son ombre et son blur après défilement ; le plein écran supprime toutes les marges.",
+    rule: "Max 90 rem · Marge 16 px min · Rayon 6 px · Plein écran inset 0",
+  },
+  {
+    group: "Données",
+    title: "Recherches de l’explorateur",
+    detail: "La recherche des ressources et la recherche dans les données partagent strictement la même géométrie et la même typographie.",
+    rule: "Hauteur 32 px · Corps 12 px · Rayon 4 px · Fond #F6F6F6",
   },
   {
     group: "Données",
@@ -325,6 +367,11 @@ const designRisks = [
     level: "Moyen",
     title: "Palette de visualisation non tokenisée",
     detail: "Les graphiques, cartes, survols et sélections utilisent encore des couleurs métier et plusieurs nuances de bleu définies directement dans les composants.",
+  },
+  {
+    level: "Moyen",
+    title: "Sprites cartographiques incomplets",
+    detail: "Certains pictogrammes demandés par les fonds vectoriels ne sont pas encore fournis localement. MapLibre masque ces images et signale leur absence dans la console.",
   },
   {
     level: "Moyen",
@@ -637,7 +684,7 @@ const designRisks = [
           <div class="mt-4 grid gap-4 xl:grid-cols-2">
             <div class="rounded-md border border-[#e5e5e5] bg-white p-5">
               <p class="text-[11px] font-medium uppercase tracking-[0.05em] text-[#555555]">Actions de réponse · état initial</p>
-              <ExplorationMessageActions class="mt-2" content="Réponse de démonstration à copier ou évaluer." :feedback-context="designFeedbackContext" />
+              <div class="mt-2"><ExplorationMessageActions content="Réponse de démonstration à copier ou évaluer." :feedback-context="designFeedbackContext" /></div>
             </div>
             <div class="rounded-md border border-[#e5e5e5] bg-white p-5">
               <p class="text-[11px] font-medium uppercase tracking-[0.05em] text-[#555555]">Usage du modèle</p>
@@ -649,7 +696,7 @@ const designRisks = [
           </div>
           <div class="mt-4 max-w-2xl rounded-md border border-[#e5e5e5] bg-white p-5">
             <p class="text-[11px] font-medium uppercase tracking-[0.05em] text-[#555555]">Sollicitation après six questions</p>
-            <ExplorationConversationFeedbackPrompt class="mt-2" answer="Réponse de démonstration associée à l’invitation." :context="designFeedbackContext" />
+            <div class="mt-2"><ExplorationConversationFeedbackPrompt answer="Réponse de démonstration associée à l’invitation." :context="designFeedbackContext" /></div>
           </div>
         </section>
 
@@ -767,12 +814,18 @@ const designRisks = [
                 <ExplorationMessageResponse :content="`Les jeux de données les plus consultés concernent principalement **les transports**, l’environnement et l’économie.\n\n- 128 jeux de données de transport\n- 104 jeux de données environnementaux`" />
                 <ExplorationMessageActions content="Les jeux de données les plus consultés concernent principalement les transports." />
               </div>
-              <ExplorationMessageResponse :content="`| Colonne | Type |\n| --- | --- |\n| \`title\` | texte |\n| \`organization\` | texte |\n| \`metric.views\` | nombre entier |`" />
+              <ExplorationMessageResponse :content="`| Colonne | Type |\n| --- | --- |\n| \`title\` | texte |\n| \`organization\` | texte |\n| \`metric.views\` | nombre entier |\n\nCes colonnes sont disponibles dans la ressource sélectionnée.`" />
               <ExplorationMessageResponse content="Je prépare une synthèse des résultats" streaming />
               <ExplorationAgentThinking />
               <div class="grid gap-2 md:grid-cols-2">
                 <ExplorationStatusMessage title="Vue appliquée au tableau" message="La requête filtre désormais les lignes de l’explorateur." tone="success" />
-                <ExplorationStatusMessage title="La réponse n’a pas pu être générée" message="Le service est momentanément indisponible. Réessayez." tone="error" />
+                <ExplorationStatusMessage
+                  action-label="Réessayer"
+                  details="AI Gateway rate limit 429 · request_id=demo"
+                  title="Service d’intelligence artificielle indisponible"
+                  message="Le fournisseur n’a pas pu terminer la réponse. Réessayez dans quelques instants."
+                  tone="error"
+                />
               </div>
               <ExplorationResourceContext organization="data.gouv.fr" title="Catalogue des données de data.gouv.fr" />
               <ExplorationAgentComposer
@@ -796,16 +849,17 @@ const designRisks = [
             <div class="rounded-md border border-[#e5e5e5] bg-white p-5">
               <p class="mb-4 text-xs font-medium text-[#555555]">Pendant l’exécution</p>
               <ExplorationAgentProgress
+                title="Utilisation des outils"
                 :steps="[
                   { label: 'Inspection du schéma', status: 'complete' },
-                  { label: 'Exécution de la requête SQL', status: 'active' },
-                  { label: 'Synthèse des résultats', status: 'pending' },
+                  { label: 'Interrogation des données en SQL', status: 'active' },
+                  { label: 'Interprétation des résultats', status: 'pending' },
                 ]"
               />
             </div>
             <div class="rounded-md border border-[#e5e5e5] bg-white p-5">
               <p class="mb-3 text-xs font-medium text-[#555555]">Après l’exécution</p>
-              <ExplorationAgentDisclosure icon="ri-brain-line" title="Analyse terminée · 5 étapes" open>
+              <ExplorationAgentDisclosure icon="ri-brain-line" title="Opérations effectuées · 5" open>
                 <p class="pb-2 text-[11px] leading-5 text-[#555555]">
                   Le schéma a été vérifié : 30 colonnes pour 7 283 lignes. Une requête a été exécutée pour classer les résultats par nombre de vues. Le résultat contient 10 lignes.
                 </p>
@@ -850,6 +904,14 @@ const designRisks = [
                   />
                 </ol>
               </ExplorationAgentDisclosure>
+            </div>
+            <div class="rounded-md border border-[#e5e5e5] bg-white p-5 xl:col-span-2">
+              <p class="mb-3 text-xs font-medium text-[#555555]">Erreurs finales et actions de récupération</p>
+              <div class="grid gap-3 xl:grid-cols-3">
+                <ExplorationStatusMessage action-label="Réessayer" details="fetch failed: network timeout" message="La communication avec le service a été interrompue. Vous pouvez relancer la réponse." title="Connexion interrompue" tone="error" />
+                <ExplorationStatusMessage action-label="Préciser la question" details="Binder Error: Referenced column not found" message="La question peut nécessiter une autre colonne, une autre valeur ou une précision supplémentaire." title="La requête n’a pas pu être validée" tone="error" />
+                <ExplorationStatusMessage action-label="Recharger la ressource" details="DuckDB IOException: failed to read parquet" message="Le moteur local n’a pas pu lire correctement la ressource. Rechargez-la avant de réessayer." title="La ressource n’a pas pu être interrogée" tone="error" />
+              </div>
             </div>
           </div>
         </section>
@@ -931,7 +993,14 @@ const designRisks = [
         <section id="explorateur">
           <header class="mb-6"><p class="text-[11px] font-medium uppercase tracking-[0.06em] text-[#555555]">09</p><h2 class="mt-1 text-2xl font-bold">Explorateur</h2></header>
           <div class="mb-4 max-w-3xl text-[13px] leading-5 text-[#555555]">
-            Spécimen interactif dédié aux arbitrages de design. Il reprend la structure de l’ancien explorateur sans être encore branché au moteur DuckDB du laboratoire.
+            La fiche de contexte et le spécimen interactif documentent la structure actuelle du laboratoire. Les données du spécimen restent locales à la page design.
+          </div>
+          <div class="mb-4 overflow-hidden rounded-md border border-[#e5e5e5]">
+            <ExplorationDatasetOverview
+              :dataset="datasetOverview"
+              fallback-organization="data.gouv.fr"
+              fallback-title="Catalogue des données de data.gouv.fr"
+            />
           </div>
           <DesignExplorerSpecimen />
           <div class="mt-4 grid gap-4 xl:grid-cols-3">

@@ -54,8 +54,9 @@ useSeoMeta({
 
       <DocumentationSection id="fonctionnement" title="Comment fonctionne une réponse ?">
         <p>Depuis l’accueil, vous pouvez choisir un exemple, rechercher un jeu de données dans le catalogue data.gouv.fr ou coller l’URL de sa page. Le prototype ne propose que les ressources disposant d’une version Parquet compatible et permet de choisir la ressource lorsqu’il en existe plusieurs.</p>
+        <p>Après la sélection, une fiche rappelle le titre, la description, le producteur, la licence et la date de mise à jour du jeu de données. L’explorateur apparaît ensuite dans une boîte distincte avec sa navigation de ressources, son tableau et le panneau assistant. Le bouton « Poser une question » reste actif tant que ce panneau est ouvert, y compris dans la console SQL ; le mode plein écran étend l’espace de travail à toute la fenêtre.</p>
         <p>Une fois la ressource chargée, trois questions générales sont complétées par deux suggestions calculées localement à partir de son schéma. Elles privilégient une dimension textuelle utile, puis une mesure numérique, une date ou une seconde dimension, en écartant les identifiants et champs techniques.</p>
-        <p>Les résultats naturellement structurés — classements, comparaisons, distributions, listes de colonnes ou exemples — sont présentés sous forme de tableaux étendus à la largeur de la réponse. Les types techniques DuckDB y sont traduits en français.</p>
+        <p>Les résultats naturellement structurés — classements, comparaisons, distributions, listes de colonnes ou exemples — sont présentés sous forme de tableaux étendus à la largeur de la réponse. Les types techniques DuckDB y sont traduits en français et un espacement distingue clairement le tableau du texte qui le suit.</p>
         <ol>
           <li>L’assistant interprète la demande et repère les ambiguïtés éventuelles.</li>
           <li>Il choisit la preuve la plus légère : métadonnées, schéma ou requête SQL.</li>
@@ -63,7 +64,8 @@ useSeoMeta({
           <li>Il rédige sa réponse uniquement à partir des résultats obtenus.</li>
           <li>Un graphique, une carte ou une vue du tableau peut ensuite être produit si cela répond à la demande.</li>
         </ol>
-        <p>La section « Analyse terminée » décrit les opérations observables. Elle ne révèle pas une chaîne de pensée interne du modèle.</p>
+        <p>Le suivi distingue la planification, l’utilisation des outils, l’interprétation des résultats et la rédaction. Une fois la réponse terminée, la section « Opérations effectuées » en donne une synthèse courte et permet de consulter les détails sans révéler une chaîne de pensée interne du modèle.</p>
+        <p>Une erreur intermédiaire n’est pas présentée comme définitive tant que l’assistant peut encore corriger son travail. Si la réponse s’arrête, le message distingue une erreur de connexion, de fournisseur IA, de requête SQL, de lecture DuckDB ou de visualisation. Il propose alors de réessayer, recharger la ressource ou préciser la demande ; le détail technique reste disponible dans une section repliable.</p>
       </DocumentationSection>
 
       <DocumentationSection id="tools" title="Les outils disponibles">

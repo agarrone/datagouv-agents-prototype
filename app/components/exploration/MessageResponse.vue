@@ -38,9 +38,12 @@ const rendered = computed(() => renderAssistantMarkdown(props.content, props.str
 .agent-message-response :deep(p + ul),
 .agent-message-response :deep(p + ol),
 .agent-message-response :deep(ul + p),
-.agent-message-response :deep(ol + p),
-.agent-message-response :deep(table + p) {
+.agent-message-response :deep(ol + p) {
   margin-top: 10px;
+}
+
+.agent-message-response :deep(.agent-markdown-table + p) {
+  margin-top: 14px;
 }
 
 .agent-message-response :deep(h1 + p),

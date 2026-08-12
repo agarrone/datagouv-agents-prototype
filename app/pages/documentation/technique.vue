@@ -74,7 +74,9 @@ useSeoMeta({
           </li>
         </ol>
         <p>La page Vue utilise <code>useChat</code> et <code>DefaultChatTransport</code>. La route Nitro appelle <code>streamText</code>. Après chaque tool local, sa sortie est ajoutée au message et AI SDK relance automatiquement l’agent.</p>
+        <p>Au chargement de la page, une route dédiée lit en parallèle les métadonnées publiques du jeu de données pour construire sa fiche de contexte. Cette présentation reste indépendante du moteur DuckDB, de l’explorateur et du panneau assistant. Les deux recherches de l’explorateur utilisent une primitive visuelle commune afin d’éviter leur divergence.</p>
         <p>La boucle est bornée par <code>isStepCount(5)</code>. Une réponse complexe doit donc partager ces cinq étapes entre inspections, corrections SQL, visualisation et réponse finale.</p>
+        <p>L’interface dérive quatre phases observables des messages AI SDK : planification avant le premier tool, utilisation des tools pendant leurs appels, interprétation après leurs sorties et rédaction dès que le texte final commence à arriver. Les erreurs de tool restent transitoires tant que le statut global est <code>submitted</code> ou <code>streaming</code>. Une erreur remplacée par une sortie réussie du même tool est retirée du résumé final.</p>
       </DocumentationSection>
 
       <DocumentationSection id="model" eyebrow="Génération" title="Fournisseur et modèle" description="Le choix du fournisseur est réalisé côté serveur, sans exposer de clé au navigateur.">
@@ -112,6 +114,7 @@ useSeoMeta({
         <p>Le validateur SQL accepte une seule requête commençant par <code>SELECT</code> ou <code>WITH</code>. Il refuse notamment INSERT, UPDATE, DELETE, DROP, ALTER, CREATE, COPY, ATTACH, INSTALL, LOAD, CALL et PRAGMA.</p>
         <p>Une requête doit avoir été exécutée avec succès avant de pouvoir être appliquée à l’explorateur ou utilisée comme source d’une visualisation. Le prompt demande au modèle de ne pas dépasser trois essais SQL par question ; la route serveur impose aussi ce plafond en retirant réellement <code>execute_sql</code> des tools disponibles une fois le budget consommé.</p>
         <p>Les métadonnées, noms de colonnes, valeurs, échantillons et sorties de tools sont explicitement traités comme des données non fiables. Le contexte actif est sérialisé dans un bloc délimité afin qu’une instruction malveillante contenue dans une ressource ne soit pas confondue avec une instruction système.</p>
+        <p>Les erreurs finales passent par une classification commune : réseau et fournisseur proposent de régénérer le message concerné ; SQL et visualisation rendent le focus au compositeur pour préciser la demande ; DuckDB propose de recharger la ressource. Le message principal est volontairement non technique. Le texte d’origine reste accessible dans un élément <code>details</code> replié par défaut.</p>
       </DocumentationSection>
 
       <DocumentationSection id="visualizations" eyebrow="Rendu" title="Graphiques et cartes" description="Les visualisations sont toujours construites à partir du dernier résultat SQL vérifié.">
@@ -129,7 +132,7 @@ useSeoMeta({
       <DocumentationSection id="prompts" eyebrow="Instructions" title="Organisation des prompts" description="Les instructions sont découpées par responsabilité afin de rester lisibles, testables et portables.">
         <p>Les deux suggestions contextuelles de l’empty state ne sollicitent pas le modèle : une fonction déterministe inspecte les noms et types DuckDB du schéma déjà chargé. Cela rend leur apparition immédiate, reproductible et sans coût de tokens.</p>
         <p>Une politique dédiée demande un tableau Markdown pour les classements, distributions, comparaisons, listes de colonnes et exemples structurés, mais l’écarte pour une valeur unique ou une explication narrative. Elle limite ces tableaux à 10 lignes par défaut et 20 sur demande explicite ; les résultats plus longs sont orientés vers l’explorateur.</p>
-        <p>Les questions demandant simplement la liste des colonnes sont traitées sans appel au modèle : le serveur construit directement un tableau Markdown depuis le schéma chargé et traduit les types DuckDB. Le renderer stabilise les débuts de tableaux incomplets pendant le streaming, les enveloppe dans un conteneur horizontal et leur donne au minimum toute la largeur disponible.</p>
+        <p>Les questions demandant simplement la liste des colonnes sont traitées sans appel au modèle : le serveur construit directement un tableau Markdown depuis le schéma chargé et traduit les types DuckDB. Le renderer stabilise les débuts de tableaux incomplets pendant le streaming, les enveloppe dans un conteneur horizontal, leur donne au minimum toute la largeur disponible et maintient un espacement lisible avec le paragraphe suivant.</p>
         <div class="grid gap-2">
           <article v-for="layer in promptLayers" :key="layer[0]" class="border border-[#e5e5e5] px-4 py-3">
             <h3 class="text-[13px] font-semibold text-[#161616]">{{ layer[0] }}</h3>

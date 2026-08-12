@@ -5,6 +5,7 @@ defineProps<{
   sql: string;
   state: string;
   error?: string;
+  recovering?: boolean;
 }>();
 
 defineEmits<{ apply: [] }>();
@@ -29,6 +30,10 @@ defineEmits<{ apply: [] }>();
     <p v-else-if="state === 'output-available'" class="flex items-center gap-2 border-t border-[#b8fec9] bg-[#e3fdeb] px-4 py-3 text-xs text-[#18753c]">
       <i aria-hidden="true" class="ri-check-line text-base leading-none" />
       <span>Vue appliquée au tableau</span>
+    </p>
+    <p v-else-if="state === 'output-error' && recovering" class="flex items-center gap-2 border-t border-[#e5e5e5] bg-[#f6f6f6] px-4 py-3 text-xs text-[#555555]">
+      <ExplorationUnicodeSpinner name="dna" class="w-5 text-[#777777]" />
+      Une correction est en cours de préparation
     </p>
     <p v-else-if="state === 'output-error'" class="border-t border-[#ffbdbd] bg-[#fef4f4] px-4 py-3 text-xs text-[#ce0500]">
       {{ error }}
