@@ -27,6 +27,7 @@ useSeoMeta({
         <nav aria-label="Documentation du prototype" class="mt-5 flex flex-wrap gap-x-6 gap-y-2 text-[13px]">
           <NuxtLink class="font-medium text-[#000091] underline underline-offset-4" to="/documentation">Lire la documentation</NuxtLink>
           <NuxtLink class="font-medium text-[#000091] underline underline-offset-4" to="/documentation/technique">Consulter la documentation technique</NuxtLink>
+          <NuxtLink class="font-medium text-[#000091] underline underline-offset-4" to="/tests">Lancer une campagne de test</NuxtLink>
         </nav>
       </section>
 
