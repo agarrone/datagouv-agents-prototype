@@ -22,6 +22,31 @@ export interface DatagouvDatasetResource {
   parquetUrl: string | null;
 }
 
+export interface DatagouvDatasetPageMetadata {
+  id: string;
+  slug: string;
+  title: string;
+  acronym: string | null;
+  description: string;
+  page: string;
+  license: string;
+  lastUpdate: string | null;
+  qualityScore: number | null;
+  organization: {
+    name: string;
+    logo: string | null;
+    page: string | null;
+  };
+  metrics: {
+    views: number;
+    downloads: number;
+    reuses: number;
+    discussions: number;
+  };
+  resourceCount: number;
+  communityResourceCount: number;
+}
+
 export interface DatagouvDatasetChoice {
   id: string;
   slug: string;

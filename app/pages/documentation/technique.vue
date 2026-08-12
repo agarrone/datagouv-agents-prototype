@@ -128,7 +128,8 @@ useSeoMeta({
 
       <DocumentationSection id="prompts" eyebrow="Instructions" title="Organisation des prompts" description="Les instructions sont découpées par responsabilité afin de rester lisibles, testables et portables.">
         <p>Les deux suggestions contextuelles de l’empty state ne sollicitent pas le modèle : une fonction déterministe inspecte les noms et types DuckDB du schéma déjà chargé. Cela rend leur apparition immédiate, reproductible et sans coût de tokens.</p>
-        <p>Une politique dédiée demande un tableau Markdown pour les classements, distributions, comparaisons, listes de colonnes et exemples structurés, mais l’écarte pour une valeur unique ou une explication narrative. Le renderer enveloppe chaque tableau dans un conteneur horizontal et lui donne au minimum toute la largeur disponible. La traduction des types DuckDB est centralisée et réutilisée par le tableau de données.</p>
+        <p>Une politique dédiée demande un tableau Markdown pour les classements, distributions, comparaisons, listes de colonnes et exemples structurés, mais l’écarte pour une valeur unique ou une explication narrative. Elle limite ces tableaux à 10 lignes par défaut et 20 sur demande explicite ; les résultats plus longs sont orientés vers l’explorateur.</p>
+        <p>Les questions demandant simplement la liste des colonnes sont traitées sans appel au modèle : le serveur construit directement un tableau Markdown depuis le schéma chargé et traduit les types DuckDB. Le renderer stabilise les débuts de tableaux incomplets pendant le streaming, les enveloppe dans un conteneur horizontal et leur donne au minimum toute la largeur disponible.</p>
         <div class="grid gap-2">
           <article v-for="layer in promptLayers" :key="layer[0]" class="border border-[#e5e5e5] px-4 py-3">
             <h3 class="text-[13px] font-semibold text-[#161616]">{{ layer[0] }}</h3>

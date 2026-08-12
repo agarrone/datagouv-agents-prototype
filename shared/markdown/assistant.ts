@@ -29,6 +29,19 @@ function completeStreamingMarkdown(content: string) {
 
   const strongMarkers = completed.match(/(?<!\\)\*\*/g)?.length ?? 0;
   if (strongMarkers % 2 !== 0) completed += "**";
+
+  const lines = completed.split("\n");
+  const lastNonEmptyIndex = lines.findLastIndex(line => line.trim().length > 0);
+  if (lastNonEmptyIndex >= 0) {
+    const lastLine = lines[lastNonEmptyIndex]!;
+    const previousLine = lines[lastNonEmptyIndex - 1];
+    const looksLikeTableHeader = lastLine.includes("|")
+      && (!previousLine || !/^\s*\|?\s*:?-{3,}/.test(previousLine));
+    if (looksLikeTableHeader) {
+      lines.splice(lastNonEmptyIndex, 1);
+      completed = lines.join("\n").trimEnd();
+    }
+  }
   return completed;
 }
 

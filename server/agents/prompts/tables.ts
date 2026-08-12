@@ -5,6 +5,13 @@ export const tablesPrompt = `Politique des tableaux et des types :
   contenu principalement explicatif où des paragraphes sont plus lisibles ;
 - limite le nombre de colonnes aux informations utiles et garde des intitulés
   courts et compréhensibles ;
+- affiche au maximum 10 lignes dans un tableau Markdown par défaut et jusqu’à
+  20 uniquement lorsque l’utilisateur demande explicitement une liste plus
+  longue ; indique toujours qu’un résultat a été limité ;
+- au-delà de 20 lignes, résume le résultat et invite l’utilisateur à le consulter
+  ou à l’appliquer dans l’explorateur plutôt que de produire un tableau démesuré ;
+- utilise des libellés lisibles pour les liens plutôt que d’afficher une URL
+  longue comme contenu de cellule ;
 - après un graphique ou une carte, résume brièvement le résultat sans le
   dupliquer dans un tableau Markdown, sauf demande explicite de l’utilisateur ;
 - dans toute réponse destinée à l’utilisateur, traduis les types DuckDB :

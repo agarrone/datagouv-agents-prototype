@@ -4,6 +4,7 @@ import type {
 } from "~~/shared/agents/exploration-tools";
 import type {
   DatagouvDatasetChoice,
+  DatagouvDatasetPageMetadata,
   DatagouvResourceChoice,
 } from "~~/shared/data/exploration-resources";
 
@@ -13,6 +14,7 @@ interface DatagouvDatasetResponse {
   id?: string;
   slug?: string;
   title?: string;
+  acronym?: string | null;
   description?: string | null;
   page?: string;
   license?: string | null;
@@ -20,7 +22,17 @@ interface DatagouvDatasetResponse {
   last_modified?: string | null;
   organization?: {
     name?: string;
+    logo_thumbnail?: string | null;
+    logo?: string | null;
+    page?: string | null;
   } | null;
+  metrics?: {
+    views?: number;
+    resources_downloads?: number;
+    reuses?: number;
+    discussions?: number;
+  } | null;
+  community_resources?: unknown[];
   quality?: {
     score?: number;
   } | null;
@@ -145,5 +157,45 @@ export async function fetchDatasetMetadata(
           ?? (format === "PARQUET" ? resource.url ?? null : null),
       };
     }),
+  };
+}
+
+export async function fetchDatasetPageMetadata(
+  reference: string,
+): Promise<DatagouvDatasetPageMetadata> {
+  const response = await fetch(
+    `${apiBaseUrl}/datasets/${encodeURIComponent(extractDatasetReference(reference))}/`,
+    { headers: { accept: "application/json" } },
+  );
+  if (!response.ok) {
+    throw new Error(`Les métadonnées data.gouv.fr répondent ${response.status}.`);
+  }
+
+  const dataset = await response.json() as DatagouvDatasetResponse;
+  const id = dataset.id ?? reference;
+  const slug = dataset.slug ?? id;
+  return {
+    id,
+    slug,
+    title: dataset.title ?? "Jeu de données",
+    acronym: dataset.acronym?.trim() || null,
+    description: dataset.description ?? "",
+    page: dataset.page ?? `https://www.data.gouv.fr/fr/datasets/${slug}/`,
+    license: licenseLabel(dataset.license),
+    lastUpdate: dataset.last_update ?? dataset.last_modified ?? null,
+    qualityScore: dataset.quality?.score ?? null,
+    organization: {
+      name: dataset.organization?.name ?? "Producteur non renseigné",
+      logo: dataset.organization?.logo_thumbnail ?? dataset.organization?.logo ?? null,
+      page: dataset.organization?.page ?? null,
+    },
+    metrics: {
+      views: dataset.metrics?.views ?? 0,
+      downloads: dataset.metrics?.resources_downloads ?? 0,
+      reuses: dataset.metrics?.reuses ?? 0,
+      discussions: dataset.metrics?.discussions ?? 0,
+    },
+    resourceCount: dataset.resources?.length ?? 0,
+    communityResourceCount: dataset.community_resources?.length ?? 0,
   };
 }

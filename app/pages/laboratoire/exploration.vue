@@ -7,6 +7,7 @@ import {
 import type { ChatAddToolOutputFunction, LanguageModelUsage } from "ai";
 import {
   explorationResources,
+  type DatagouvDatasetPageMetadata,
   type DatagouvDatasetResource,
   type ExplorationResource,
 } from "~~/shared/data/exploration-resources";
@@ -24,6 +25,9 @@ const resourcesCollapsed = ref(false);
 const workspaceFullscreen = ref(false);
 const datasetResources = ref<DatagouvDatasetResource[]>([]);
 const datasetResourcesLoading = ref(false);
+const datasetMetadata = ref<DatagouvDatasetPageMetadata>();
+const datasetMetadataLoading = ref(false);
+const datasetMetadataError = ref("");
 const editingMessageId = ref<string | null>(null);
 const composer = ref<{ focus: () => void } | null>(null);
 const dataset = useDatasetEngine();
@@ -213,11 +217,32 @@ onBeforeUnmount(() => {
 });
 
 onMounted(async () => {
-  if (selectedResource.value) await loadDatasetResources(selectedResource.value);
-  if ((requestedResourceId || resourceFromQuery) && selectedResource.value) {
-    await loadSelectedResource();
-  }
+  if (!selectedResource.value) return;
+  const initialResource = selectedResource.value;
+  await Promise.all([
+    loadDatasetMetadata(initialResource),
+    (async () => {
+      await loadDatasetResources(initialResource);
+      if (requestedResourceId || resourceFromQuery) await loadSelectedResource();
+    })(),
+  ]);
 });
+
+async function loadDatasetMetadata(resource: ExplorationResource) {
+  datasetMetadataLoading.value = true;
+  datasetMetadataError.value = "";
+  try {
+    const response = await $fetch<{ dataset: DatagouvDatasetPageMetadata }>(
+      "/nuxt-api/datasets/metadata",
+      { query: { dataset: resource.datasetReference } },
+    );
+    datasetMetadata.value = response.dataset;
+  } catch {
+    datasetMetadataError.value = "Les informations publiques du jeu de données n’ont pas pu être chargées.";
+  } finally {
+    datasetMetadataLoading.value = false;
+  }
+}
 
 async function loadDatasetResources(resource: ExplorationResource) {
   datasetResourcesLoading.value = true;
@@ -393,8 +418,22 @@ async function resolveClarification(toolCallId: string, choice: string) {
 </script>
 
 <template>
-  <main class="flex h-dvh min-w-[64rem] flex-col overflow-hidden bg-white" :class="workspaceFullscreen ? 'fixed inset-0 z-[100]' : ''">
-    <header class="flex h-16 shrink-0 items-center gap-3 border-b border-[#e5e5e5] bg-[#f6f6f6] px-4">
+  <main class="min-h-dvh min-w-[64rem] bg-white">
+    <ExplorationDatasetOverview
+      v-if="!workspaceFullscreen && selectedResource"
+      :dataset="datasetMetadata"
+      :error="datasetMetadataError"
+      :fallback-organization="selectedResource.organization"
+      :fallback-title="selectedResource.title"
+      :loading="datasetMetadataLoading"
+    />
+
+    <section
+      class="flex h-[calc(100dvh-24px)] min-h-[680px] max-h-[860px] flex-col overflow-hidden border-b border-[#e5e5e5] bg-white"
+      :class="workspaceFullscreen ? 'fixed inset-0 z-[100] h-dvh min-h-0' : ''"
+      aria-label="Espace d’exploration du jeu de données"
+    >
+      <header class="flex h-16 shrink-0 items-center gap-3 border-b border-[#e5e5e5] bg-[#f6f6f6] px-4">
       <div class="min-w-0 flex-1">
         <h1 class="truncate text-[13px] font-bold">{{ selectedResource?.title ?? "Agent d’exploration" }}</h1>
         <p class="mt-0.5 truncate text-[11px] text-[#555555]">{{ selectedResource?.organization ?? "Prototype autonome" }}</p>
@@ -409,10 +448,9 @@ async function resolveClarification(toolCallId: string, choice: string) {
         <i class="ri-message-ai-3-line text-sm" />Poser une question
       </button>
       <button :aria-label="workspaceFullscreen ? 'Quitter le plein écran' : 'Afficher en plein écran'" class="grid size-8 place-items-center rounded-md border border-[#e5e5e5] bg-white text-[#555555]" type="button" @click="workspaceFullscreen = !workspaceFullscreen"><i :class="workspaceFullscreen ? 'ri-fullscreen-exit-line' : 'ri-fullscreen-line'" class="text-base" /></button>
-      <NuxtLink v-if="!workspaceFullscreen" class="ml-1 text-[12px] text-[#000091] underline" to="/">Retour</NuxtLink>
-    </header>
+      </header>
 
-    <div class="relative grid min-h-0 w-full flex-1" :style="{ gridTemplateColumns: `${resourcesCollapsed ? 44 : resourcesWidth}px minmax(0, 1fr)${assistantOpen ? ` ${assistantWidth}px` : ''}` }">
+      <div class="relative grid min-h-0 w-full flex-1" :style="{ gridTemplateColumns: `${resourcesCollapsed ? 44 : resourcesWidth}px minmax(0, 1fr)${assistantOpen ? ` ${assistantWidth}px` : ''}` }">
       <ExplorationResourceSidebar
         v-model:collapsed="resourcesCollapsed"
         :loading="dataset.status.value === 'loading' || datasetResourcesLoading"
@@ -528,6 +566,7 @@ async function resolveClarification(toolCallId: string, choice: string) {
           :ready="dataset.status.value === 'ready'"
         />
       </aside>
-    </div>
+      </div>
+    </section>
   </main>
 </template>

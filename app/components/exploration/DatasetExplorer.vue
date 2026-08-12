@@ -147,7 +147,8 @@ async function searchValues(column: string) {
 
 function toggleCategory(column: string, value: string) {
   const current = new Set(categoryFilters.value[column] ?? []);
-  current.has(value) ? current.delete(value) : current.add(value);
+  if (current.has(value)) current.delete(value);
+  else current.add(value);
   categoryFilters.value = { ...categoryFilters.value, [column]: [...current] };
   void refresh();
 }

@@ -1,5 +1,7 @@
 import {
   convertToModelMessages,
+  createUIMessageStream,
+  createUIMessageStreamResponse,
   isStepCount,
   streamText,
 } from "ai";
@@ -8,6 +10,7 @@ import { resourceContextSchema } from "~~/shared/schemas/agent";
 import type { ExplorationMessage } from "~~/shared/types/exploration";
 import { useAgentModel } from "~~/server/agents/provider";
 import { buildExplorationInstructions } from "~~/server/agents/prompts/exploration";
+import { deterministicSchemaAnswer } from "~~/server/agents/schema-answer";
 import {
   countSqlCallsForCurrentQuestion,
   MAX_SQL_CALLS_PER_QUESTION,
@@ -42,6 +45,27 @@ export default defineEventHandler(async (event) => {
       statusCode: 400,
       statusMessage: "Le contexte de la ressource est absent ou invalide.",
     });
+  }
+
+  const schemaAnswer = deterministicSchemaAnswer(body.messages, resource.data);
+  if (schemaAnswer) {
+    const stream = createUIMessageStream<ExplorationMessage>({
+      originalMessages: body.messages,
+      execute({ writer }) {
+        const textId = "schema-answer";
+        writer.write({
+          type: "start",
+          messageMetadata: { createdAt: new Date().toISOString() },
+        });
+        writer.write({ type: "start-step" });
+        writer.write({ type: "text-start", id: textId });
+        writer.write({ type: "text-delta", id: textId, delta: schemaAnswer });
+        writer.write({ type: "text-end", id: textId });
+        writer.write({ type: "finish-step" });
+        writer.write({ type: "finish", finishReason: "stop" });
+      },
+    });
+    return createUIMessageStreamResponse({ stream });
   }
 
   const tools = {

@@ -39,6 +39,8 @@ describe("exploration prompt", () => {
     expect(instructions).toContain('"rowCount":42');
     expect(instructions).toContain('"name":"title","type":"VARCHAR"');
     expect(instructions).toContain("utilise un tableau Markdown pour un top");
+    expect(instructions).toContain("au maximum 10 lignes");
+    expect(instructions).toContain("au-delà de 20 lignes");
     expect(instructions).toContain("nombre entier");
   });
 
