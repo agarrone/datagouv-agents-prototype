@@ -22,7 +22,10 @@ const route = useRoute();
 const initialPrompt = queryValue("prompt").trim();
 const initialPromptPending = ref(Boolean(initialPrompt));
 const panelMode = ref<"assistant" | "sql">("assistant");
-const assistantOpen = ref(true);
+// L’explorateur est l’écran d’entrée sur mobile. Le panneau est ouvert après
+// montage sur desktop afin d’éviter qu’une sidebar SSR devienne brièvement une
+// modale plein écran sur les petits écrans.
+const assistantOpen = ref(false);
 const DEFAULT_ASSISTANT_WIDTH = 576;
 const DEFAULT_RESOURCES_WIDTH = 216;
 const assistantWidth = ref(DEFAULT_ASSISTANT_WIDTH);
@@ -45,6 +48,8 @@ function queryValue(name: string) {
   const value = route.query[name];
   return typeof value === "string" ? value : "";
 }
+
+const isMobileViewport = ref(false);
 const requestedResourceId = typeof route.query.resource === "string"
   ? route.query.resource
   : "";
@@ -71,6 +76,7 @@ const conversationFeedbackPrompted = ref(false);
 const announcedToolErrorCount = ref(0);
 let settledErrorSoundTimer: ReturnType<typeof setTimeout> | undefined;
 let respondingSettleTimer: ReturnType<typeof setTimeout> | undefined;
+let mobileMediaQuery: MediaQueryList | undefined;
 const runtimeBridge: {
   addToolOutput?: ChatAddToolOutputFunction<ExplorationMessage>;
 } = {};
@@ -256,13 +262,31 @@ function updatePageScrollState() {
 }
 
 onMounted(() => {
+  mobileMediaQuery = window.matchMedia("(max-width: 1023.98px)");
+  isMobileViewport.value = mobileMediaQuery.matches;
+  if (!isMobileViewport.value) {
+    assistantOpen.value = true;
+  }
+  mobileMediaQuery.addEventListener("change", updateMobileViewport);
   updatePageScrollState();
   window.addEventListener("scroll", updatePageScrollState, { passive: true });
 });
 
+watch([assistantOpen, isMobileViewport], ([open, mobile]) => {
+  if (!import.meta.client) return;
+  document.documentElement.style.overflow = open && mobile ? "hidden" : "";
+});
+
 onBeforeUnmount(() => {
   window.removeEventListener("scroll", updatePageScrollState);
+  mobileMediaQuery?.removeEventListener("change", updateMobileViewport);
+  document.documentElement.style.overflow = "";
 });
+
+function updateMobileViewport(event: MediaQueryListEvent) {
+  isMobileViewport.value = event.matches;
+  if (event.matches) assistantOpen.value = false;
+}
 
 onMounted(async () => {
   if (!selectedResource.value) return;
@@ -433,6 +457,12 @@ async function selectDatasetResource(resource: DatagouvDatasetResource) {
   });
 }
 
+async function selectDatasetResourceById(event: Event) {
+  const id = (event.target as HTMLSelectElement).value;
+  const resource = datasetResources.value.find(item => item.id === id);
+  if (resource) await selectDatasetResource(resource);
+}
+
 function startAssistantResize(event: MouseEvent) {
   event.preventDefault();
   const startX = event.clientX;
@@ -522,7 +552,7 @@ async function resolveClarification(toolCallId: string, choice: string) {
 </script>
 
 <template>
-  <main class="min-h-dvh min-w-[64rem] bg-white pb-6">
+  <main class="min-h-dvh bg-white pb-3 lg:min-w-[64rem] lg:pb-6">
     <ExplorationDatasetOverview
       v-if="!workspaceFullscreen && selectedResource"
       :dataset="datasetMetadata"
@@ -536,16 +566,16 @@ async function resolveClarification(toolCallId: string, choice: string) {
       class="flex flex-col overflow-hidden bg-white"
       :class="workspaceFullscreen
         ? 'fixed inset-0 z-[100] h-dvh min-h-0 w-full max-w-none rounded-none border-0'
-        : 'mx-auto mt-6 h-[calc(100dvh-48px)] min-h-[680px] max-h-[860px] w-[calc(100%-2rem)] max-w-[90rem] rounded-md border border-[#e5e5e5]'"
+        : 'mx-auto mt-3 h-[calc(100dvh-24px)] min-h-0 w-[calc(100%-1rem)] rounded-md border border-[#e5e5e5] lg:mt-6 lg:h-[calc(100dvh-48px)] lg:min-h-[680px] lg:max-h-[860px] lg:w-[calc(100%-2rem)] lg:max-w-[90rem]'"
       aria-label="Espace d’exploration du jeu de données"
     >
       <header
-        class="workspace-header flex h-16 shrink-0 items-center gap-3 border-b px-4"
+        class="workspace-header flex h-14 shrink-0 items-center gap-2 border-b px-3 lg:h-16 lg:gap-3 lg:px-4"
         :class="pageScrolled && !workspaceFullscreen
           ? 'border-[#cfcfcf] bg-[#f6f6f6]/85 shadow-[0_1px_8px_rgba(0,0,0,0.08)] backdrop-blur-md'
           : 'border-[#e5e5e5] bg-[#f6f6f6]'"
       >
-      <div class="min-w-0 flex-1">
+      <div class="hidden min-w-0 flex-1 lg:block">
         <h1 class="truncate text-[13px] font-bold">{{ selectedResource?.title ?? "Agent d’exploration" }}</h1>
         <p class="mt-0.5 truncate text-[11px] text-[#555555]">{{ selectedResource?.organization ?? "Prototype autonome" }}</p>
       </div>
@@ -561,18 +591,19 @@ async function resolveClarification(toolCallId: string, choice: string) {
       </button>
       <button
         :aria-pressed="assistantOpen"
-        class="inline-flex h-8 items-center gap-1.5 rounded-md border px-2.5 text-[12px] font-medium"
+        class="inline-flex h-8 items-center gap-1.5 rounded-md border px-2.5 text-[11px] font-medium lg:text-[12px]"
         :class="assistantOpen ? 'border-[#000091] bg-[#ebedff] text-[#000091]' : 'border-[#e5e5e5] bg-white text-[#555555] hover:border-[#000091] hover:text-[#000091]'"
         type="button"
         @click="assistantOpen = true; panelMode = 'assistant'"
       >
         <i class="ri-message-ai-3-line text-sm" />Poser une question
       </button>
-      <button :aria-label="workspaceFullscreen ? 'Quitter le plein écran' : 'Afficher en plein écran'" class="grid size-8 place-items-center rounded-md border border-[#e5e5e5] bg-white text-[#555555]" type="button" @click="workspaceFullscreen = !workspaceFullscreen"><i :class="workspaceFullscreen ? 'ri-fullscreen-exit-line' : 'ri-fullscreen-line'" class="text-base" /></button>
+      <button :aria-label="workspaceFullscreen ? 'Quitter le plein écran' : 'Afficher en plein écran'" class="hidden size-8 place-items-center rounded-md border border-[#e5e5e5] bg-white text-[#555555] lg:grid" type="button" @click="workspaceFullscreen = !workspaceFullscreen"><i :class="workspaceFullscreen ? 'ri-fullscreen-exit-line' : 'ri-fullscreen-line'" class="text-base" /></button>
       </header>
 
-      <div class="relative grid min-h-0 w-full flex-1" :style="{ gridTemplateColumns: `${resourcesCollapsed ? 44 : resourcesWidth}px minmax(0, 1fr)${assistantOpen ? ` ${assistantWidth}px` : ''}` }">
+      <div class="workspace-grid relative grid min-h-0 w-full flex-1" :style="{ '--resources-width': `${resourcesCollapsed ? 44 : resourcesWidth}px`, '--assistant-width': `${assistantWidth}px`, '--assistant-open': assistantOpen ? '1' : '0' }">
       <ExplorationResourceSidebar
+        class="hidden lg:flex"
         v-model:collapsed="resourcesCollapsed"
         :loading="dataset.status.value === 'loading' || datasetResourcesLoading"
         :resources="datasetResources"
@@ -583,7 +614,7 @@ async function resolveClarification(toolCallId: string, choice: string) {
       <button
         v-if="!resourcesCollapsed"
         aria-label="Redimensionner le panneau des ressources"
-        class="group absolute inset-y-0 z-40 w-2 cursor-col-resize"
+        class="group absolute inset-y-0 z-40 hidden w-2 cursor-col-resize lg:block"
         :style="{ left: `${resourcesWidth - 4}px` }"
         title="Glisser pour redimensionner · Double-cliquer pour réinitialiser"
         type="button"
@@ -592,11 +623,23 @@ async function resolveClarification(toolCallId: string, choice: string) {
       ><span class="mx-auto block h-full w-px bg-transparent group-hover:bg-[#000091]" /></button>
 
       <section class="flex min-h-0 min-w-0 flex-col overflow-hidden">
-        <div class="flex h-14 shrink-0 items-center gap-2 border-b border-[#e5e5e5] bg-[#f6f6f6] px-4">
+        <div class="flex h-14 shrink-0 items-center gap-2 border-b border-[#e5e5e5] bg-[#f6f6f6] px-3 lg:px-4">
           <div class="min-w-0 flex-1">
             <p class="truncate text-[12px] font-bold">Ressource : {{ dataset.activeResource.value?.resourceName ?? selectedResource?.resourceName ?? "Aucune ressource chargée" }}</p>
-            <p class="mt-0.5 truncate text-[11px] text-[#555555]">{{ dataset.activeResource.value ? `${dataset.activeResource.value.title} · ${dataset.activeResource.value.organization}` : "Sélectionnez une ressource dans le panneau de gauche" }}</p>
+            <p class="mt-0.5 truncate text-[11px] text-[#555555]">{{ dataset.activeResource.value ? `${dataset.activeResource.value.title} · ${dataset.activeResource.value.organization}` : "Sélectionnez une ressource" }}</p>
           </div>
+          <label v-if="datasetResources.length > 1" class="relative lg:hidden">
+            <span class="sr-only">Changer de ressource</span>
+            <select
+              class="h-8 max-w-36 appearance-none rounded-md border border-[#e5e5e5] bg-white py-0 pl-2 pr-7 text-[10px] text-[#161616] outline-none focus:border-[#000091]"
+              :disabled="dataset.status.value === 'loading'"
+              :value="selectedResource?.id"
+              @change="selectDatasetResourceById"
+            >
+              <option v-for="resource in datasetResources" :key="resource.id" :disabled="!resource.parquetUrl" :value="resource.id">{{ resource.title }}</option>
+            </select>
+            <i class="ri-arrow-down-s-line pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-sm text-[#555555]" />
+          </label>
         </div>
 
         <ExplorationDatasetTableSkeleton v-if="dataset.status.value === 'loading'" />
@@ -631,8 +674,13 @@ async function resolveClarification(toolCallId: string, choice: string) {
         </div>
       </section>
 
-      <aside v-if="assistantOpen" class="chat-sidebar relative flex min-h-0 flex-col border-l border-[#777777] bg-[linear-gradient(to_bottom,rgba(235,237,255,0.30)_0%,rgba(235,237,255,0.01)_100%)] shadow-[-4px_0_12px_rgba(0,0,0,0.05)]">
-        <button aria-label="Redimensionner le panneau assistant" class="group absolute inset-y-0 -left-1 z-30 w-2 cursor-col-resize" title="Glisser pour redimensionner · Double-cliquer pour réinitialiser" type="button" @dblclick="assistantWidth = DEFAULT_ASSISTANT_WIDTH" @mousedown="startAssistantResize"><span class="mx-auto block h-full w-px bg-transparent group-hover:bg-[#000091]" /></button>
+      <aside
+        v-if="assistantOpen"
+        :aria-modal="isMobileViewport ? 'true' : undefined"
+        class="chat-sidebar fixed inset-0 z-[110] flex h-dvh min-h-0 flex-col bg-white lg:relative lg:z-auto lg:h-auto lg:border-l lg:border-[#777777] lg:bg-[linear-gradient(to_bottom,rgb(249,249,255)_0%,rgb(255,255,255)_100%)] lg:shadow-[-4px_0_12px_rgba(0,0,0,0.05)]"
+        :role="isMobileViewport ? 'dialog' : undefined"
+      >
+        <button aria-label="Redimensionner le panneau assistant" class="group absolute inset-y-0 -left-1 z-30 hidden w-2 cursor-col-resize lg:block" title="Glisser pour redimensionner · Double-cliquer pour réinitialiser" type="button" @dblclick="assistantWidth = DEFAULT_ASSISTANT_WIDTH" @mousedown="startAssistantResize"><span class="mx-auto block h-full w-px bg-transparent group-hover:bg-[#000091]" /></button>
         <ExplorationAgentPanelHeader v-model="panelMode" closable @close="assistantOpen = false" />
         <ExplorationConversationScroller
           v-show="panelMode === 'assistant'"
@@ -714,6 +762,20 @@ async function resolveClarification(toolCallId: string, choice: string) {
   transition-property: background-color, border-color, box-shadow, backdrop-filter;
   transition-duration: var(--duration-quick);
   transition-timing-function: var(--ease-smooth-out);
+}
+
+.workspace-grid {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+@media (min-width: 1024px) {
+  .workspace-grid {
+    grid-template-columns: var(--resources-width) minmax(0, 1fr);
+  }
+
+  .workspace-grid:has(.chat-sidebar) {
+    grid-template-columns: var(--resources-width) minmax(0, 1fr) var(--assistant-width);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

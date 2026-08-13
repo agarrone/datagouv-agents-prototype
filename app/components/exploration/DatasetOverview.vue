@@ -23,27 +23,27 @@ function formatDate(value: string | null | undefined) {
 </script>
 
 <template>
-  <section class="border-b border-[#e5e5e5] bg-white py-6 text-[#161616]">
+  <section class="border-b border-[#e5e5e5] bg-white py-5 text-[#161616] lg:py-6">
     <div class="mx-auto w-full max-w-[90rem] px-4 sm:px-6">
       <NuxtLink class="inline-flex items-center gap-1 text-[12px] font-medium text-[#000091] underline underline-offset-4" to="/">
         <i aria-hidden="true" class="ri-arrow-left-line text-sm" />Choisir un autre jeu de données
       </NuxtLink>
 
-      <div v-if="loading" class="mt-7 grid gap-8 lg:grid-cols-[minmax(0,2fr)_minmax(17rem,1fr)]">
+      <div v-if="loading" class="mt-5 grid gap-6 lg:mt-7 lg:grid-cols-[minmax(0,2fr)_minmax(17rem,1fr)] lg:gap-8">
         <div class="space-y-4"><div class="h-8 w-2/3 animate-pulse rounded-md bg-[#eeeeee]" /><div class="h-4 w-full animate-pulse rounded-md bg-[#f6f6f6]" /><div class="h-4 w-5/6 animate-pulse rounded-md bg-[#f6f6f6]" /></div>
         <div class="space-y-3"><div class="h-12 animate-pulse rounded-md bg-[#f6f6f6]" /><div class="h-7 animate-pulse rounded-md bg-[#f6f6f6]" /><div class="h-7 animate-pulse rounded-md bg-[#f6f6f6]" /></div>
       </div>
 
-      <div v-else class="mt-7 grid gap-8 lg:grid-cols-[minmax(0,2fr)_minmax(17rem,1fr)] lg:gap-12">
+      <div v-else class="mt-5 grid gap-6 lg:mt-7 lg:grid-cols-[minmax(0,2fr)_minmax(17rem,1fr)] lg:gap-12">
         <div class="min-w-0">
-          <h1 class="text-[24px] font-bold leading-8 tracking-[-0.01em]">
+          <h1 class="text-[18px] font-bold leading-6 tracking-[-0.01em] lg:text-[24px] lg:leading-8">
             {{ dataset?.title ?? fallbackTitle }}
             <span v-if="dataset?.acronym" class="ml-1 text-[12px] tracking-normal">{{ dataset.acronym }}</span>
           </h1>
-          <ExplorationDatasetDescription class="mt-5" :description="dataset?.description ?? error ?? 'Les informations détaillées de ce jeu de données ne sont pas disponibles.'" />
+          <ExplorationDatasetDescription class="mt-4 lg:mt-5" :description="dataset?.description ?? error ?? 'Les informations détaillées de ce jeu de données ne sont pas disponibles.'" />
         </div>
 
-        <aside class="space-y-4 text-[12px] leading-5">
+        <aside class="grid grid-cols-2 gap-x-4 gap-y-3 text-[12px] leading-5 lg:block lg:space-y-4">
           <section>
             <h2 class="font-bold">Producteur</h2>
             <div class="mt-1.5 flex items-center gap-2">
@@ -57,7 +57,7 @@ function formatDate(value: string | null | undefined) {
           </section>
           <section><h2 class="font-bold">Licence</h2><p class="mt-1 inline-block rounded-sm bg-[#f6f6f6] px-1.5 py-0.5 font-mono text-[11px] text-[#555555]">{{ dataset?.license ?? "Non renseignée" }}</p></section>
           <section><h2 class="font-bold">Dernière mise à jour</h2><p class="mt-1">{{ formatDate(dataset?.lastUpdate) }}</p></section>
-          <a v-if="dataset?.page" class="inline-flex items-center gap-1 font-medium text-[#000091] underline underline-offset-2" :href="dataset.page" target="_blank" rel="noopener noreferrer">Voir sur data.gouv.fr<i aria-hidden="true" class="ri-external-link-line text-sm" /></a>
+          <a v-if="dataset?.page" class="col-span-2 inline-flex items-center gap-1 font-medium text-[#000091] underline underline-offset-2" :href="dataset.page" target="_blank" rel="noopener noreferrer">Voir sur data.gouv.fr<i aria-hidden="true" class="ri-external-link-line text-sm" /></a>
         </aside>
       </div>
     </div>

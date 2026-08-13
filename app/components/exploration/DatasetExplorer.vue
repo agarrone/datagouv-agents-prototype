@@ -40,6 +40,7 @@ const errorPresentation = computed(() => error.value
   : undefined);
 const batchSize = 50;
 const columnWidths = reactive<Record<string, number>>({});
+const expandedMobileRows = ref<Set<number>>(new Set());
 let requestSequence = 0;
 let searchTimer: ReturnType<typeof setTimeout> | undefined;
 
@@ -233,6 +234,19 @@ function displayValue(value: unknown, column: DatasetColumn) {
   return String(value);
 }
 
+function mobileDefinitions(rowIndex: number) {
+  return expandedMobileRows.value.has(rowIndex)
+    ? visibleDefinitions.value
+    : visibleDefinitions.value.slice(0, 4);
+}
+
+function toggleMobileRow(rowIndex: number) {
+  const next = new Set(expandedMobileRows.value);
+  if (next.has(rowIndex)) next.delete(rowIndex);
+  else next.add(rowIndex);
+  expandedMobileRows.value = next;
+}
+
 watch(() => props.baseSql, resetFilters);
 watch(() => props.columns, () => { selectedColumns.value = defaultColumnNames(); void refresh(); });
 onMounted(() => { selectedColumns.value = defaultColumnNames(); void refresh(); });
@@ -241,11 +255,11 @@ onBeforeUnmount(() => { if (searchTimer) clearTimeout(searchTimer); });
 
 <template>
   <div class="flex h-full min-w-0 flex-col overflow-hidden bg-white">
-    <div v-if="viewTitle" class="flex min-h-10 shrink-0 items-center gap-2 border-b border-[#cacafb] bg-[#ebedff] px-3 py-2 text-[11px]">
+    <div v-if="viewTitle" class="flex min-h-10 shrink-0 flex-wrap items-center gap-2 border-b border-[#cacafb] bg-[#ebedff] px-3 py-2 text-[11px]">
       <i class="ri-filter-line text-sm text-[#000091]" />
       <span class="min-w-0 flex-1 truncate"><strong>Vue de l’assistant :</strong> {{ viewTitle }}</span>
       <button
-        class="agent-focusable inline-flex h-7 shrink-0 items-center gap-1 rounded-[6px] px-2 text-[#000091] hover:bg-white/60 disabled:cursor-wait disabled:opacity-60"
+        class="agent-focusable ml-auto inline-flex h-7 shrink-0 items-center gap-1 rounded-[6px] px-2 text-[#000091] hover:bg-white/60 disabled:cursor-wait disabled:opacity-60"
         :disabled="exporting"
         type="button"
         @click="download"
@@ -253,22 +267,22 @@ onBeforeUnmount(() => { if (searchTimer) clearTimeout(searchTimer); });
         <i aria-hidden="true" :class="exporting ? 'ri-loader-4-line animate-spin' : 'ri-download-line'" class="text-sm" />
         {{ exporting ? "Préparation…" : "Télécharger les données filtrées" }}
       </button>
-      <button class="shrink-0 text-[#000091] underline" type="button" @click="emit('resetView')">Revenir aux données initiales</button>
+      <button class="shrink-0 text-[#000091] underline" type="button" @click="emit('resetView')">Réinitialiser</button>
     </div>
 
       <div class="flex min-h-12 shrink-0 items-center gap-2 border-b border-[#e5e5e5] px-2">
-        <label class="explorer-search-field w-[220px]">
+        <label class="explorer-search-field min-w-0 flex-1 lg:w-[220px] lg:flex-none">
           <i class="ri-search-line" /><input v-model="search" placeholder="Rechercher dans les données" @input="scheduleSearch">
         </label>
         <div class="relative ml-auto">
-          <button class="inline-flex h-7 items-center gap-1 rounded px-1.5 text-[11px] hover:bg-[#eeeeee]" type="button" @click="columnsOpen = !columnsOpen; openFilter = undefined"><i class="ri-layout-vertical-line text-sm" />Colonnes {{ visibleColumns.length }} sur {{ columns.length }}<i class="ri-arrow-down-s-line text-sm" /></button>
+          <button class="inline-flex h-7 items-center gap-1 rounded px-1.5 text-[11px] hover:bg-[#eeeeee]" type="button" @click="columnsOpen = !columnsOpen; openFilter = undefined"><i class="ri-layout-vertical-line text-sm" /><span class="hidden lg:inline">Colonnes {{ visibleColumns.length }} sur {{ columns.length }}</span><span class="lg:hidden">Colonnes</span><i class="ri-arrow-down-s-line text-sm" /></button>
           <div v-if="columnsOpen" class="absolute right-0 top-9 z-40 w-72 rounded-md border border-[#e5e5e5] bg-white p-2 shadow-lg">
             <div class="flex items-center justify-between px-1 pb-2 text-[10px] text-[#777777]"><span>{{ visibleColumns.length }} colonnes visibles</span><button class="text-[#000091] underline" type="button" @click="selectedColumns = allColumnNames; refresh()">Tout afficher</button></div>
             <label class="mb-1 flex h-7 items-center gap-1 rounded border border-[#e5e5e5] bg-[#f6f6f6] px-2"><i class="ri-search-line text-xs" /><input v-model="columnSearch" class="min-w-0 flex-1 bg-transparent text-[10px] outline-none" placeholder="Rechercher une colonne"></label>
             <div class="max-h-64 overflow-auto"><label v-for="column in filteredDefinitions" :key="column.name" class="flex items-center gap-2 rounded px-2 py-1.5 text-[11px] hover:bg-[#f6f6f6]"><input :checked="visibleColumns.includes(column.name)" class="accent-[#000091]" type="checkbox" @change="toggleColumn(column.name)"><i :class="typeIcon(column)" class="text-sm text-[#555555]" /><span class="min-w-0 flex-1 truncate">{{ column.name }}</span><span class="text-[10px] text-[#777777]">{{ humanizeDuckDbType(column.type) }}</span></label></div>
           </div>
         </div>
-        <span class="inline-flex items-center gap-1 whitespace-nowrap text-[11px] text-[#3a3a3a]"><i class="ri-layout-horizontal-line text-sm" />{{ totalRows.toLocaleString('fr-FR') }} lignes</span>
+        <span class="hidden items-center gap-1 whitespace-nowrap text-[11px] text-[#3a3a3a] lg:inline-flex"><i class="ri-layout-horizontal-line text-sm" />{{ totalRows.toLocaleString('fr-FR') }} lignes</span>
       </div>
 
       <div v-if="activeFilters.length" class="flex min-h-9 shrink-0 flex-wrap items-center gap-1.5 border-b border-[#e5e5e5] px-2 py-1.5 text-[10px]">
@@ -291,7 +305,7 @@ onBeforeUnmount(() => { if (searchTimer) clearTimeout(searchTimer); });
       <ExplorationDatasetTableSkeleton v-else-if="loading" />
       <div v-else-if="rows.length === 0" class="grid min-h-0 flex-1 place-items-center p-6 text-center"><div><i class="ri-table-line text-xl text-[#929292]" /><p class="mt-2 text-[12px] font-bold">Aucune ligne à afficher</p><p class="mt-1 text-[11px] text-[#555555]">Aucun résultat ne correspond aux filtres actifs.</p><button class="mt-2 text-[11px] text-[#000091] underline" type="button" @click="resetFilters">Réinitialiser la vue</button></div></div>
       <div v-else class="min-h-0 flex-1 overflow-auto" @scroll="onScroll">
-        <table class="w-full border-collapse text-[12px]">
+        <table class="hidden w-full border-collapse text-[12px] lg:table">
           <thead class="text-left"><tr><th v-for="column in visibleDefinitions" :key="column.name" class="sticky top-0 z-20 h-11 border-b border-r border-[#e5e5e5] bg-[#f6f6f6] px-3" :style="{ width: `${columnWidths[column.name] ?? 180}px`, minWidth: `${columnWidths[column.name] ?? 180}px` }">
             <span class="flex items-center gap-1"><i :class="typeIcon(column)" class="shrink-0 text-sm font-normal text-[#555555]" /><button class="min-w-0 flex-1 truncate text-left font-bold" type="button" @click="toggleSort(column.name)">{{ column.name }}</button><i v-if="sort?.column === column.name" :class="sort.direction === 'asc' ? 'ri-arrow-up-line' : 'ri-arrow-down-line'" class="text-xs text-[#000091]" /><button class="grid size-5 place-items-center rounded hover:bg-[#eeeeee]" :class="openFilter === column.name ? 'text-[#000091]' : 'text-[#929292]'" :aria-label="`Filtrer ${column.name}`" type="button" @click="toggleFilter(column)"><i class="ri-filter-line text-sm" /></button></span>
             <button class="absolute -right-1 top-0 z-30 h-full w-2 cursor-col-resize" :aria-label="`Redimensionner ${column.name}`" type="button" @mousedown="startResize(column.name, $event)"><span class="mx-auto block h-full w-px bg-transparent hover:bg-[#000091]" /></button>
@@ -304,6 +318,42 @@ onBeforeUnmount(() => { if (searchTimer) clearTimeout(searchTimer); });
           </th></tr></thead>
           <tbody><tr v-for="(row, rowIndex) in rows" :key="rowIndex" class="h-9 hover:bg-[#f8f8f8]"><td v-for="column in visibleDefinitions" :key="column.name" class="max-w-0 truncate border-b border-r border-[#e5e5e5] px-3" :class="columnKind(column) === 'number' ? 'text-right font-mono tabular-nums' : ''" :style="{ width: `${columnWidths[column.name] ?? 180}px`, minWidth: `${columnWidths[column.name] ?? 180}px`, maxWidth: `${columnWidths[column.name] ?? 180}px` }" :title="String(row[column.name] ?? '')"><span :class="row[column.name] === null || row[column.name] === '' ? 'italic text-[#929292]' : ''">{{ displayValue(row[column.name], column) }}</span></td></tr></tbody>
         </table>
+        <div class="space-y-2 bg-[#f6f6f6] p-2 lg:hidden">
+          <article
+            v-for="(row, rowIndex) in rows"
+            :key="rowIndex"
+            class="overflow-hidden rounded-md border border-[#e5e5e5] bg-white"
+          >
+            <dl class="divide-y divide-[#e5e5e5]">
+              <div
+                v-for="column in mobileDefinitions(rowIndex)"
+                :key="column.name"
+                class="grid grid-cols-[minmax(7rem,38%)_minmax(0,1fr)] gap-3 px-3 py-2.5"
+              >
+                <dt class="flex min-w-0 items-start gap-1.5 text-[10px] font-medium text-[#555555]">
+                  <i :class="typeIcon(column)" class="mt-px shrink-0 text-sm font-normal" />
+                  <span class="break-words">{{ column.name }}</span>
+                </dt>
+                <dd
+                  class="min-w-0 break-words text-[11px] leading-4 text-[#161616]"
+                  :class="[
+                    columnKind(column) === 'number' ? 'font-mono tabular-nums' : '',
+                    row[column.name] === null || row[column.name] === '' ? 'italic text-[#929292]' : '',
+                  ]"
+                >{{ displayValue(row[column.name], column) }}</dd>
+              </div>
+            </dl>
+            <button
+              v-if="visibleDefinitions.length > 4"
+              class="flex h-9 w-full items-center justify-center gap-1 border-t border-[#e5e5e5] text-[10px] font-medium text-[#000091]"
+              type="button"
+              @click="toggleMobileRow(rowIndex)"
+            >
+              {{ expandedMobileRows.has(rowIndex) ? "Afficher moins" : `Afficher ${visibleDefinitions.length - 4} champ${visibleDefinitions.length - 4 > 1 ? "s" : ""} de plus` }}
+              <i :class="expandedMobileRows.has(rowIndex) ? 'ri-arrow-up-s-line' : 'ri-arrow-down-s-line'" class="text-sm" />
+            </button>
+          </article>
+        </div>
         <div class="sticky bottom-0 flex h-9 items-center justify-center gap-2 border-t border-[#e5e5e5] bg-white/95 text-[11px] text-[#777777] backdrop-blur-sm"><template v-if="loadingMore"><i class="ri-loader-4-line animate-spin text-sm" />Chargement des lignes suivantes…</template><template v-else-if="hasMore">Faites défiler pour charger la suite</template><template v-else><i class="ri-check-line text-sm" />Toutes les lignes disponibles sont affichées</template></div>
       </div>
   </div>
