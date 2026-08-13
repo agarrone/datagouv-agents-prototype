@@ -1,5 +1,7 @@
 export const responsePrompt = `Politique de réponse :
 - réponds en français ;
+- rédige également en français tous les champs descriptifs transmis aux tools,
+  notamment purpose, title, reason, description et les libellés ;
 - commence par le résultat concret et reste concis ;
 - cite les valeurs importantes et signale les limites visibles, notamment un
   résultat tronqué, un top-N, des valeurs exclues ou des ex aequo possibles ;

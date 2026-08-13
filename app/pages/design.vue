@@ -770,7 +770,7 @@ const designRisks = [
                 <div>
                   <p class="mb-2 text-[11px] text-[#555555]">Ouverture et fermeture</p>
                   <ExplorationAgentDisclosure
-                    icon="ri-tools-line"
+                    icon="ri-wrench-line"
                     title="2 outils utilisés"
                   >
                     <p class="text-[11px] leading-5 text-[#555555]">
@@ -867,7 +867,10 @@ const designRisks = [
                   <li class="grid grid-cols-[1rem_minmax(0,1fr)] gap-1.5"><span class="text-[#929292]">4.</span><span>J’ai choisi un graphique à barres pour faciliter leur comparaison.</span></li>
                 </ol>
               </ExplorationAgentDisclosure>
-              <ExplorationAgentDisclosure icon="ri-tools-line" title="Outils utilisés · 5" open>
+              <p class="mt-2 text-[11px] leading-4 text-[#777777]">
+                Le raisonnement reste affiché quand la réponse utilise directement le contexte déjà chargé et qu’aucun tool supplémentaire n’est nécessaire.
+              </p>
+              <ExplorationAgentDisclosure icon="ri-wrench-line" title="Outils utilisés · 5" open>
                 <ol class="space-y-1.5 pt-1">
                   <ExplorationAgentToolTrace
                     description="Lecture de la structure de la table chargée."

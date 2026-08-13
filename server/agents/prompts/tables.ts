@@ -3,8 +3,13 @@ export const tablesPrompt = `Politique des tableaux et des types :
   comparaison, une liste de colonnes ou plusieurs exemples structurés ;
 - n’utilise pas de tableau pour une valeur unique, une réponse courte ou un
   contenu principalement explicatif où des paragraphes sont plus lisibles ;
-- limite le nombre de colonnes aux informations utiles et garde des intitulés
-  courts et compréhensibles ;
+- affiche toutes les colonnes nécessaires pour comprendre et vérifier le
+  résultat : n’applique aucun plafond numérique arbitraire au nombre de
+  colonnes ; écarte seulement les champs réellement redondants ou sans rapport
+  avec la question et garde des intitulés courts et compréhensibles ;
+- lorsqu’une liste du schéma ou des colonnes est demandée, affiche toutes les
+  colonnes disponibles, même si leur nombre dépasse la limite habituelle de
+  lignes des tableaux de résultats ;
 - affiche au maximum 10 lignes dans un tableau Markdown par défaut et jusqu’à
   20 uniquement lorsque l’utilisateur demande explicitement une liste plus
   longue ; indique toujours qu’un résultat a été limité ;

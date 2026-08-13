@@ -171,6 +171,25 @@ function stringValue(value: unknown, fallback = "Non renseigné") {
   return typeof value === "string" && value.trim() ? value : fallback;
 }
 
+function normalizedText(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLocaleLowerCase("fr-FR")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
+function frenchReasoningDetail(value: unknown, question: string) {
+  if (typeof value !== "string") return undefined;
+  const detail = value.trim().replace(/[.!?]+$/, "");
+  if (!detail) return undefined;
+  const normalizedDetail = normalizedText(detail);
+  if (!normalizedDetail || normalizedDetail === normalizedText(question)) return undefined;
+  const englishMarkers = normalizedDetail.match(/\b(the|this|that|with|from|into|using|count|find|show|display|filter|group|order|dataset|rows?)\b/g)?.length ?? 0;
+  return englishMarkers >= 2 ? undefined : detail;
+}
+
 function clarificationChoices(value: unknown): string[] {
   return Array.isArray(value)
     ? value.filter((choice): choice is string => typeof choice === "string" && Boolean(choice.trim()))
@@ -334,20 +353,33 @@ const observableReasoning = computed(() => {
 
   const question = props.question?.trim();
   if (question) {
+    const normalizedQuestion = normalizedText(question);
+    const preciseIntent = frenchReasoningDetail(
+      proposal && "input" in proposal ? proposal.input?.reason
+        : map?.type === "tool-create_map" ? map.input?.description
+          : chart?.type === "tool-create_chart" ? chart.input?.description
+            : lastSql?.type === "tool-execute_sql" ? lastSql.input?.purpose
+              : undefined,
+      question,
+    );
     const understoodAction = proposal
       ? "modifier la vue du tableau"
-      : map
+      : map || /\b(carte|cartograph|geograph|localis)/.test(normalizedQuestion)
         ? "analyser les données et les représenter sur une carte"
-        : chart
+        : chart || /\b(graph|diagramme|courbe|histogramme)/.test(normalizedQuestion)
           ? "analyser les données et les représenter dans un graphique"
+          : /\b(filtr|tri(?:e|er|ez)|garde uniquement|tableau|explorateur)/.test(normalizedQuestion)
+            ? "modifier la vue du tableau"
           : sqlQueries.length
             ? "analyser les valeurs de la ressource"
-            : metadata
+            : metadata || /\b(producteur|licence|description|mise a jour|metadonnee|organisation)/.test(normalizedQuestion)
               ? "retrouver les informations publiques du jeu de données"
-              : schema
+              : schema || /\b(colonne|champ|schema|structure|type)s?\b/.test(normalizedQuestion)
                 ? "examiner la structure de la ressource"
                 : "répondre à votre question à partir de la ressource";
-    sentences.push(`J’ai compris que vous souhaitiez ${understoodAction}.`);
+    sentences.push(preciseIntent
+      ? `J’ai compris votre demande ainsi : ${preciseIntent}.`
+      : `J’ai compris que vous souhaitiez ${understoodAction}.`);
   }
 
   if (schema?.type === "tool-inspect_schema") {
@@ -358,7 +390,11 @@ const observableReasoning = computed(() => {
   }
   if (lastSql?.type === "tool-execute_sql") {
     const queryCount = sqlQueries.length;
-    sentences.push(`${queryCount > 1 ? `J’ai effectué ${queryCount} calculs pour vérifier et affiner le résultat` : "J’ai interrogé les données pour répondre à la question"}. Le résultat retenu contient ${lastSql.output.rowCount.toLocaleString("fr-FR")} ligne${lastSql.output.rowCount > 1 ? "s" : ""}.`);
+    const columns = lastSql.output.columns.slice(0, 4);
+    const columnSummary = columns.length
+      ? ` Les champs retenus sont ${columns.map(column => `« ${column} »`).join(", ")}${lastSql.output.columns.length > columns.length ? " et d’autres champs utiles" : ""}.`
+      : "";
+    sentences.push(`${queryCount > 1 ? `J’ai effectué ${queryCount} calculs pour vérifier ou corriger le résultat` : "J’ai interrogé les données nécessaires à la réponse"}. Le résultat retenu contient ${lastSql.output.rowCount.toLocaleString("fr-FR")} ligne${lastSql.output.rowCount > 1 ? "s" : ""}.${columnSummary}`);
   }
   if (chart?.type === "tool-create_chart") {
     sentences.push(`J’ai choisi ${chartTypeLabel(chart.input?.type)} pour rendre ces résultats plus faciles à comparer.`);
@@ -441,14 +477,15 @@ function toolErrorContext(type: string) {
     </template>
 
     <template v-else>
-        <div v-if="responding && displayedToolParts.length" class="mb-2">
+        <div v-if="responding" class="mb-2">
           <ExplorationAgentProgress
             :steps="progressSteps"
             :title="progressTitle"
           />
           <ExplorationAgentDisclosure
+            v-if="toolTraceEntries.length"
             class="mt-1"
-            icon="ri-tools-line"
+            icon="ri-wrench-line"
             :title="`Outils en cours · ${toolTraceEntries.length}`"
           >
             <ol class="space-y-1.5 pb-1">
@@ -466,7 +503,7 @@ function toolErrorContext(type: string) {
             </ol>
           </ExplorationAgentDisclosure>
         </div>
-        <div v-else-if="displayedToolParts.length" class="mb-2 space-y-0.5">
+        <div v-else-if="observableReasoning.length || displayedToolParts.length" class="mb-2 space-y-0.5">
           <ExplorationAgentDisclosure
             v-if="observableReasoning.length"
             icon="ri-brain-line"
@@ -484,7 +521,8 @@ function toolErrorContext(type: string) {
             </ol>
           </ExplorationAgentDisclosure>
           <ExplorationAgentDisclosure
-            icon="ri-tools-line"
+            v-if="toolTraceEntries.length"
+            icon="ri-wrench-line"
             :title="`Outils utilisés · ${toolTraceEntries.length}`"
           >
             <ol class="space-y-1.5 pb-1">
@@ -541,7 +579,7 @@ function toolErrorContext(type: string) {
       </template>
 
       <template
-        v-for="part in message.parts.filter(item => item.type === 'tool-propose_explorer_view')"
+        v-for="part in displayedToolParts.filter(item => item.type === 'tool-propose_explorer_view')"
         :key="part.toolCallId"
       >
         <ExplorationExplorerProposal
@@ -565,7 +603,7 @@ function toolErrorContext(type: string) {
       </template>
 
       <div
-        v-for="part in message.parts.filter(item => item.type === 'tool-create_chart')"
+        v-for="part in displayedToolParts.filter(item => item.type === 'tool-create_chart')"
         v-show="part.state !== 'output-error' || !responding"
         :key="part.toolCallId"
         class="mt-3"
@@ -597,7 +635,7 @@ function toolErrorContext(type: string) {
       </div>
 
       <div
-        v-for="part in message.parts.filter(item => item.type === 'tool-create_map')"
+        v-for="part in displayedToolParts.filter(item => item.type === 'tool-create_map')"
         v-show="part.state !== 'output-error' || !responding"
         :key="part.toolCallId"
         class="mt-3"

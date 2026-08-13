@@ -22,7 +22,7 @@ withDefaults(defineProps<{
   <li>
     <details class="group/tool overflow-hidden rounded-md border border-[#e5e5e5] bg-white" :open="open">
       <summary class="agent-focusable flex min-h-10 cursor-pointer list-none items-center gap-2 px-2.5 py-2 text-left hover:bg-[#f6f6f6] [&::-webkit-details-marker]:hidden">
-        <i aria-hidden="true" class="ri-tools-line shrink-0 text-sm leading-none text-[#555555]" />
+        <i aria-hidden="true" class="ri-wrench-line shrink-0 text-sm leading-none text-[#555555]" />
         <span class="min-w-0 flex-1">
           <strong class="block truncate text-[11px] font-semibold leading-4 text-[#161616]">{{ label }}</strong>
           <span class="block truncate text-[11px] leading-4" :class="error ? 'text-[#ce0500]' : 'text-[#777777]'">{{ summary }}</span>

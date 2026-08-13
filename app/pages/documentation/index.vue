@@ -64,7 +64,7 @@ useSeoMeta({
           <li>Il rédige sa réponse uniquement à partir des résultats obtenus.</li>
           <li>Un graphique, une carte ou une vue du tableau peut ensuite être produit si cela répond à la demande.</li>
         </ol>
-        <p>Le suivi distingue l’analyse, l’utilisation des outils, l’interprétation des résultats et la rédaction. Une fois la réponse terminée, « Raisonnement » rappelle ce que l’assistant a compris de la question, puis explique en français et en langage courant les vérifications et transformations réalisées. Une section distincte « Outils utilisés » conserve les requêtes, spécifications et résultats techniques vérifiables, sans révéler la chaîne de pensée interne du modèle.</p>
+        <p>Le suivi distingue l’analyse, l’utilisation des outils, l’interprétation des résultats et la rédaction. Une fois la réponse terminée, « Raisonnement » rappelle ce que l’assistant a compris de la question, puis explique en français et en langage courant les vérifications et transformations réalisées. Il reste présent lorsque le contexte déjà chargé suffit et qu’aucun nouvel outil n’est nécessaire. Une section distincte « Outils utilisés » conserve, lorsqu’il y en a, les requêtes, spécifications et résultats techniques vérifiables, sans révéler la chaîne de pensée interne du modèle.</p>
         <p>Une erreur intermédiaire n’est pas présentée comme définitive tant que l’assistant peut encore corriger son travail. Si la réponse s’arrête, le message distingue une erreur de connexion, de fournisseur IA, de requête SQL, de lecture DuckDB ou de visualisation. Il propose alors de réessayer, recharger la ressource ou préciser la demande ; le détail technique reste disponible dans une section repliable.</p>
       </DocumentationSection>
 

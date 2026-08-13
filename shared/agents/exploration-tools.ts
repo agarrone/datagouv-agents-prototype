@@ -13,7 +13,7 @@ export const mapSpecSchema = z.discriminatedUnion("type", [
   z.object({
     type: z.literal("points"),
     title: z.string().min(1),
-    description: z.string().min(1),
+    description: z.string().min(1).describe("Description de la carte en français."),
     latitudeField: z.string().min(1),
     longitudeField: z.string().min(1),
     labelField: z.string().min(1),
@@ -23,7 +23,7 @@ export const mapSpecSchema = z.discriminatedUnion("type", [
   z.object({
     type: z.literal("geojson"),
     title: z.string().min(1),
-    description: z.string().min(1),
+    description: z.string().min(1).describe("Description de la carte en français."),
     geojsonField: z.string().min(1),
     labelField: z.string().min(1),
     valueField: z.string().min(1).optional(),
@@ -32,7 +32,7 @@ export const mapSpecSchema = z.discriminatedUnion("type", [
   z.object({
     type: z.literal("choropleth"),
     title: z.string().min(1),
-    description: z.string().min(1),
+    description: z.string().min(1).describe("Description de la carte en français."),
     boundary: z.enum(["france-regions", "france-departments"]),
     dataKey: z.string().min(1),
     valueField: z.string().min(1),
@@ -110,7 +110,7 @@ export const explorationTools = {
       purpose: z
         .string()
         .min(1)
-        .describe("Description courte de ce que la requête vérifie."),
+        .describe("Description courte, en français et compréhensible par l’utilisateur, de ce que la requête vérifie."),
     }),
     outputSchema: z.object({
       columns: z.array(z.string()),
@@ -135,7 +135,7 @@ export const explorationTools = {
       reason: z
         .string()
         .min(1)
-        .describe("Explication concise de l’intérêt de cette vue."),
+        .describe("Explication concise, en français, de l’intérêt de cette vue."),
     }),
     outputSchema: z.object({
       applied: z.boolean(),
@@ -151,7 +151,7 @@ export const explorationTools = {
     inputSchema: z.object({
       type: z.enum(["bar", "line", "area", "pie", "scatter"]),
       title: z.string().min(1),
-      description: z.string().min(1),
+      description: z.string().min(1).describe("Description du graphique en français."),
       xField: z
         .string()
         .min(1)

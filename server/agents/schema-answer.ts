@@ -33,19 +33,13 @@ export function deterministicSchemaAnswer(
     return undefined;
   }
 
-  const maximumRows = 20;
-  const visibleColumns = resource.schema.columns.slice(0, maximumRows);
   const table = [
     "| Colonne | Type |",
     "| --- | --- |",
-    ...visibleColumns.map(column =>
+    ...resource.schema.columns.map(column =>
       `| ${markdownCode(column.name)} | ${humanizeDuckDbType(column.type)} |`,
     ),
   ].join("\n");
-  const remaining = resource.schema.columns.length - visibleColumns.length;
-  const suffix = remaining > 0
-    ? `\n\n${visibleColumns.length} colonnes sont affichées sur ${resource.schema.columns.length}. Consultez le sélecteur « Colonnes » de l’explorateur pour voir la liste complète.`
-    : "";
 
-  return `Cette ressource contient ${resource.schema.columns.length} colonne${resource.schema.columns.length > 1 ? "s" : ""}.\n\n${table}${suffix}`;
+  return `Cette ressource contient ${resource.schema.columns.length} colonne${resource.schema.columns.length > 1 ? "s" : ""}.\n\n${table}`;
 }

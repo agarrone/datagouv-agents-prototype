@@ -39,4 +39,19 @@ describe("deterministic schema answer", () => {
   it("ignores questions that require an actual analysis", () => {
     expect(deterministicSchemaAnswer(messages("Quelle colonne contient le plus de valeurs ?"), resource)).toBeUndefined();
   });
+
+  it("shows every schema column without an arbitrary limit", () => {
+    const manyColumns = Array.from({ length: 32 }, (_, index) => ({
+      name: `column_${index + 1}`,
+      type: "VARCHAR",
+    }));
+    const answer = deterministicSchemaAnswer(messages("Liste toutes les colonnes"), {
+      ...resource,
+      schema: { ...resource.schema!, columns: manyColumns },
+    });
+
+    expect(answer).toContain("Cette ressource contient 32 colonnes");
+    expect(answer).toContain("| `column_32` | texte |");
+    expect(answer).not.toContain("colonnes sont affichées sur");
+  });
 });
