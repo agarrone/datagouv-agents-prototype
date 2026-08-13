@@ -53,10 +53,10 @@ function sqlLanguage() {
   });
 }
 
-onMounted(() => {
-  if (!host.value) return;
+function mountEditor(element: HTMLDivElement | null) {
+  if (!element || view) return;
   view = new EditorView({
-    parent: host.value,
+    parent: element,
     state: EditorState.create({
       doc: props.modelValue,
       extensions: [
@@ -117,6 +117,13 @@ onMounted(() => {
       ],
     }),
   });
+}
+
+watch(host, mountEditor, { flush: "post" });
+
+onMounted(async () => {
+  await nextTick();
+  mountEditor(host.value);
 });
 
 watch(() => props.modelValue, (value) => {

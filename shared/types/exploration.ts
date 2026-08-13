@@ -52,6 +52,12 @@ export interface ExplorerViewResult extends DatasetQueryResult {
   sql: string;
 }
 
+export interface ExplorerViewPreview {
+  columns: string[];
+  rowCount: number;
+  preservesColumns: boolean;
+}
+
 export type ExplorerSort = {
   column: string;
   direction: "asc" | "desc";

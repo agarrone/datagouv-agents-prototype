@@ -215,6 +215,10 @@ function resourceIcon(type: string) {
         <div v-if="filteredView" class="flex min-h-9 items-center gap-2 border-b border-[#cacafb] bg-[#ebedff] px-3 text-[11px]">
           <i aria-hidden="true" class="ri-filter-line text-sm text-[#000091]" />
           <span class="min-w-0 flex-1 truncate"><strong>Vue de l’assistant :</strong> organisations contenant « Ministère »</span>
+          <button class="inline-flex h-7 shrink-0 items-center gap-1 rounded-[6px] px-2 text-[#000091] hover:bg-white/60" type="button">
+            <i aria-hidden="true" class="ri-download-line text-sm" />
+            Télécharger les données filtrées
+          </button>
           <button class="text-[#000091] underline" type="button" @click="filteredView = false">Revenir aux données initiales</button>
         </div>
 

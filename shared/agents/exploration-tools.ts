@@ -122,12 +122,12 @@ export const explorationTools = {
   }),
   propose_explorer_view: tool({
     description:
-      "Affiche dans l’interface une carte proposant d’appliquer au tableau une requête SQL déjà vérifiée. L’appel ne modifie rien : la carte contient elle-même le bouton de confirmation. Lorsque l’intention d’affichage est claire, appeler directement ce tool sans demander de confirmation dans le texte.",
+      "Affiche dans l’interface une carte proposant d’appliquer au tableau une requête SQL en lecture seule. L’interface prévisualise et vérifie cette requête avant d’activer la confirmation. L’appel ne modifie rien : la carte contient elle-même le bouton de confirmation. Lorsque l’intention d’affichage est claire, appeler directement ce tool sans demander de confirmation dans le texte.",
     inputSchema: z.object({
       sql: z
         .string()
         .min(1)
-        .describe("Requête DuckDB en lecture seule déjà vérifiée."),
+        .describe("Requête DuckDB en lecture seule à prévisualiser puis appliquer."),
       title: z
         .string()
         .min(1)

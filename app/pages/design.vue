@@ -1009,12 +1009,16 @@ const designRisks = [
               sql="SELECT * FROM data WHERE organization = 'data.gouv.fr'"
               state="input-available"
               title="Jeux de données publiés par data.gouv.fr"
+              :current-row-count="7283"
+              :preview="{ rowCount: 128, columns: ['title', 'organization', 'url'], preservesColumns: true }"
             />
             <ExplorationExplorerProposal
               reason="Le tableau affiche maintenant uniquement les lignes correspondant au filtre."
               sql="SELECT * FROM data WHERE organization = 'data.gouv.fr'"
               state="output-available"
               title="Jeux de données publiés par data.gouv.fr"
+              :applied="true"
+              :result-row-count="128"
             />
             <ExplorationExplorerProposal
               error="La colonne demandée n’existe pas dans cette ressource."

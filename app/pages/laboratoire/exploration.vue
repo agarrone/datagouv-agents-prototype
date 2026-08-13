@@ -19,6 +19,8 @@ import {
 
 const input = ref("");
 const route = useRoute();
+const initialPrompt = queryValue("prompt").trim();
+const initialPromptPending = ref(Boolean(initialPrompt));
 const panelMode = ref<"assistant" | "sql">("assistant");
 const assistantOpen = ref(true);
 const DEFAULT_ASSISTANT_WIDTH = 576;
@@ -250,7 +252,10 @@ onMounted(async () => {
     loadDatasetMetadata(initialResource),
     (async () => {
       await loadDatasetResources(initialResource);
-      if (requestedResourceId || resourceFromQuery) await loadSelectedResource();
+      if (requestedResourceId || resourceFromQuery) {
+        await loadSelectedResource();
+        await submitInitialPrompt();
+      }
     })(),
   ]);
 });
@@ -315,6 +320,16 @@ async function submit() {
     messageId: messageId ?? undefined,
     metadata: { createdAt: new Date().toISOString() },
   });
+}
+
+async function submitInitialPrompt() {
+  if (!initialPromptPending.value || !initialPrompt) return;
+  if (dataset.status.value !== "ready" || isResponding.value) return;
+  initialPromptPending.value = false;
+  panelMode.value = "assistant";
+  assistantOpen.value = true;
+  input.value = initialPrompt;
+  await submit();
 }
 
 async function editQuestion(messageId: string, content: string) {
@@ -459,6 +474,22 @@ async function applyExplorerProposal(
         : "La vue proposée n’a pas pu être appliquée.",
     });
   }
+}
+
+async function declineExplorerProposal(toolCallId: string, title: string) {
+  await addToolOutput({
+    tool: "propose_explorer_view",
+    toolCallId,
+    output: {
+      applied: false,
+      title,
+      rowCount: dataset.activeView.value?.rowCount ?? dataset.schema.value?.rowCount ?? 0,
+      columns: dataset.activeView.value
+        ? [...dataset.activeView.value.columns]
+        : dataset.schema.value?.columns.map(column => column.name) ?? [],
+      truncated: dataset.activeView.value?.truncated ?? false,
+    },
+  });
 }
 
 async function resolveClarification(toolCallId: string, choice: string) {
@@ -617,6 +648,7 @@ async function resolveClarification(toolCallId: string, choice: string) {
               model: 'agent-exploration',
             } : undefined"
             @apply-proposal="applyExplorerProposal"
+            @decline-proposal="declineExplorerProposal"
             @clarify="resolveClarification"
             @edit="editQuestion"
             @dismiss-feedback-prompt="conversationFeedbackMessageId = null"

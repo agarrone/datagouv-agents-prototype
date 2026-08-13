@@ -20,6 +20,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   applyProposal: [toolCallId: string, sql: string, title: string];
+  declineProposal: [toolCallId: string, title: string];
   clarify: [toolCallId: string, choice: string];
   edit: [messageId: string, content: string];
   dismissFeedbackPrompt: [];
@@ -448,6 +449,20 @@ function toolErrorContext(type: string) {
     </template>
 
     <template v-if="message.role !== 'user'">
+      <template
+        v-for="part in message.parts.filter(item => item.type === 'tool-request_clarification' && item.state === 'output-available')"
+        :key="`resolved-${part.toolCallId}`"
+      >
+        <ExplorationAgentClarification
+          v-if="'input' in part && part.input?.question && part.input.choices?.length"
+          :choices="clarificationChoices(part.input.choices)"
+          disabled
+          :question="part.input.question"
+          :selected="part.output.choice"
+          @select="emit('clarify', part.toolCallId, $event)"
+        />
+      </template>
+
       <ExplorationMessageResponse
         v-for="(part, partIndex) in message.parts.filter(item => item.type === 'text')"
         :key="`${message.id}-text-${partIndex}`"
@@ -456,7 +471,7 @@ function toolErrorContext(type: string) {
       />
 
       <template
-        v-for="part in message.parts.filter(item => item.type === 'tool-request_clarification')"
+        v-for="part in message.parts.filter(item => item.type === 'tool-request_clarification' && item.state !== 'output-available')"
         :key="part.toolCallId"
       >
         <ExplorationAgentClarification
@@ -464,7 +479,7 @@ function toolErrorContext(type: string) {
           :choices="clarificationChoices(part.input.choices)"
           :disabled="responding && part.state !== 'input-available'"
           :question="part.input.question"
-          :selected="part.state === 'output-available' ? part.output.choice : undefined"
+          :selected="undefined"
           @select="emit('clarify', part.toolCallId, $event)"
         />
       </template>
@@ -480,6 +495,8 @@ function toolErrorContext(type: string) {
           :recovering="responding"
           :sql="part.input.sql"
           :state="part.state"
+          :applied="part.state === 'output-available' ? part.output.applied : undefined"
+          :result-row-count="part.state === 'output-available' ? part.output.rowCount : undefined"
           :error="part.state === 'output-error' ? part.errorText : undefined"
           @apply="emit(
             'applyProposal',
@@ -487,6 +504,7 @@ function toolErrorContext(type: string) {
             part.input.sql!,
             part.input.title!,
           )"
+          @decline="emit('declineProposal', part.toolCallId, part.input.title!)"
         />
       </template>
 

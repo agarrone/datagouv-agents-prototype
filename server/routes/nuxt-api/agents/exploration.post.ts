@@ -10,6 +10,7 @@ import { resourceContextSchema } from "~~/shared/schemas/agent";
 import type { ExplorationMessage } from "~~/shared/types/exploration";
 import { useAgentModel } from "~~/server/agents/provider";
 import { buildExplorationInstructions } from "~~/server/agents/prompts/exploration";
+import { explorerIntentInstruction } from "~~/server/agents/explorer-intent";
 import { deterministicSchemaAnswer } from "~~/server/agents/schema-answer";
 import {
   countSqlCallsForCurrentQuestion,
@@ -75,7 +76,9 @@ export default defineEventHandler(async (event) => {
       execute: async () => fetchDatasetMetadata(resource.data.datasetId),
     },
   };
-  const instructions = buildExplorationInstructions(resource.data);
+  const instructions = `${buildExplorationInstructions(resource.data)}${
+    explorerIntentInstruction(body.messages)
+  }`;
   const previousSqlCalls = countSqlCallsForCurrentQuestion(body.messages);
   const allToolNames = Object.keys(tools) as Array<keyof typeof tools>;
 

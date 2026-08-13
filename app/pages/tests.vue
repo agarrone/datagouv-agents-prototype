@@ -3,6 +3,7 @@ import {
   manualTestScenarios,
   type ManualTestStatus,
 } from "~~/shared/data/manual-test-scenarios";
+import { explorationResources } from "~~/shared/data/exploration-resources";
 
 type TestResult = {
   status: ManualTestStatus;
@@ -36,6 +37,16 @@ const tester = ref("");
 const environment = ref("Production");
 const copied = ref(false);
 const hydrated = ref(false);
+const router = useRouter();
+const testResources = explorationResources.filter(resource =>
+  ["festivals-france", "catalogue-datagouv"].includes(resource.id),
+);
+const selectedTestResourceId = ref(testResources[0]?.id ?? "");
+const freePrompt = ref("");
+
+const selectedTestResource = computed(() => testResources.find(resource =>
+  resource.id === selectedTestResourceId.value,
+));
 
 const categories = computed(() => [
   "Toutes",
@@ -131,6 +142,36 @@ function exportResults() {
   URL.revokeObjectURL(url);
 }
 
+function laboratoryRoute(prompt: string) {
+  const resource = selectedTestResource.value;
+  if (!resource) return "/tests";
+  return {
+    path: "/laboratoire/exploration",
+    query: {
+      resource: resource.id,
+      dataset: resource.datasetReference,
+      parquet: resource.parquetUrl,
+      title: resource.title,
+      organization: resource.organization,
+      resourceName: resource.resourceName,
+      prompt: prompt.trim(),
+    },
+  };
+}
+
+function runPrompt(prompt = freePrompt.value) {
+  const text = prompt.trim();
+  if (!text || !selectedTestResource.value) return;
+  const resolved = router.resolve(laboratoryRoute(text));
+  window.open(resolved.href, "_blank", "noopener,noreferrer");
+}
+
+function useScenarioPrompt() {
+  if (!activeScenario.value) return;
+  freePrompt.value = activeScenario.value.prompt;
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
 function statusClasses(status: ManualTestStatus, selected = false) {
   if (!selected) return "border-[#e5e5e5] bg-white text-[#555555] hover:border-[#929292]";
   if (status === "passed") return "border-[#3bea7e] bg-[#b8fec9] text-[#18753c]";
@@ -211,6 +252,38 @@ function statusTextClass(status: ManualTestStatus) {
         </ol>
       </section>
 
+      <section class="mt-5 overflow-hidden rounded-[6px] border border-[#e5e5e5] bg-white" aria-labelledby="free-test-title">
+        <header class="border-b border-[#e5e5e5] bg-[#f6f6f6] px-4 py-3">
+          <p class="text-[10px] uppercase tracking-[0.06em] text-[#666666]">Banc d’essai libre</p>
+          <h2 id="free-test-title" class="mt-1 text-[18px] font-semibold">Tester directement un prompt</h2>
+        </header>
+        <form class="grid gap-4 p-4 lg:grid-cols-[minmax(250px,0.65fr)_minmax(0,1.35fr)]" @submit.prevent="runPrompt()">
+          <fieldset>
+            <legend class="text-[11px] font-semibold uppercase tracking-[0.05em] text-[#666666]">Jeu de données</legend>
+            <div class="mt-2 grid gap-2">
+              <label v-for="resource in testResources" :key="resource.id" class="flex cursor-pointer items-center gap-2.5 rounded-[6px] border p-3" :class="selectedTestResourceId === resource.id ? 'border-[#000091] bg-[#ececfe]' : 'border-[#e5e5e5] bg-white hover:border-[#929292]'">
+                <input v-model="selectedTestResourceId" class="accent-[#000091]" name="test-resource" type="radio" :value="resource.id">
+                <span class="min-w-0">
+                  <strong class="block text-[12px] font-semibold leading-4">{{ resource.title }}</strong>
+                  <span class="mt-0.5 block text-[11px] text-[#666666]">{{ resource.organization }}</span>
+                </span>
+              </label>
+            </div>
+          </fieldset>
+          <div>
+            <label class="text-[11px] font-semibold uppercase tracking-[0.05em] text-[#666666]" for="free-test-prompt">Prompt</label>
+            <textarea id="free-test-prompt" v-model="freePrompt" class="mt-2 h-28 w-full resize-y rounded-[6px] border border-[#e5e5e5] p-3 text-[13px] leading-5 outline-none placeholder:text-[#777777] focus:border-[#000091]" placeholder="Saisissez la question à tester…" />
+            <div class="mt-2 flex items-center justify-between gap-3">
+              <p class="text-[11px] leading-4 text-[#666666]">Le laboratoire s’ouvre dans un nouvel onglet et envoie le prompt après le chargement de la ressource.</p>
+              <button class="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-[6px] bg-[#000091] px-3 text-[12px] font-medium text-white disabled:cursor-not-allowed disabled:opacity-50" :disabled="!freePrompt.trim() || !selectedTestResource" type="submit">
+                <i aria-hidden="true" class="ri-play-line text-[14px]" />
+                Tester
+              </button>
+            </div>
+          </div>
+        </form>
+      </section>
+
       <div class="mt-5 grid gap-5 lg:grid-cols-[320px_minmax(0,1fr)]">
         <aside class="overflow-hidden rounded-[6px] border border-[#e5e5e5] lg:sticky lg:top-4 lg:max-h-[calc(100dvh-32px)] lg:self-start lg:overflow-y-auto">
           <div class="border-b border-[#e5e5e5] bg-[#f6f6f6] p-3">
@@ -248,10 +321,16 @@ function statusTextClass(status: ManualTestStatus) {
                 </button>
               </div>
               <p class="mt-2 rounded-[2px] border-l-4 border-[#000091] bg-[#ececfe] px-4 py-3 text-[13px] leading-5">{{ activeScenario.prompt }}</p>
-              <NuxtLink class="mt-2 inline-flex items-center gap-1 text-[11px] text-[#000091] underline underline-offset-2" target="_blank" to="/laboratoire/exploration">
-                Ouvrir le laboratoire
-                <i aria-hidden="true" class="ri-external-link-line text-[14px]" />
-              </NuxtLink>
+              <div class="mt-2 flex flex-wrap items-center gap-x-4 gap-y-2">
+                <button class="inline-flex items-center gap-1 text-[11px] text-[#000091] underline underline-offset-2" type="button" @click="useScenarioPrompt">
+                  <i aria-hidden="true" class="ri-edit-line text-[14px]" />
+                  Modifier dans le banc d’essai
+                </button>
+                <NuxtLink class="inline-flex items-center gap-1 text-[11px] text-[#000091] underline underline-offset-2" target="_blank" :to="laboratoryRoute(activeScenario.prompt)">
+                  Tester ce prompt
+                  <i aria-hidden="true" class="ri-external-link-line text-[14px]" />
+                </NuxtLink>
+              </div>
             </section>
 
             <section class="text-[13px] leading-6">

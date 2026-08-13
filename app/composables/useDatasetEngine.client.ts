@@ -10,6 +10,7 @@ import type {
   ExplorerDatasetQuery,
   ExplorerDatasetResult,
   ExplorerValueOption,
+  ExplorerViewPreview,
   ExplorerViewResult,
   MapDatasetResult,
   MapSpec,
@@ -26,6 +27,7 @@ let databasePromise: Promise<AsyncDuckDB> | undefined;
 let connectionPromise: Promise<AsyncDuckDBConnection> | undefined;
 let activeWorker: Worker | undefined;
 const verifiedQueries = new Set<string>();
+const explorerViewPreviews = new Map<string, ExplorerViewPreview>();
 let latestVerifiedQuery: string | undefined;
 
 function quoteIdentifier(identifier: string) {
@@ -160,6 +162,7 @@ async function resetDatabase() {
   connectionPromise = undefined;
   databasePromise = undefined;
   verifiedQueries.clear();
+  explorerViewPreviews.clear();
   latestVerifiedQuery = undefined;
 
   if (previousConnection) {
@@ -300,22 +303,26 @@ export function useDatasetEngine() {
   ): Promise<ExplorerViewResult> {
     const connection = await getConnection();
     const readOnlySql = validateReadOnlySql(sql);
-    if (!verifiedQueries.has(readOnlySql)) {
+    if (!verifiedQueries.has(readOnlySql) && !explorerViewPreviews.has(readOnlySql)) {
       throw new Error(
-        "Cette requête doit être exécutée avec succès avant d’être appliquée au tableau.",
+        "Cette vue doit être prévisualisée avec succès avant d’être appliquée au tableau.",
       );
     }
     const startedAt = performance.now();
+    const preview = explorerViewPreviews.get(readOnlySql);
+    const tablePromise = connection.query(`
+      SELECT *
+      FROM (${readOnlySql}) AS explorer_view
+      LIMIT 101
+    `);
     const [table, countTable] = await Promise.all([
-      connection.query(`
-        SELECT *
-        FROM (${readOnlySql}) AS explorer_view
-        LIMIT 101
-      `),
-      connection.query(`
-        SELECT COUNT(*) AS count
-        FROM (${readOnlySql}) AS explorer_view_count
-      `),
+      tablePromise,
+      preview
+        ? Promise.resolve(undefined)
+        : connection.query(`
+            SELECT COUNT(*) AS count
+            FROM (${readOnlySql}) AS explorer_view_count
+          `),
     ]);
     const allRows = tableToRows(table);
     const columns = table.schema.fields.map(field => field.name);
@@ -324,11 +331,42 @@ export function useDatasetEngine() {
       sql: readOnlySql,
       columns,
       rows: allRows.slice(0, 100),
-      rowCount: Number(tableToRows(countTable)[0]?.count ?? 0),
+      rowCount: preview?.rowCount
+        ?? Number(countTable ? tableToRows(countTable)[0]?.count ?? 0 : 0),
       truncated: allRows.length > 100,
       elapsedMs: Math.round(performance.now() - startedAt),
     };
     activeView.value = result;
+    return result;
+  }
+
+  async function previewExplorerView(sql: string): Promise<ExplorerViewPreview> {
+    const connection = await getConnection();
+    const readOnlySql = validateReadOnlySql(sql);
+    const cached = explorerViewPreviews.get(readOnlySql);
+    if (cached) return cached;
+
+    const [emptyTable, countTable] = await Promise.all([
+      connection.query(`
+        SELECT *
+        FROM (${readOnlySql}) AS explorer_view_preview
+        LIMIT 0
+      `),
+      connection.query(`
+        SELECT COUNT(*) AS count
+        FROM (${readOnlySql}) AS explorer_view_count
+      `),
+    ]);
+    const columns = emptyTable.schema.fields.map(field => field.name);
+    const initialColumns = schema.value?.columns.map(column => column.name) ?? [];
+    const result: ExplorerViewPreview = {
+      columns,
+      rowCount: Number(tableToRows(countTable)[0]?.count ?? 0),
+      preservesColumns: columns.length === initialColumns.length
+        && columns.every((column, index) => column === initialColumns[index]),
+    };
+    explorerViewPreviews.set(readOnlySql, result);
+    verifiedQueries.add(readOnlySql);
     return result;
   }
 
@@ -497,6 +535,7 @@ export function useDatasetEngine() {
     inspectSchema,
     load,
     preview: readonly(preview),
+    previewExplorerView,
     queryExplorer,
     resetExplorerView,
     schema: readonly(schema),

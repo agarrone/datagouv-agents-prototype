@@ -244,6 +244,15 @@ onBeforeUnmount(() => { if (searchTimer) clearTimeout(searchTimer); });
     <div v-if="viewTitle" class="flex min-h-10 shrink-0 items-center gap-2 border-b border-[#cacafb] bg-[#ebedff] px-3 py-2 text-[11px]">
       <i class="ri-filter-line text-sm text-[#000091]" />
       <span class="min-w-0 flex-1 truncate"><strong>Vue de l’assistant :</strong> {{ viewTitle }}</span>
+      <button
+        class="agent-focusable inline-flex h-7 shrink-0 items-center gap-1 rounded-[6px] px-2 text-[#000091] hover:bg-white/60 disabled:cursor-wait disabled:opacity-60"
+        :disabled="exporting"
+        type="button"
+        @click="download"
+      >
+        <i aria-hidden="true" :class="exporting ? 'ri-loader-4-line animate-spin' : 'ri-download-line'" class="text-sm" />
+        {{ exporting ? "Préparation…" : "Télécharger les données filtrées" }}
+      </button>
       <button class="shrink-0 text-[#000091] underline" type="button" @click="emit('resetView')">Revenir aux données initiales</button>
     </div>
 
