@@ -186,12 +186,16 @@ const unresolvedToolErrorCount = computed(() => messages.value.reduce((total, me
     );
   }).length;
 }, 0));
+const activeAssistantMessageId = computed(() => {
+  if (!isResponding.value) return undefined;
+  const lastUserIndex = messages.value.findLastIndex(message => message.role === "user");
+  return messages.value
+    .slice(lastUserIndex + 1)
+    .findLast(message => message.role === "assistant" && message.parts.length > 0)
+    ?.id;
+});
 const showInitialThinking = computed(() => {
-  if (!isResponding.value) return false;
-  const lastMessage = messages.value.at(-1);
-  return !lastMessage
-    || lastMessage.role === "user"
-    || lastMessage.parts.length === 0;
+  return isResponding.value && !activeAssistantMessageId.value;
 });
 const chatErrorPresentation = computed(() => chatError.value
   ? classifyExplorationError(chatError.value)
@@ -199,7 +203,6 @@ const chatErrorPresentation = computed(() => chatError.value
 const datasetErrorPresentation = computed(() => dataset.error.value
   ? classifyExplorationError(dataset.error.value, "duckdb")
   : undefined);
-const lastMessageId = computed(() => messages.value.at(-1)?.id);
 const lastUserMessageId = computed(() => [...messages.value]
   .reverse()
   .find(message => message.role === "user")?.id);
@@ -653,7 +656,7 @@ async function resolveClarification(toolCallId: string, choice: string) {
             :message="message"
             :question="message.role === 'assistant' ? previousUserQuestion(messageIndex) : undefined"
             :source="dataset.activeResource.value ? `${dataset.activeResource.value.title} · ${dataset.activeResource.value.organization}` : undefined"
-            :responding="isResponding && message.id === lastMessageId && message.role === 'assistant'"
+            :responding="isResponding && message.id === activeAssistantMessageId"
             :show-feedback-prompt="message.role === 'assistant' && message.id === conversationFeedbackMessageId"
             :feedback-context="message.role === 'assistant' && dataset.activeResource.value ? {
               question: previousUserQuestion(messageIndex),

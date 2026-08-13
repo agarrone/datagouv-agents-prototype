@@ -311,14 +311,20 @@ const designDecisions = [
   {
     group: "Assistant",
     title: "Tools et raisonnement",
-    detail: "Le raisonnement utilisateur et les traces techniques sont séparés. Le premier explique les choix en français et en langage courant ; chaque tool reste consultable dans une carte dépliable avec une clé à molette.",
-    rule: "Ne rendre une erreur définitive qu’après l’arrêt de la boucle · Ne jamais exposer la chaîne de pensée interne",
+    detail: "Le raisonnement observable et les traces techniques sont séparés. Le premier reformule l’intention, les champs retenus et les vérifications en français ; il reste présent sans tool. Chaque tool reste consultable dans une carte dépliable avec une clé à molette.",
+    rule: "Un seul suivi actif · Wrench pour les tools · Ne jamais exposer la chaîne de pensée interne",
   },
   {
     group: "Assistant",
     title: "Erreurs et récupération",
     detail: "Les erreurs réseau, fournisseur, SQL, DuckDB et visualisation ont un message orienté utilisateur, une action adaptée et un détail technique secondaire.",
     rule: "Réessayer · Recharger la ressource · Préciser la question ou la demande",
+  },
+  {
+    group: "Assistant",
+    title: "Tableaux Markdown",
+    detail: "Les tableaux occupent la largeur de la réponse, gardent toutes les colonnes utiles et défilent horizontalement si nécessaire. Une liste de schéma est exhaustive ; seules les lignes de résultats sont bornées.",
+    rule: "Fond blanc · Header #F6F6F6 · 10 lignes par défaut, 20 sur demande · Colonnes sans plafond arbitraire",
   },
   {
     group: "Mouvement",
@@ -372,6 +378,11 @@ const designRisks = [
     level: "Moyen",
     title: "Sprites cartographiques incomplets",
     detail: "Certains pictogrammes demandés par les fonds vectoriels ne sont pas encore fournis localement. MapLibre masque ces images et signale leur absence dans la console.",
+  },
+  {
+    level: "Moyen",
+    title: "Raisonnement synthétisé par l’interface",
+    detail: "L’intention visible est déduite de la question et des tools effectivement utilisés. Elle est vérifiable mais peut rester trop générique ; les descriptions en anglais sont écartées par une détection heuristique.",
   },
   {
     level: "Moyen",
@@ -735,8 +746,8 @@ const designRisks = [
               <p class="text-xs font-medium text-[#161616]">Temporalité</p>
               <dl class="mt-4 divide-y divide-[#e5e5e5] text-xs">
                 <div class="flex items-center justify-between py-2.5">
-                  <dt class="text-[#555555]">Échange progression → résumé</dt>
-                  <dd class="tabular-nums font-medium">150 ms · ease-in-out</dd>
+                  <dt class="text-[#555555]">Stabilisation entre deux tools</dt>
+                  <dd class="tabular-nums font-medium">700 ms · sans flash</dd>
                 </div>
                 <div class="flex items-center justify-between py-2.5">
                   <dt class="text-[#555555]">Entrée d’un message ou panneau</dt>
@@ -814,8 +825,7 @@ const designRisks = [
                 <ExplorationMessageResponse :content="`Les jeux de données les plus consultés concernent principalement **les transports**, l’environnement et l’économie.\n\n- 128 jeux de données de transport\n- 104 jeux de données environnementaux`" />
                 <ExplorationMessageActions content="Les jeux de données les plus consultés concernent principalement les transports." />
               </div>
-              <ExplorationMessageResponse :content="`| Colonne | Type |\n| --- | --- |\n| \`title\` | texte |\n| \`organization\` | texte |\n| \`metric.views\` | nombre entier |\n\nCes colonnes sont disponibles dans la ressource sélectionnée.`" />
-              <ExplorationMessageResponse content="Je prépare une synthèse des résultats" streaming />
+              <ExplorationMessageResponse :content="`| Colonne | Type | Description | Exemple | Valeurs manquantes | Usage |\n| --- | --- | --- | --- | ---: | --- |\n| \`title\` | texte | Titre du jeu | Festivals | 0 | Libellé |\n| \`organization\` | texte | Producteur | Ministère | 12 | Regroupement |\n| \`metric.views\` | nombre entier | Consultations | 12800 | 4 | Classement |\n\nToutes les colonnes utiles restent accessibles par défilement horizontal.`" />
               <ExplorationAgentThinking />
               <div class="grid gap-2 md:grid-cols-2">
                 <ExplorationStatusMessage title="Vue appliquée au tableau" message="La requête filtre désormais les lignes de l’explorateur." tone="success" />
@@ -911,6 +921,14 @@ const designRisks = [
                     summary="Erreur récupérée · non bloquante"
                   />
                 </ol>
+              </ExplorationAgentDisclosure>
+            </div>
+            <div class="rounded-md border border-[#e5e5e5] bg-white p-5 xl:col-span-2">
+              <p class="mb-3 text-xs font-medium text-[#555555]">Réponse fondée sur le contexte déjà chargé · aucun tool</p>
+              <ExplorationAgentDisclosure icon="ri-brain-line" title="Raisonnement" open>
+                <p class="text-[11px] leading-5 text-[#555555]">
+                  J’ai compris que vous souhaitiez examiner la structure de la ressource. Le schéma était déjà disponible dans le contexte, aucun nouveau calcul n’était nécessaire.
+                </p>
               </ExplorationAgentDisclosure>
             </div>
             <div class="rounded-md border border-[#e5e5e5] bg-white p-5 xl:col-span-2">

@@ -20,7 +20,7 @@ donnée sur data.gouv.fr.
 - chargement et interrogation des données dans le navigateur avec DuckDB-WASM ;
 - trois questions de départ fixes et deux suggestions générées localement à partir du schéma de la ressource ;
 - conversation streamée avec un modèle appelé par Vercel AI SDK ;
-- tableaux Markdown pleine largeur pour les classements, comparaisons, distributions et listes structurées, avec types DuckDB traduits en français ;
+- tableaux Markdown pleine largeur pour les classements, comparaisons, distributions et listes structurées, avec toutes les colonnes utiles et les types DuckDB traduits en français ;
 - inspection du schéma et exécution de requêtes SQL DuckDB en lecture seule ;
 - console SQL avec coloration syntaxique, autocomplétion et diagnostic ;
 - proposition de filtres, tris ou vues à appliquer au tableau après confirmation ;
@@ -28,7 +28,9 @@ donnée sur data.gouv.fr.
 - cartes MapLibre : points, GeoJSON et choroplèthes françaises ;
 - fallbacks cartographiques prudents : alias uniques validés, ambiguïtés bloquées, lignes rejetées signalées et regroupement des gros volumes de points ;
 - fonds vectoriels OpenMapTiles distribués par data.gouv.fr ;
-- traces synthétiques des outils utilisés, états de chargement et erreurs ;
+- raisonnement observable en français, distinct des traces techniques repliables des outils utilisés ;
+- progression continue entre planification, tools, interprétation et rédaction, sans doublon entre deux reprises automatiques ;
+- erreurs intermédiaires masquées lorsqu’une tentative ultérieure du même tool réussit ;
 - évaluation utile ou inutile envoyée vers Grist, formulaire détaillé prérempli et sollicitation unique après six questions ;
 - galerie exhaustive des composants et états visuels du prototype.
 
@@ -52,7 +54,7 @@ Le calcul sur le fichier reste autant que possible dans le navigateur :
 4. les outils de données sont exécutés côté navigateur sur la table `data` ;
 5. leurs sorties bornées sont réinjectées dans la conversation ;
 6. le modèle poursuit son travail, dans une limite globale de cinq étapes ;
-7. Vue affiche la réponse, les opérations observables et les éventuelles
+7. Vue affiche la réponse, le raisonnement observable, les traces des outils et les éventuelles
    visualisations.
 
 La ressource complète n’est donc pas envoyée spontanément au modèle. Celui-ci
