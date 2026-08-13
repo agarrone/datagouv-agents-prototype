@@ -311,8 +311,8 @@ const designDecisions = [
   {
     group: "Assistant",
     title: "Tools et raisonnement",
-    detail: "Le cycle distingue planification, utilisation des tools, interprétation et rédaction. Chaque tool terminé reste consultable dans une carte dépliable avec une clé à molette.",
-    rule: "Ne rendre une erreur définitive qu’après l’arrêt de la boucle · Synthèse courte des opérations",
+    detail: "Le raisonnement utilisateur et les traces techniques sont séparés. Le premier explique les choix en français et en langage courant ; chaque tool reste consultable dans une carte dépliable avec une clé à molette.",
+    rule: "Ne rendre une erreur définitive qu’après l’arrêt de la boucle · Ne jamais exposer la chaîne de pensée interne",
   },
   {
     group: "Assistant",
@@ -849,21 +849,26 @@ const designRisks = [
             <div class="rounded-md border border-[#e5e5e5] bg-white p-5">
               <p class="mb-4 text-xs font-medium text-[#555555]">Pendant l’exécution</p>
               <ExplorationAgentProgress
-                title="Utilisation des outils"
+                title="Analyse en cours"
                 :steps="[
-                  { label: 'Inspection du schéma', status: 'complete' },
-                  { label: 'Interrogation des données en SQL', status: 'active' },
-                  { label: 'Interprétation des résultats', status: 'pending' },
+                  { label: 'Structure des données vérifiée', status: 'complete' },
+                  { label: 'Je calcule la réponse à partir des données', status: 'active' },
+                  { label: 'J’interprète les résultats obtenus', status: 'pending' },
                 ]"
               />
             </div>
             <div class="rounded-md border border-[#e5e5e5] bg-white p-5">
               <p class="mb-3 text-xs font-medium text-[#555555]">Après l’exécution</p>
-              <ExplorationAgentDisclosure icon="ri-brain-line" title="Opérations effectuées · 5" open>
-                <p class="pb-2 text-[11px] leading-5 text-[#555555]">
-                  Le schéma a été vérifié : 30 colonnes pour 7 283 lignes. Une requête a été exécutée pour classer les résultats par nombre de vues. Le résultat contient 10 lignes.
-                </p>
-                <ol class="space-y-1.5 border-t border-[#e5e5e5] pt-2">
+              <ExplorationAgentDisclosure icon="ri-brain-line" title="Raisonnement" open>
+                <ol class="space-y-1.5 pb-1 text-[11px] leading-5 text-[#555555]">
+                  <li class="grid grid-cols-[1rem_minmax(0,1fr)] gap-1.5"><span class="text-[#929292]">1.</span><span>J’ai compris que vous souhaitiez comparer les jeux de données les plus consultés dans un graphique.</span></li>
+                  <li class="grid grid-cols-[1rem_minmax(0,1fr)] gap-1.5"><span class="text-[#929292]">2.</span><span>J’ai vérifié la structure de la ressource pour identifier les colonnes utiles.</span></li>
+                  <li class="grid grid-cols-[1rem_minmax(0,1fr)] gap-1.5"><span class="text-[#929292]">3.</span><span>J’ai classé les données par nombre de vues et retenu les dix premiers résultats.</span></li>
+                  <li class="grid grid-cols-[1rem_minmax(0,1fr)] gap-1.5"><span class="text-[#929292]">4.</span><span>J’ai choisi un graphique à barres pour faciliter leur comparaison.</span></li>
+                </ol>
+              </ExplorationAgentDisclosure>
+              <ExplorationAgentDisclosure icon="ri-tools-line" title="Outils utilisés · 5" open>
+                <ol class="space-y-1.5 pt-1">
                   <ExplorationAgentToolTrace
                     description="Lecture de la structure de la table chargée."
                     :details="[{ label: 'Colonnes', value: '30 colonnes disponibles' }]"

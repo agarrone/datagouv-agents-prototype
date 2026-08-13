@@ -13,6 +13,7 @@ const props = defineProps<{
   message: ExplorationMessage;
   responding?: boolean;
   canEdit?: boolean;
+  question?: string;
   source?: string;
   feedbackContext?: FeedbackContext;
   showFeedbackPrompt?: boolean;
@@ -87,13 +88,21 @@ const toolLabel = (type: string) => ({
   "tool-create_map": "Création de la carte",
 }[type] ?? "Opération");
 const activeToolLabel = (type: string) => ({
-  "tool-inspect_schema": "Lecture de la structure des données",
-  "tool-get_dataset_metadata": "Récupération des métadonnées publiques",
-  "tool-execute_sql": "Interrogation des données en SQL",
-  "tool-propose_explorer_view": "Préparation d’une vue pour l’explorateur",
-  "tool-create_chart": "Préparation des données du graphique",
-  "tool-create_map": "Préparation des données cartographiques",
-}[type] ?? "Exécution d’une opération");
+  "tool-inspect_schema": "Je vérifie les colonnes et les types disponibles",
+  "tool-get_dataset_metadata": "Je consulte la fiche du jeu de données",
+  "tool-execute_sql": "Je calcule la réponse à partir des données",
+  "tool-propose_explorer_view": "Je prépare la vue à afficher dans le tableau",
+  "tool-create_chart": "Je prépare le graphique à partir des résultats",
+  "tool-create_map": "Je prépare la carte à partir des résultats",
+}[type] ?? "Je poursuis l’analyse");
+const completedReasoningLabel = (type: string) => ({
+  "tool-inspect_schema": "Structure des données vérifiée",
+  "tool-get_dataset_metadata": "Contexte du jeu de données vérifié",
+  "tool-execute_sql": "Calcul effectué sur les données",
+  "tool-propose_explorer_view": "Vue du tableau préparée",
+  "tool-create_chart": "Graphique préparé",
+  "tool-create_map": "Carte préparée",
+}[type] ?? "Étape terminée");
 const chartTypeLabel = (type: string | undefined) => ({
   bar: "un graphique à barres",
   line: "un graphique en courbes",
@@ -107,10 +116,10 @@ const progressSteps = computed<AgentProgressStep[]>(() => {
     return {
       label: recoveredError
         ? part.type === "tool-execute_sql"
-          ? "Une requête a échoué, recherche d’une correction"
-          : `${toolLabel(part.type)} à ajuster avant de poursuivre`
+          ? "Le premier calcul doit être corrigé avant de poursuivre"
+          : "Une étape doit être ajustée avant de poursuivre"
         : part.state === "output-available"
-          ? toolLabel(part.type)
+          ? completedReasoningLabel(part.type)
           : activeToolLabel(part.type),
       status: part.state === "output-available" || recoveredError
         ? "complete" as const
@@ -124,7 +133,7 @@ const progressSteps = computed<AgentProgressStep[]>(() => {
 
   if (props.responding && !toolsActive.value) {
     steps.push({
-      label: assistantText.value ? "Rédaction de la réponse" : "Interprétation des résultats obtenus",
+      label: assistantText.value ? "Je rédige la réponse" : "J’interprète les résultats obtenus",
       status: "active",
     });
   }
@@ -132,10 +141,10 @@ const progressSteps = computed<AgentProgressStep[]>(() => {
   return steps;
 });
 const progressTitle = computed(() => toolsActive.value
-  ? "Utilisation des outils"
+  ? "Analyse en cours"
   : assistantText.value
-    ? "Rédaction de la réponse"
-    : "Interprétation des résultats");
+    ? "Réponse en cours"
+    : "Analyse des résultats");
 const assistantText = computed(() => props.message.parts
   .filter(part => part.type === "text")
   .map(part => part.text)
@@ -323,27 +332,44 @@ const observableReasoning = computed(() => {
     part.type === "tool-propose_explorer_view",
   );
 
+  const question = props.question?.trim();
+  if (question) {
+    const understoodAction = proposal
+      ? "modifier la vue du tableau"
+      : map
+        ? "analyser les données et les représenter sur une carte"
+        : chart
+          ? "analyser les données et les représenter dans un graphique"
+          : sqlQueries.length
+            ? "analyser les valeurs de la ressource"
+            : metadata
+              ? "retrouver les informations publiques du jeu de données"
+              : schema
+                ? "examiner la structure de la ressource"
+                : "répondre à votre question à partir de la ressource";
+    sentences.push(`J’ai compris que vous souhaitiez ${understoodAction}.`);
+  }
+
   if (schema?.type === "tool-inspect_schema") {
-    sentences.push(`Le schéma a été vérifié : ${schema.output.columns.length} colonnes pour ${schema.output.rowCount.toLocaleString("fr-FR")} lignes.`);
+    sentences.push(`J’ai d’abord vérifié la structure de la ressource : ${schema.output.columns.length} colonnes et ${schema.output.rowCount.toLocaleString("fr-FR")} lignes.`);
   }
   if (metadata) {
-    sentences.push("Les métadonnées publiques du jeu de données ont été consultées.");
+    sentences.push("J’ai consulté la fiche du jeu de données pour replacer la réponse dans son contexte.");
   }
   if (lastSql?.type === "tool-execute_sql") {
-    const purpose = lastSql.input?.purpose?.trim();
     const queryCount = sqlQueries.length;
-    sentences.push(`${queryCount > 1 ? `${queryCount} requêtes ont été exécutées` : "Une requête a été exécutée"}${purpose ? ` pour ${purpose.charAt(0).toLocaleLowerCase("fr-FR")}${purpose.slice(1)}` : " sur les données"}. Le résultat contient ${lastSql.output.rowCount.toLocaleString("fr-FR")} ligne${lastSql.output.rowCount > 1 ? "s" : ""}.`);
+    sentences.push(`${queryCount > 1 ? `J’ai effectué ${queryCount} calculs pour vérifier et affiner le résultat` : "J’ai interrogé les données pour répondre à la question"}. Le résultat retenu contient ${lastSql.output.rowCount.toLocaleString("fr-FR")} ligne${lastSql.output.rowCount > 1 ? "s" : ""}.`);
   }
   if (chart?.type === "tool-create_chart") {
-    sentences.push(`Ces résultats ont été transformés en ${chartTypeLabel(chart.input?.type)}.`);
+    sentences.push(`J’ai choisi ${chartTypeLabel(chart.input?.type)} pour rendre ces résultats plus faciles à comparer.`);
   }
   if (map?.type === "tool-create_map") {
-    sentences.push(`Ces résultats ont été cartographiés sous forme de ${map.input?.type === "choropleth" ? "carte par territoires" : "carte de points"}.`);
+    sentences.push(`J’ai représenté les résultats sous forme de ${map.input?.type === "choropleth" ? "carte par territoires" : "carte de points"} pour montrer leur répartition géographique.`);
   }
   if (proposal) {
-    sentences.push("Une vue distincte a été préparée pour l’explorateur et reste soumise à votre confirmation.");
+    sentences.push("J’ai préparé une vue du tableau correspondant à la demande ; elle ne sera appliquée qu’après votre confirmation.");
   }
-  return sentences.join(" ");
+  return sentences;
 });
 
 function errorPresentation(
@@ -415,22 +441,53 @@ function toolErrorContext(type: string) {
     </template>
 
     <template v-else>
-      <Transition name="agent-analysis-state">
-      <ExplorationAgentProgress
-        v-if="responding && displayedToolParts.length"
-        key="progress"
-        :steps="progressSteps"
-        :title="progressTitle"
-      />
-      <div v-else-if="displayedToolParts.length" key="summary" class="mb-2">
-        <ExplorationAgentDisclosure
-          icon="ri-brain-line"
-          :title="`Opérations effectuées · ${toolTraceEntries.length}`"
-        >
-          <p v-if="observableReasoning" class="pb-2 text-[11px] leading-5 text-[#555555]">
-            {{ observableReasoning }}
-          </p>
-          <ol class="space-y-1.5 border-t border-[#e5e5e5] pb-1 pt-2">
+        <div v-if="responding && displayedToolParts.length" class="mb-2">
+          <ExplorationAgentProgress
+            :steps="progressSteps"
+            :title="progressTitle"
+          />
+          <ExplorationAgentDisclosure
+            class="mt-1"
+            icon="ri-tools-line"
+            :title="`Outils en cours · ${toolTraceEntries.length}`"
+          >
+            <ol class="space-y-1.5 pb-1">
+              <ExplorationAgentToolTrace
+                v-for="entry in toolTraceEntries"
+                :key="entry.id"
+                :description="entry.description"
+                :details="entry.details"
+                :error="entry.error"
+                :code="entry.code"
+                :code-language="entry.codeLanguage"
+                :label="entry.label"
+                :summary="entry.summary"
+              />
+            </ol>
+          </ExplorationAgentDisclosure>
+        </div>
+        <div v-else-if="displayedToolParts.length" class="mb-2 space-y-0.5">
+          <ExplorationAgentDisclosure
+            v-if="observableReasoning.length"
+            icon="ri-brain-line"
+            title="Raisonnement"
+          >
+            <ol class="space-y-1.5 pb-1 text-[11px] leading-5 text-[#555555]">
+              <li
+                v-for="(sentence, index) in observableReasoning"
+                :key="sentence"
+                :class="observableReasoning.length > 1 ? 'grid grid-cols-[1rem_minmax(0,1fr)] gap-1.5' : ''"
+              >
+                <span v-if="observableReasoning.length > 1" class="tabular-nums text-[#929292]">{{ index + 1 }}.</span>
+                <span>{{ sentence }}</span>
+              </li>
+            </ol>
+          </ExplorationAgentDisclosure>
+          <ExplorationAgentDisclosure
+            icon="ri-tools-line"
+            :title="`Outils utilisés · ${toolTraceEntries.length}`"
+          >
+            <ol class="space-y-1.5 pb-1">
             <ExplorationAgentToolTrace
               v-for="entry in toolTraceEntries"
               :key="entry.id"
@@ -442,10 +499,9 @@ function toolErrorContext(type: string) {
               :label="entry.label"
               :summary="entry.summary"
             />
-          </ol>
-        </ExplorationAgentDisclosure>
-      </div>
-      </Transition>
+            </ol>
+          </ExplorationAgentDisclosure>
+        </div>
     </template>
 
     <template v-if="message.role !== 'user'">
@@ -617,30 +673,6 @@ function toolErrorContext(type: string) {
   will-change: opacity, transform, filter;
 }
 
-.agent-analysis-state-enter-active {
-  transition:
-    opacity var(--duration-quick) var(--ease-in-out),
-    transform var(--duration-quick) var(--ease-in-out),
-    filter var(--duration-quick) var(--ease-in-out);
-}
-
-.agent-analysis-state-leave-active {
-  transition:
-    opacity var(--duration-quick) var(--ease-in-out),
-    transform var(--duration-quick) var(--ease-in-out);
-}
-
-.agent-analysis-state-enter-from {
-  opacity: 0;
-  transform: translateY(var(--distance-base));
-  filter: blur(var(--blur-small));
-}
-
-.agent-analysis-state-leave-to {
-  opacity: 0;
-  transform: translateY(calc(var(--distance-base) * -0.5));
-}
-
 .user-prompt-actions {
   visibility: hidden;
   opacity: 0;
@@ -665,9 +697,5 @@ article:focus-within .user-prompt-actions {
 
 @media (prefers-reduced-motion: reduce) {
   .agent-message-enter { animation: none; }
-  .agent-analysis-state-enter-active,
-  .agent-analysis-state-leave-active {
-    transition: none;
-  }
 }
 </style>

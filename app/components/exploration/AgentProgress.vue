@@ -19,7 +19,7 @@ defineProps<{
     <ol class="space-y-1">
       <li
         v-for="(step, index) in steps"
-        :key="`${step.label}-${index}`"
+        :key="index"
         class="relative grid min-h-5 grid-cols-[14px_minmax(0,1fr)] gap-2"
       >
         <span class="relative flex justify-center" aria-hidden="true">

@@ -70,6 +70,7 @@ const conversationFeedbackMessageId = ref<string | null>(null);
 const conversationFeedbackPrompted = ref(false);
 const announcedToolErrorCount = ref(0);
 let settledErrorSoundTimer: ReturnType<typeof setTimeout> | undefined;
+let respondingSettleTimer: ReturnType<typeof setTimeout> | undefined;
 const runtimeBridge: {
   addToolOutput?: ChatAddToolOutputFunction<ExplorationMessage>;
 } = {};
@@ -149,9 +150,23 @@ const {
 });
 runtimeBridge.addToolOutput = addToolOutput;
 
-const isResponding = computed(
+const transportResponding = computed(
   () => chatStatus.value === "submitted" || chatStatus.value === "streaming",
 );
+// Le SDK repasse brièvement à `ready` entre la sortie d’un tool exécuté dans le
+// navigateur et la reprise automatique de l’agent. Conserver l’état visuel
+// évite de remplacer la progression par son résumé entre deux étapes.
+const isResponding = ref(false);
+watch(transportResponding, (responding) => {
+  if (respondingSettleTimer) clearTimeout(respondingSettleTimer);
+  if (responding) {
+    isResponding.value = true;
+    return;
+  }
+  respondingSettleTimer = setTimeout(() => {
+    isResponding.value = false;
+  }, 700);
+}, { immediate: true });
 const tableColumns = computed(() =>
   dataset.activeView.value?.columns
   ?? dataset.schema.value?.columns.map(item => item.name)
@@ -230,6 +245,7 @@ watch(chatStatus, (status) => {
 
 onBeforeUnmount(() => {
   if (settledErrorSoundTimer) clearTimeout(settledErrorSoundTimer);
+  if (respondingSettleTimer) clearTimeout(respondingSettleTimer);
 });
 
 function updatePageScrollState() {
@@ -635,6 +651,7 @@ async function resolveClarification(toolCallId: string, choice: string) {
             :key="message.id"
             :can-edit="message.role === 'user' && message.id === lastUserMessageId && !isResponding"
             :message="message"
+            :question="message.role === 'assistant' ? previousUserQuestion(messageIndex) : undefined"
             :source="dataset.activeResource.value ? `${dataset.activeResource.value.title} · ${dataset.activeResource.value.organization}` : undefined"
             :responding="isResponding && message.id === lastMessageId && message.role === 'assistant'"
             :show-feedback-prompt="message.role === 'assistant' && message.id === conversationFeedbackMessageId"
