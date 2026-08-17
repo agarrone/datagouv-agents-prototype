@@ -1,6 +1,16 @@
 <script setup lang="ts">
 const mode = defineModel<"assistant" | "sql">({ default: "assistant" });
-defineProps<{ closable?: boolean }>();
+withDefaults(defineProps<{
+  closable?: boolean;
+  title?: string;
+  subtitle?: string;
+  showSql?: boolean;
+}>(), {
+  closable: false,
+  showSql: true,
+  subtitle: "Assistant d’exploration",
+  title: "Interroger ces données",
+});
 const emit = defineEmits<{ close: [] }>();
 </script>
 
@@ -8,8 +18,8 @@ const emit = defineEmits<{ close: [] }>();
   <header class="shrink-0 bg-white">
     <div class="flex h-14 items-center gap-2 border-b border-[#e5e5e5] bg-[#f6f6f6] px-4">
       <div class="min-w-0 flex-1">
-        <h2 class="truncate text-[12px] font-bold">Interroger ces données</h2>
-        <p class="mt-0.5 truncate text-[11px] text-[#555555]">Assistant d’exploration</p>
+        <h2 class="truncate text-[12px] font-bold">{{ title }}</h2>
+        <p class="mt-0.5 truncate text-[11px] text-[#555555]">{{ subtitle }}</p>
       </div>
       <button v-if="closable" aria-label="Fermer le panneau" class="grid size-7 shrink-0 place-items-center rounded hover:bg-[#f6f6f6] focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[#000091]" type="button" @click="emit('close')">
         <i class="ri-close-line text-base text-[#555555]" />
@@ -34,6 +44,7 @@ const emit = defineEmits<{ close: [] }>();
         Assistant
       </button>
       <button
+        v-if="showSql"
         :aria-selected="mode === 'sql'"
         class="relative flex items-center gap-1.5 border-b-2 px-0.5 text-[12px] font-normal"
         :class="mode === 'sql'

@@ -1,13 +1,9 @@
 import { tool } from "ai";
 import { z } from "zod";
-
-const datasetValueSchema = z.union([
-  z.string(),
-  z.number(),
-  z.boolean(),
-  z.null(),
-]);
-const datasetRowSchema = z.record(z.string(), datasetValueSchema);
+import {
+  dataTools,
+  datasetRowSchema,
+} from "./data-tools";
 
 export const mapSpecSchema = z.discriminatedUnion("type", [
   z.object({
@@ -41,26 +37,8 @@ export const mapSpecSchema = z.discriminatedUnion("type", [
   }),
 ]);
 
-export const datasetMetadataOutputSchema = z.object({
-  id: z.string(),
-  slug: z.string(),
-  title: z.string(),
-  description: z.string(),
-  organization: z.string(),
-  license: z.string(),
-  page: z.string(),
-  lastUpdate: z.string().nullable(),
-  qualityScore: z.number().nullable(),
-  resources: z.array(z.object({
-    id: z.string(),
-    title: z.string(),
-    format: z.string(),
-    url: z.string().nullable(),
-    parquetUrl: z.string().nullable(),
-  })),
-});
-
 export const explorationTools = {
+  ...dataTools,
   request_clarification: tool({
     description:
       "Suspend l’analyse pour demander une précision indispensable à l’utilisateur. Utiliser uniquement lorsque plusieurs interprétations plausibles changeraient réellement le résultat. L’interface affiche les choix sous forme de suggestions cliquables.",
@@ -77,26 +55,6 @@ export const explorationTools = {
     }),
     outputSchema: z.object({
       choice: z.string().min(1),
-    }),
-  }),
-  get_dataset_metadata: tool({
-    description:
-      "Récupère les métadonnées publiques du jeu de données actif sur data.gouv.fr : description, producteur, licence, mise à jour, qualité et liste des ressources. Ne pas l’utiliser pour interroger les valeurs du fichier.",
-    inputSchema: z.object({}),
-    outputSchema: datasetMetadataOutputSchema,
-  }),
-  inspect_schema: tool({
-    description:
-      "Inspecte la table data chargée dans le navigateur. Utiliser ce tool avant d’écrire une requête lorsque le schéma n’est pas déjà présent dans la conversation.",
-    inputSchema: z.object({}),
-    outputSchema: z.object({
-      table: z.literal("data"),
-      rowCount: z.number(),
-      columns: z.array(z.object({
-        name: z.string(),
-        type: z.string(),
-      })),
-      sample: z.array(datasetRowSchema),
     }),
   }),
   execute_sql: tool({
@@ -193,3 +151,5 @@ export const explorationTools = {
     }),
   }),
 };
+
+export { datasetMetadataOutputSchema } from "./data-tools";

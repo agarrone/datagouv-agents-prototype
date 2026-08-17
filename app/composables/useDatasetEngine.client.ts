@@ -142,6 +142,36 @@ async function createDatabase(parquetUrl: string) {
   return database;
 }
 
+async function createDatabaseFromFile(file: File) {
+  const [
+    duckdb,
+    { default: duckdbMvpWasm },
+    { default: duckdbMvpWorker },
+  ] = await Promise.all([
+    import("@duckdb/duckdb-wasm"),
+    import("@duckdb/duckdb-wasm/dist/duckdb-mvp.wasm?url"),
+    import("@duckdb/duckdb-wasm/dist/duckdb-browser-mvp.worker.js?url"),
+  ]);
+  const worker = new Worker(duckdbMvpWorker);
+  activeWorker = worker;
+  const database = new duckdb.AsyncDuckDB(new duckdb.VoidLogger(), worker);
+  await database.instantiate(duckdbMvpWasm);
+  const extension = file.name.split(".").pop()?.toLocaleLowerCase() ?? "";
+  const registeredName = extension === "parquet" ? "upload.parquet" : "upload.csv";
+  await database.registerFileBuffer(
+    registeredName,
+    new Uint8Array(await file.arrayBuffer()),
+  );
+
+  const connection = await database.connect();
+  const reader = extension === "parquet"
+    ? `read_parquet('${registeredName}')`
+    : `read_csv_auto('${registeredName}', header = true, sample_size = -1)`;
+  await connection.query(`CREATE OR REPLACE VIEW data AS SELECT * FROM ${reader}`);
+  connectionPromise = Promise.resolve(connection);
+  return database;
+}
+
 async function getConnection(parquetUrl?: string) {
   if (!databasePromise && parquetUrl) {
     databasePromise = createDatabase(parquetUrl);
@@ -269,6 +299,29 @@ export function useDatasetEngine() {
       error.value = reason instanceof Error
         ? reason.message
         : "Impossible de charger la ressource.";
+      throw reason;
+    }
+  }
+
+  async function loadFile(file: File, resource: ExplorationResource) {
+    status.value = "loading";
+    error.value = null;
+    schema.value = null;
+    preview.value = [];
+    activeView.value = null;
+    activeResource.value = resource;
+
+    try {
+      await resetDatabase();
+      databasePromise = createDatabaseFromFile(file);
+      await databasePromise;
+      const result = await inspectSchema();
+      status.value = "ready";
+      return result;
+    } catch (reason) {
+      await resetDatabase();
+      status.value = "error";
+      error.value = reason instanceof Error ? reason.message : "Impossible de lire le fichier local.";
       throw reason;
     }
   }
@@ -534,6 +587,7 @@ export function useDatasetEngine() {
     getExplorerValueOptions,
     inspectSchema,
     load,
+    loadFile,
     preview: readonly(preview),
     previewExplorerView,
     queryExplorer,
