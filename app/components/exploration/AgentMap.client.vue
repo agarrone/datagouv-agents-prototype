@@ -27,6 +27,9 @@ const props = defineProps<{
   source?: string;
   basemap?: MapBasemap;
   playCompletionSound?: boolean;
+  fillPalette?: [string, string];
+  fillOpacity?: number;
+  showLegend?: boolean;
 }>();
 
 const mapElement = ref<HTMLElement | null>(null);
@@ -46,6 +49,7 @@ let previousBodyOverflow = "";
 
 const sourceId = "agent-map-data";
 const interactiveLayers = ["agent-fill", "agent-line", "agent-points"];
+const fillPalette = computed<[string, string]>(() => props.fillPalette ?? ["#ececfe", "#000091"]);
 
 const resolvedBasemap = computed<MapBasemap>(() => props.basemap ?? (
   props.spec.type === "choropleth" ? "light" : "standard"
@@ -72,6 +76,7 @@ function localizeMapLabels() {
 }
 
 function asNumber(value: unknown) {
+  if (value === null || value === undefined || value === "") return undefined;
   const number = typeof value === "number" ? value : Number(value);
   return Number.isFinite(number) ? number : undefined;
 }
@@ -365,16 +370,16 @@ function updateSource(geojson: FeatureCollection) {
                 ["linear"],
                 ["get", "value"],
                 legendRange.value[0],
-                "#ececfe",
+                fillPalette.value[0],
                 legendRange.value[0] === legendRange.value[1]
                   ? legendRange.value[1] + 1
                   : legendRange.value[1],
-                "#000091",
+                fillPalette.value[1],
               ],
               "#e5e5e5",
             ]
           : "#6A6AF4",
-        "fill-opacity": props.spec.type === "choropleth" ? 0.78 : 0.48,
+        "fill-opacity": props.fillOpacity ?? (props.spec.type === "choropleth" ? 0.78 : 0.48),
       },
     });
     map.addLayer({
@@ -395,7 +400,7 @@ function updateSource(geojson: FeatureCollection) {
       source: sourceId,
       filter: ["has", "point_count"],
       paint: {
-        "circle-color": "#000091",
+        "circle-color": fillPalette.value[1],
         "circle-opacity": 0.86,
         "circle-radius": ["step", ["get", "point_count"], 16, 25, 20, 100, 25],
         "circle-stroke-color": "#ffffff",
@@ -420,7 +425,7 @@ function updateSource(geojson: FeatureCollection) {
       source: sourceId,
       filter: ["all", ["==", ["geometry-type"], "Point"], ["!", ["has", "point_count"]]],
       paint: {
-        "circle-color": "#000091",
+        "circle-color": fillPalette.value[1],
         "circle-opacity": 0.82,
         "circle-radius": props.spec.valueField
           ? ["interpolate", ["linear"], ["sqrt", ["max", ["get", "value"], 0]], 0, 5, 100, 14]
@@ -521,7 +526,7 @@ watch(isFullscreen, async (fullscreen) => {
 });
 
 watch(
-  () => [props.spec, props.rows],
+  () => [props.spec, props.rows, props.fillPalette, props.fillOpacity],
   () => void safelyRenderMap(),
   { deep: true },
 );
@@ -563,11 +568,11 @@ onBeforeUnmount(() => {
         <div class="relative w-full overflow-hidden" :class="isFullscreen ? 'h-full min-h-0' : 'h-72'">
           <div ref="mapElement" class="h-full w-full" />
           <div
-            v-if="spec.type === 'choropleth' && legendRange"
+            v-if="spec.type === 'choropleth' && legendRange && showLegend !== false"
             class="absolute bottom-3 left-3 z-10 w-36 rounded-md border border-[#e5e5e5] bg-white p-3 text-[12px] shadow-sm"
           >
             <p class="mb-2 font-semibold">{{ spec.valueLabel }}</p>
-            <div class="h-2 bg-gradient-to-r from-[#ececfe] to-[#000091]" />
+            <div class="h-2" :style="{ background: `linear-gradient(to right, ${fillPalette[0]}, ${fillPalette[1]})` }" />
             <div class="mt-1 flex justify-between gap-2 text-[#555555]">
               <span>{{ legendRange[0].toLocaleString("fr-FR") }}</span>
               <span>{{ legendRange[1].toLocaleString("fr-FR") }}</span>

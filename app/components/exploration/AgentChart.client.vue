@@ -30,6 +30,12 @@ const props = defineProps<{
   truncated: boolean;
   source?: string;
   playCompletionSound?: boolean;
+  appearance?: {
+    orientation?: "horizontal" | "vertical";
+    palette?: string[];
+    showLegend?: boolean;
+    showValues?: boolean;
+  };
 }>();
 
 use([
@@ -57,7 +63,10 @@ let completionSoundPlayed = false;
 let copyStatusTimer: ReturnType<typeof setTimeout> | undefined;
 let previousBodyOverflow = "";
 
-const colors = ["#000091", "#E1000F", "#18753C", "#A558A0"];
+const defaultColors = ["#000091", "#E1000F", "#18753C", "#A558A0"];
+const colors = computed(() => props.appearance?.palette?.length
+  ? props.appearance.palette
+  : defaultColors);
 
 function numericValue(value: unknown) {
   if (typeof value === "number") return value;
@@ -72,7 +81,7 @@ function chartOption(): EChartsCoreOption {
       enabled: true,
       description: props.spec.description,
     },
-    color: colors,
+    color: colors.value,
     textStyle: {
       fontFamily: "Marianne, Arial, sans-serif",
       fontWeight: 400,
@@ -98,6 +107,7 @@ function chartOption(): EChartsCoreOption {
       ...common,
       legend: {
         bottom: 0,
+        show: props.appearance?.showLegend ?? true,
         type: "scroll",
       },
       series: [{
@@ -117,6 +127,8 @@ function chartOption(): EChartsCoreOption {
   }
 
   const isScatter = props.spec.type === "scatter";
+  const isHorizontal = props.appearance?.orientation === "horizontal"
+    && !isScatter;
   return {
     ...common,
     dataset: isScatter ? undefined : {
@@ -130,20 +142,24 @@ function chartOption(): EChartsCoreOption {
       containLabel: true,
     },
     legend: {
-      show: props.spec.series.length > 1,
+      show: props.appearance?.showLegend ?? props.spec.series.length > 1,
       bottom: 0,
     },
     xAxis: {
-      name: props.spec.xLabel,
+      name: isHorizontal ? undefined : props.spec.xLabel,
       nameLocation: "middle",
       nameGap: 36,
-      type: isScatter ? "value" : "category",
+      type: isScatter || isHorizontal ? "value" : "category",
       axisLabel: {
         hideOverlap: true,
       },
     },
     yAxis: {
-      type: "value",
+      name: isHorizontal ? props.spec.xLabel : undefined,
+      type: isHorizontal ? "category" : "value",
+      axisLabel: {
+        hideOverlap: true,
+      },
     },
     series: props.spec.series.map((series, index) => {
       if (isScatter) {
@@ -163,14 +179,24 @@ function chartOption(): EChartsCoreOption {
         name: series.label,
         type: props.spec.type === "bar" ? "bar" : "line",
         encode: {
-          x: props.spec.xField,
-          y: series.field,
+          x: isHorizontal ? series.field : props.spec.xField,
+          y: isHorizontal ? props.spec.xField : series.field,
           tooltip: [props.spec.xField, series.field],
         },
         areaStyle: isArea ? { opacity: 0.18 } : undefined,
         smooth: props.spec.type === "line" || isArea,
         itemStyle: {
-          color: colors[index % colors.length],
+          color: colors.value[index % colors.value.length],
+        },
+        label: {
+          show: props.appearance?.showValues ?? false,
+          position: isHorizontal ? "right" : "top",
+          formatter: (parameters: { data?: DatasetRow }) => {
+            const value = parameters.data?.[series.field];
+            return typeof value === "number"
+              ? value.toLocaleString("fr-FR")
+              : String(value ?? "");
+          },
         },
       };
     }),
@@ -351,7 +377,7 @@ watch(isFullscreen, async (fullscreen) => {
 });
 
 watch(
-  () => [props.spec, props.rows],
+  () => [props.spec, props.rows, props.appearance],
   renderChart,
   { deep: true },
 );
