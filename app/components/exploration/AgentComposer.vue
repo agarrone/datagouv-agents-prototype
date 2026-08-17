@@ -8,6 +8,7 @@ const props = defineProps<{
   resourceOrganization?: string;
   editing?: boolean;
   usage?: LanguageModelUsage;
+  disabledPlaceholder?: string;
 }>();
 
 const model = defineModel<string>({ required: true });
@@ -92,7 +93,7 @@ function handleEnter(event: KeyboardEvent) {
           aria-label="Question sur les données"
           class="prompt-input-textarea min-h-0 flex-1 resize-none border-0 bg-transparent text-[12px] leading-[1.45] text-[#161616] outline-none placeholder:text-[#777777]"
           :disabled="disabled"
-          :placeholder="disabled ? 'Chargez d’abord une ressource' : 'Posez une question en langage naturel'"
+          :placeholder="disabled ? (disabledPlaceholder ?? 'Chargez d’abord une ressource') : 'Posez une question en langage naturel'"
           @keydown.enter="handleEnter"
         />
         <footer class="flex items-center justify-between gap-3">
