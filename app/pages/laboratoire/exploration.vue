@@ -7,6 +7,8 @@ import {
 import type { ChatAddToolOutputFunction, LanguageModelUsage } from "ai";
 import {
   explorationResources,
+  findInitialDatasetResource,
+  resourceContextName,
   type DatagouvDatasetPageMetadata,
   type DatagouvDatasetResource,
   type ExplorationResource,
@@ -60,7 +62,7 @@ const resourceFromQuery = queryValue("dataset") && queryValue("parquet")
       title: queryValue("title") || "Jeu de données data.gouv.fr",
       organization: queryValue("organization") || "Producteur non renseigné",
       parquetUrl: queryValue("parquet"),
-      resourceName: queryValue("resourceName") || "Version Parquet du jeu de données",
+      resourceName: queryValue("resourceName") || undefined,
     } satisfies ExplorationResource
   : null;
 const selectedResource = ref<ExplorationResource | null>(
@@ -114,7 +116,7 @@ const {
             resourceId: resource.id,
             title: resource.title,
             organization: resource.organization,
-            resourceName: resource.resourceName ?? "Version Parquet du jeu de données",
+            resourceName: resourceContextName(resource),
             url: resource.parquetUrl,
             schema: dataset.schema.value
               ? {
@@ -326,9 +328,7 @@ async function loadDatasetResources(resource: ExplorationResource) {
       query: { dataset: resource.datasetReference },
     });
     datasetResources.value = response.resources;
-    const matchingResource = response.resources.find(item =>
-      item.id === resource.id || item.parquetUrl === resource.parquetUrl,
-    );
+    const matchingResource = findInitialDatasetResource(response.resources, resource);
     if (matchingResource?.parquetUrl) {
       selectedResource.value = {
         ...resource,
@@ -340,7 +340,7 @@ async function loadDatasetResources(resource: ExplorationResource) {
   } catch {
     datasetResources.value = [{
       id: resource.id,
-      title: resource.resourceName ?? "Version Parquet du jeu de données",
+      title: resourceContextName(resource),
       format: "PARQUET",
       url: resource.parquetUrl,
       parquetUrl: resource.parquetUrl,
@@ -648,8 +648,11 @@ async function resolveClarification(toolCallId: string, choice: string) {
             <ExplorationStatusMessage
               v-if="datasetErrorPresentation"
               action-label="Recharger la ressource"
+              :code="datasetErrorPresentation.code"
               :details="datasetErrorPresentation.technicalDetails"
               :message="datasetErrorPresentation.message"
+              :request-id="datasetErrorPresentation.requestId"
+              :source-label="datasetErrorPresentation.sourceLabel"
               :title="datasetErrorPresentation.title"
               tone="error"
               @action="selectedResource && selectResource(selectedResource)"
@@ -712,7 +715,7 @@ async function resolveClarification(toolCallId: string, choice: string) {
               dataset: dataset.activeResource.value.datasetReference,
               datasetName: dataset.activeResource.value.title,
               datasetUrl: `https://www.data.gouv.fr/fr/datasets/${encodeURIComponent(dataset.activeResource.value.datasetReference)}/`,
-              resourceName: dataset.activeResource.value.resourceName ?? 'Version Parquet du jeu de données',
+              resourceName: resourceContextName(dataset.activeResource.value),
               model: 'agent-exploration',
             } : undefined"
             @apply-proposal="applyExplorerProposal"
@@ -726,11 +729,15 @@ async function resolveClarification(toolCallId: string, choice: string) {
           <ExplorationStatusMessage
             v-if="chatErrorPresentation && !isResponding"
             :action-label="chatErrorPresentation.actionLabel"
+            :code="chatErrorPresentation.code"
             :details="chatErrorPresentation.technicalDetails"
             :message="chatErrorPresentation.message"
+            :request-id="chatErrorPresentation.requestId"
+            :retry-after-seconds="chatErrorPresentation.retryAfterSeconds"
+            :source-label="chatErrorPresentation.sourceLabel"
             :title="chatErrorPresentation.title"
             tone="error"
-            @action="recoverFromError(chatErrorPresentation.action)"
+            @action="chatErrorPresentation.action && recoverFromError(chatErrorPresentation.action)"
           />
         </ExplorationConversationScroller>
         <ExplorationAgentComposer

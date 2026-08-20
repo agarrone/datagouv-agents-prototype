@@ -261,6 +261,10 @@ export function useDatasetEngine() {
       status.value === "ready"
       && activeResource.value?.id === resource.id
     ) {
+      // Le nom réel peut arriver après le chargement, une fois les métadonnées
+      // data.gouv.fr rapprochées de l'URL Parquet. Garder ce contexte à jour
+      // sans reconstruire inutilement la base DuckDB.
+      activeResource.value = resource;
       return inspectSchema();
     }
     status.value = "loading";

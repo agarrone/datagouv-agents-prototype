@@ -22,6 +22,56 @@ export interface DatagouvDatasetResource {
   parquetUrl: string | null;
 }
 
+function parquetFileName(url: string | null | undefined) {
+  if (!url) return "";
+  try {
+    return new URL(url).pathname.split("/").filter(Boolean).at(-1)?.toLowerCase() ?? "";
+  } catch {
+    return "";
+  }
+}
+
+/**
+ * Retrouve la ressource data.gouv.fr derrière une URL Parquet Hydra.
+ * Une même analyse peut être exposée par plusieurs domaines, son nom de
+ * fichier (l'identifiant de ressource) est donc plus stable que l'URL entière.
+ */
+export function findMatchingDatasetResource(
+  resources: DatagouvDatasetResource[],
+  resource: Pick<ExplorationResource, "id" | "parquetUrl">,
+) {
+  const parquetName = parquetFileName(resource.parquetUrl);
+  return resources.find(item =>
+    item.id === resource.id
+    || item.parquetUrl === resource.parquetUrl
+    || Boolean(parquetName && parquetFileName(item.parquetUrl) === parquetName),
+  );
+}
+
+/**
+ * Choisit la ressource initiale d'un jeu de données. Une sélection explicite
+ * (identifiant data.gouv.fr ou nom transmis par le sélecteur) est conservée ;
+ * sinon l'explorateur ouvre la première ressource réellement exploitable.
+ */
+export function findInitialDatasetResource(
+  resources: DatagouvDatasetResource[],
+  resource: ExplorationResource,
+) {
+  const explicitIdMatch = resources.find(item => item.id === resource.id);
+  if (explicitIdMatch?.parquetUrl) return explicitIdMatch;
+
+  if (resource.resourceName?.trim()) {
+    const explicitResourceMatch = findMatchingDatasetResource(resources, resource);
+    if (explicitResourceMatch?.parquetUrl) return explicitResourceMatch;
+  }
+
+  return resources.find(item => Boolean(item.parquetUrl));
+}
+
+export function resourceContextName(resource: Pick<ExplorationResource, "resourceName">) {
+  return resource.resourceName?.trim() || "Nom de la ressource non disponible";
+}
+
 export interface DatagouvDatasetPageMetadata {
   id: string;
   slug: string;

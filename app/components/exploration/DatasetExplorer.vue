@@ -295,8 +295,11 @@ onBeforeUnmount(() => { if (searchTimer) clearTimeout(searchTimer); });
         <ExplorationStatusMessage
           class="max-w-lg text-left"
           action-label="Réessayer"
+          :code="errorPresentation.code"
           :details="errorPresentation.technicalDetails"
           :message="errorPresentation.message"
+          :request-id="errorPresentation.requestId"
+          :source-label="errorPresentation.sourceLabel"
           :title="errorPresentation.title"
           tone="error"
           @action="refresh()"

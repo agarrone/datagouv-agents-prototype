@@ -169,9 +169,12 @@ pnpm build
 - la boucle de l’agent est limitée à cinq étapes ;
 - le nom du modèle affiché dans l’interface n’est pas encore relié à la
   configuration effective ;
-- les erreurs fournisseur sont volontairement simplifiées pour l’utilisateur ;
+- les erreurs sont structurées et attribuées au fournisseur IA, au prototype,
+  à DuckDB ou aux services externes ; leur mesure agrégée en production reste à
+  mettre en place ;
 - il n’existe pas encore de protocole d’évaluation automatique des réponses ;
-- l’assistant de publication envisagé n’est pas implémenté dans ce dépôt.
+- l’assistant de publication reste une expérience distincte et non référencée
+  depuis l’accueil.
 
 Pour le détail du comportement et des choix techniques, consulter directement
 les pages `/documentation` et `/documentation/technique` du prototype.

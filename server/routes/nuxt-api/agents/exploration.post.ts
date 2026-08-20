@@ -17,16 +17,19 @@ import {
   MAX_SQL_CALLS_PER_QUESTION,
 } from "~~/server/agents/tool-budget";
 import { fetchDatasetMetadata } from "~~/server/services/datagouv";
+import { agentErrorMessage, normalizeAgentError } from "~~/server/agents/errors";
 
-function agentErrorMessage(error: unknown) {
-  const details = error instanceof Error
-    ? `${error.message} ${error.cause ?? ""}`
-    : String(error);
-
-  if (/too many requests|429/i.test(details)) {
-    return "Le service d’assistance reçoit trop de demandes pour le moment. Réessayez dans quelques instants.";
-  }
-  return "L’assistant n’a pas pu terminer cette réponse.";
+function structuredHttpError(error: unknown, fallbackStatusCode = 500) {
+  const normalized = normalizeAgentError(error);
+  const statusCode = normalized.code === "prototype_configuration" ? 503
+    : normalized.code === "ai_authentication" ? 502
+      : normalized.code === "ai_rate_limit" || normalized.code === "ai_account_quota" ? 429
+        : fallbackStatusCode;
+  return createError({
+    statusCode,
+    statusMessage: "L’assistant n’a pas pu traiter la demande.",
+    data: normalized,
+  });
 }
 
 export default defineEventHandler(async (event) => {
@@ -38,6 +41,12 @@ export default defineEventHandler(async (event) => {
     throw createError({
       statusCode: 400,
       statusMessage: "La liste des messages est absente.",
+      data: {
+        code: "prototype_invalid_request",
+        source: "prototype",
+        retryable: true,
+        technicalDetails: "La propriété messages est absente ou n’est pas une liste.",
+      },
     });
   }
   const resource = resourceContextSchema.safeParse(body.resource);
@@ -45,6 +54,12 @@ export default defineEventHandler(async (event) => {
     throw createError({
       statusCode: 400,
       statusMessage: "Le contexte de la ressource est absent ou invalide.",
+      data: {
+        code: "prototype_invalid_request",
+        source: "prototype",
+        retryable: true,
+        technicalDetails: "Le contexte de ressource envoyé à la route est absent ou invalide.",
+      },
     });
   }
 
@@ -82,8 +97,17 @@ export default defineEventHandler(async (event) => {
   const previousSqlCalls = countSqlCallsForCurrentQuestion(body.messages);
   const allToolNames = Object.keys(tools) as Array<keyof typeof tools>;
 
+  let model: ReturnType<typeof useAgentModel>;
+  try {
+    model = useAgentModel();
+  }
+  catch (error) {
+    throw structuredHttpError(error, 503);
+  }
+
+  let completedStepCount = 0;
   const result = streamText({
-    model: useAgentModel(),
+    model,
     instructions,
     messages: await convertToModelMessages(body.messages, {
       tools,
@@ -112,13 +136,20 @@ export default defineEventHandler(async (event) => {
     },
     stopWhen: isStepCount(5),
     abortSignal: event.node.req.signal,
+    onStepFinish() {
+      completedStepCount += 1;
+    },
   });
 
   return result.toUIMessageStreamResponse({
     originalMessages: body.messages,
     messageMetadata({ part }) {
       if (part.type === "start") return { createdAt: new Date().toISOString() };
-      if (part.type === "finish") return { totalUsage: part.totalUsage };
+      if (part.type === "finish") return {
+        finishReason: part.finishReason,
+        prototypeStepLimitReached: completedStepCount >= 5 && part.finishReason === "tool-calls",
+        totalUsage: part.totalUsage,
+      };
     },
     onError(error) {
       console.error("Exploration agent error", error);
