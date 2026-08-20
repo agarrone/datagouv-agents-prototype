@@ -317,8 +317,8 @@ const designDecisions = [
   {
     group: "Assistant",
     title: "Erreurs et récupération",
-    detail: "Les erreurs réseau, fournisseur, SQL, DuckDB et visualisation ont un message orienté utilisateur, une action adaptée et un détail technique secondaire.",
-    rule: "Réessayer · Recharger la ressource · Préciser la question ou la demande",
+    detail: "Chaque erreur indique son origine, un code stable et une action adaptée. Quota Albert, limite de réponse, limite du prototype, SQL, DuckDB et service externe restent distincts.",
+    rule: "Origine visible · Détails repliés · Référence fournisseur conservée · Aucun secret affiché",
   },
   {
     group: "Assistant",
@@ -831,9 +831,29 @@ const designRisks = [
                 <ExplorationStatusMessage title="Vue appliquée au tableau" message="La requête filtre désormais les lignes de l’explorateur." tone="success" />
                 <ExplorationStatusMessage
                   action-label="Réessayer"
-                  details="AI Gateway rate limit 429 · request_id=demo"
-                  title="Service d’intelligence artificielle indisponible"
-                  message="Le fournisseur n’a pas pu terminer la réponse. Réessayez dans quelques instants."
+                  code="ai_rate_limit"
+                  details="HTTP 429 · tokens_per_minute exceeded"
+                  title="Quota temporaire atteint"
+                  message="Le service d’intelligence artificielle reçoit trop de demandes. Le problème ne vient pas de votre question."
+                  request-id="req_demo_429"
+                  source-label="Service Albert"
+                  tone="error"
+                />
+                <ExplorationStatusMessage
+                  code="prototype_step_limit"
+                  details="stopWhen=isStepCount(5) · finishReason=tool-calls"
+                  title="Limite d’analyse du prototype atteinte"
+                  message="L’assistant a consommé les opérations autorisées. Ce n’est pas un dépassement du quota de tokens du compte."
+                  source-label="Prototype"
+                  tone="warning"
+                />
+                <ExplorationStatusMessage
+                  action-label="Recharger la ressource"
+                  code="resource_unavailable"
+                  details="DuckDB HTTP Error · parquet range request failed"
+                  title="Ressource impossible à interroger"
+                  message="Le moteur local n’a pas pu accéder à la ressource ou la lire correctement."
+                  source-label="Moteur local DuckDB"
                   tone="error"
                 />
               </div>

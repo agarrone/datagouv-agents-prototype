@@ -6,6 +6,7 @@ import type { ExplorationMessage } from "~~/shared/types/exploration";
 import type { FeedbackContext } from "~~/shared/types/feedback";
 import {
   classifyExplorationError,
+  finishReasonError,
   type ExplorationRecoveryAction,
 } from "~~/shared/errors/exploration";
 
@@ -43,6 +44,18 @@ const messageTime = computed(() => {
     minute: "2-digit",
     timeZone: "Europe/Paris",
   }).format(new Date(props.message.metadata.createdAt));
+});
+const finishErrorPresentation = computed(() => {
+  if (props.message.metadata?.prototypeStepLimitReached) {
+    return classifyExplorationError({
+      code: "prototype_step_limit",
+      source: "prototype",
+      technicalDetails: "stopWhen=isStepCount(5) · finishReason=tool-calls",
+      retryable: false,
+    });
+  }
+  const error = finishReasonError(props.message.metadata?.finishReason);
+  return error ? classifyExplorationError(error) : undefined;
 });
 
 async function copyUserMessage() {
@@ -626,11 +639,15 @@ function toolErrorContext(type: string) {
         <ExplorationStatusMessage
           v-else
           :action-label="errorPresentation(part.errorText, 'visualization').actionLabel"
+          :code="errorPresentation(part.errorText, 'visualization').code"
           :details="errorPresentation(part.errorText, 'visualization').technicalDetails"
           :message="errorPresentation(part.errorText, 'visualization').message"
+          :request-id="errorPresentation(part.errorText, 'visualization').requestId"
+          :retry-after-seconds="errorPresentation(part.errorText, 'visualization').retryAfterSeconds"
+          :source-label="errorPresentation(part.errorText, 'visualization').sourceLabel"
           :title="errorPresentation(part.errorText, 'visualization').title"
           tone="error"
-          @action="emit('recover', errorPresentation(part.errorText, 'visualization').action, message.id)"
+          @action="errorPresentation(part.errorText, 'visualization').action && emit('recover', errorPresentation(part.errorText, 'visualization').action!, message.id)"
         />
       </div>
 
@@ -658,11 +675,15 @@ function toolErrorContext(type: string) {
         <ExplorationStatusMessage
           v-else
           :action-label="errorPresentation(part.errorText, 'visualization').actionLabel"
+          :code="errorPresentation(part.errorText, 'visualization').code"
           :details="errorPresentation(part.errorText, 'visualization').technicalDetails"
           :message="errorPresentation(part.errorText, 'visualization').message"
+          :request-id="errorPresentation(part.errorText, 'visualization').requestId"
+          :retry-after-seconds="errorPresentation(part.errorText, 'visualization').retryAfterSeconds"
+          :source-label="errorPresentation(part.errorText, 'visualization').sourceLabel"
           :title="errorPresentation(part.errorText, 'visualization').title"
           tone="error"
-          @action="emit('recover', errorPresentation(part.errorText, 'visualization').action, message.id)"
+          @action="errorPresentation(part.errorText, 'visualization').action && emit('recover', errorPresentation(part.errorText, 'visualization').action!, message.id)"
         />
       </div>
       <ExplorationStatusMessage
@@ -671,11 +692,27 @@ function toolErrorContext(type: string) {
         :key="`terminal-error-${part.toolCallId}`"
         class="mt-3"
         :action-label="errorPresentation(part.errorText, toolErrorContext(part.type)).actionLabel"
+        :code="errorPresentation(part.errorText, toolErrorContext(part.type)).code"
         :details="errorPresentation(part.errorText, toolErrorContext(part.type)).technicalDetails"
         :message="errorPresentation(part.errorText, toolErrorContext(part.type)).message"
+        :request-id="errorPresentation(part.errorText, toolErrorContext(part.type)).requestId"
+        :retry-after-seconds="errorPresentation(part.errorText, toolErrorContext(part.type)).retryAfterSeconds"
+        :source-label="errorPresentation(part.errorText, toolErrorContext(part.type)).sourceLabel"
         :title="errorPresentation(part.errorText, toolErrorContext(part.type)).title"
         tone="error"
-        @action="emit('recover', errorPresentation(part.errorText, toolErrorContext(part.type)).action, message.id)"
+        @action="errorPresentation(part.errorText, toolErrorContext(part.type)).action && emit('recover', errorPresentation(part.errorText, toolErrorContext(part.type)).action!, message.id)"
+      />
+      <ExplorationStatusMessage
+        v-if="finishErrorPresentation && !responding"
+        class="mt-3"
+        :action-label="finishErrorPresentation.actionLabel"
+        :code="finishErrorPresentation.code"
+        :details="finishErrorPresentation.technicalDetails"
+        :message="finishErrorPresentation.message"
+        :source-label="finishErrorPresentation.sourceLabel"
+        :title="finishErrorPresentation.title"
+        tone="warning"
+        @action="finishErrorPresentation.action && emit('recover', finishErrorPresentation.action, message.id)"
       />
       <ExplorationMessageActions
         v-if="assistantText && !toolsActive && !responding"

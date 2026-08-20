@@ -6,6 +6,8 @@ export type ExplorationTools = InferUITools<typeof explorationTools>;
 export type ExplorationMessage = UIMessage<
   {
     createdAt?: string;
+    finishReason?: "stop" | "length" | "content-filter" | "tool-calls" | "error" | "other";
+    prototypeStepLimitReached?: boolean;
     totalUsage?: LanguageModelUsage;
   },
   never,
