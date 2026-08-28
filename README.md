@@ -76,7 +76,7 @@ reçoit le contexte courant, le schéma et les résultats nécessaires à la ré
 
 - Nuxt 4, Vue 3 et TypeScript strict ;
 - Vercel AI SDK 7 et AI SDK Vue ;
-- Vercel AI Gateway ou fournisseur OpenAI-compatible, dont Albert ;
+- GPT-OSS-120B mis à disposition par Albert API ;
 - DuckDB-WASM pour le SQL local ;
 - ECharts pour les graphiques ;
 - MapLibre GL et les fonds OpenMapTiles de data.gouv.fr pour les cartes ;
@@ -102,26 +102,18 @@ configuration de modèle est nécessaire pour obtenir une réponse de l’assist
 
 ## Configuration du modèle
 
-### Vercel AI Gateway
+### Albert API
 
 ```dotenv
-NUXT_AI_GATEWAY_API_KEY=
-NUXT_AI_GATEWAY_MODEL=openai/gpt-5.4-mini
+ALBERT_API_URL=
+ALBERT_API_KEY=
+ALBERT_MODEL=
 ```
 
-Sur Vercel, `AI_GATEWAY_API_KEY` et le jeton OIDC fourni par la plateforme sont
-également reconnus. Les secrets restent côté serveur.
-
-### Fournisseur OpenAI-compatible
-
-```dotenv
-NUXT_AI_BASE_URL=
-NUXT_AI_API_KEY=
-NUXT_AI_MODEL=
-```
-
-Les noms historiques `ALBERT_API_URL`, `ALBERT_API_KEY` et `ALBERT_MODEL` sont
-également pris en charge.
+Albert est le fournisseur d’accès aux modèles. Le modèle actuellement utilisé
+est GPT-OSS-120B ; `ALBERT_MODEL` contient l’identifiant attendu par Albert pour
+l’appeler. Les secrets restent exclusivement côté serveur. Le prototype ne
+configure pas Vercel AI Gateway.
 
 ## Sécurité et données
 
