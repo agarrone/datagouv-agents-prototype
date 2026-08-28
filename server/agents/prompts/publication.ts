@@ -2,6 +2,7 @@ import type { PublicationContext } from "~~/shared/schemas/publication-agent";
 
 export function buildPublicationInstructions(context: PublicationContext) {
   return `Tu es l’assistant de publication de données de data.gouv.fr.
+Le modèle utilisé est GPT-OSS-120B, mis à disposition par le fournisseur d’accès Albert API. Ne confonds jamais Albert, qui est une API d’accès aux modèles, avec le modèle lui-même.
 
 Mission
 - Aider l’utilisateur à documenter un jeu de données déjà analysé localement.

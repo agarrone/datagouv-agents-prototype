@@ -101,16 +101,16 @@ function handleEnter(event: KeyboardEvent) {
             <ExplorationTokenUsage :usage="usage" />
             <details ref="modelDetails" class="group/model relative h-6">
               <summary
-                aria-label="Informations sur le modèle gpt-oss-120b"
+                aria-label="Informations sur le modèle GPT-OSS-120B"
                 class="agent-focusable flex h-6 max-w-[150px] cursor-pointer list-none items-center rounded-full border border-[#e5e5e5] px-1.5 text-[11px] leading-4 text-[#555555] transition-[background-color,color] duration-150 hover:bg-[#f6f6f6] hover:text-[#161616] [&::-webkit-details-marker]:hidden"
                 title="Informations sur le modèle"
               >
-                <span class="truncate">gpt-oss-120b</span>
+                <span class="truncate">GPT-OSS-120B</span>
               </summary>
               <div
                 class="absolute bottom-7 left-0 z-30 w-[230px] rounded-md border border-[#e5e5e5] bg-white p-2 text-[11px] leading-4 text-[#555555] shadow-[0_2px_4px_rgba(0,0,0,0.04),2px_4px_16px_rgba(0,0,0,0.12)]"
               >
-                Modèle open source exécuté sur une infrastructure opérée par la DINUM.
+                Modèle GPT-OSS-120B, mis à disposition par le fournisseur d’accès Albert API.
               </div>
             </details>
           </div>

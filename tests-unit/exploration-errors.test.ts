@@ -7,7 +7,7 @@ import {
 
 describe("exploration error presentation", () => {
   it("distinguishes provider and network failures", () => {
-    expect(classifyExplorationError("AI Gateway rate limit 429").kind).toBe("provider");
+    expect(classifyExplorationError("Albert rate limit 429").kind).toBe("provider");
     expect(classifyExplorationError("fetch failed: network timeout").kind).toBe("network");
   });
 

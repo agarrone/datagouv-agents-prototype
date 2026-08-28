@@ -83,13 +83,12 @@ useSeoMeta({
 
       <DocumentationSection id="model" eyebrow="Génération" title="Fournisseur et modèle" description="Le choix du fournisseur est réalisé côté serveur, sans exposer de clé au navigateur.">
         <dl class="grid gap-px overflow-hidden border border-[#e5e5e5] bg-[#e5e5e5] sm:grid-cols-2">
-          <div class="bg-white p-4"><dt class="text-[11px] uppercase text-[#555555]">Priorité 1</dt><dd class="mt-1 text-[13px]">Vercel AI Gateway avec clé explicite</dd></div>
-          <div class="bg-white p-4"><dt class="text-[11px] uppercase text-[#555555]">Priorité 2</dt><dd class="mt-1 text-[13px]">Endpoint OpenAI-compatible, dont Albert</dd></div>
-          <div class="bg-white p-4"><dt class="text-[11px] uppercase text-[#555555]">Priorité 3</dt><dd class="mt-1 text-[13px]">Jeton OIDC fourni par Vercel</dd></div>
-          <div class="bg-white p-4"><dt class="text-[11px] uppercase text-[#555555]">Modèle Gateway par défaut</dt><dd class="mt-1 font-mono text-[13px]">openai/gpt-5.4-mini</dd></div>
+          <div class="bg-white p-4"><dt class="text-[11px] uppercase text-[#555555]">Fournisseur d’accès</dt><dd class="mt-1 text-[13px]">Albert API</dd></div>
+          <div class="bg-white p-4"><dt class="text-[11px] uppercase text-[#555555]">Protocole</dt><dd class="mt-1 text-[13px]">Compatible avec l’API OpenAI</dd></div>
+          <div class="bg-white p-4"><dt class="text-[11px] uppercase text-[#555555]">Configuration</dt><dd class="mt-1 font-mono text-[13px]">ALBERT_API_URL · ALBERT_API_KEY</dd></div>
+          <div class="bg-white p-4"><dt class="text-[11px] uppercase text-[#555555]">Modèle actuel</dt><dd class="mt-1 font-mono text-[13px]">GPT-OSS-120B</dd></div>
         </dl>
-        <p>Les variables historiques <code>ALBERT_API_URL</code>, <code>ALBERT_API_KEY</code> et <code>ALBERT_MODEL</code> sont reconnues pour faciliter les déploiements existants.</p>
-        <p>La puce visible dans l’interface affiche encore <code>gpt-oss-120b</code> de manière statique. Elle devra être reliée à la configuration effective pour éviter une divergence entre interface et backend.</p>
+        <p>Albert API est l’unique fournisseur d’accès aux modèles du prototype. Le modèle actuellement retenu est GPT-OSS-120B et la variable <code>ALBERT_MODEL</code> contient l’identifiant attendu par Albert pour y accéder. Aucun chemin de repli vers Vercel AI Gateway ou son jeton OIDC n’est activé. La puce de l’interface affiche bien le modèle, et son tooltip précise le fournisseur.</p>
       </DocumentationSection>
 
       <DocumentationSection id="tools" eyebrow="Capacités" title="Outils disponibles" description="Le modèle choisit un tool, mais son contrat Zod et son exécution restent sous le contrôle de l’application.">
