@@ -90,5 +90,6 @@ describe("exploration prompt", () => {
     expect(instructions).toContain("ne répète pas une requête SQL équivalente");
     expect(instructions).toContain("jamais une preuve d’exhaustivité");
     expect(instructions).toContain("pas plus de trois appels à execute_sql");
+    expect(instructions).toContain("entoure systématiquement chaque nom de colonne de guillemets doubles");
   });
 });

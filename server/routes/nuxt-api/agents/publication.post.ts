@@ -4,11 +4,15 @@ import {
   isStepCount,
   ToolLoopAgent,
 } from "ai";
+import type { ToolExecutionOptions } from "ai";
 import { publicationTools } from "~~/shared/agents/publication-tools";
 import { publicationContextSchema } from "~~/shared/schemas/publication-agent";
 import type { PublicationAssistantMessage } from "~~/shared/types/publication";
-import { useAgentModel } from "~~/server/agents/provider";
+import { resolveAgentModelId, useAgentModel } from "~~/server/agents/provider";
+import { agentModelLabel } from "~~/shared/agents/models";
+import { useAgentModelSettings } from "~~/server/agents/model-settings";
 import { buildPublicationInstructions } from "~~/server/agents/prompts/publication";
+import { agentErrorMessage, normalizeAgentError } from "~~/server/agents/errors";
 
 const GUIDE_MCP_URL = "https://guides.data.gouv.fr/~gitbook/mcp";
 
@@ -16,6 +20,7 @@ export default defineEventHandler(async (event) => {
   const body = await readBody<{
     messages?: PublicationAssistantMessage[];
     context?: unknown;
+    modelId?: unknown;
   }>(event);
   if (!Array.isArray(body.messages)) {
     throw createError({ statusCode: 400, statusMessage: "La liste des messages est absente." });
@@ -25,36 +30,33 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, statusMessage: "Le contexte de publication est absent ou invalide." });
   }
 
-  const mcpClient = await createMCPClient({
-    transport: { type: "http", url: GUIDE_MCP_URL },
-  });
-
   try {
-    const guideTools = await mcpClient.tools();
-    const guideQuestionTool = guideTools.askQuestion;
-    if (!guideQuestionTool) {
-      throw new Error("Le tool de consultation du guide data.gouv.fr est indisponible.");
-    }
+    const activeModelId = resolveAgentModelId(body.modelId);
     const tools = {
       ...publicationTools,
-      // Le serveur MCP expose aussi recherche, lecture et feedback. Seule la
-      // question documentaire est rendue accessible à cet agent.
       consult_publication_guide: {
         ...publicationTools.consult_publication_guide,
-        execute: async (
-          input: { question: string; goal?: string },
-          options: Parameters<NonNullable<typeof guideQuestionTool.execute>>[1],
-        ) => {
-          if (!guideQuestionTool.execute) {
-            throw new Error("Le tool de consultation du guide ne peut pas être exécuté.");
+        execute: async (input: { question: string; goal?: string }, options: ToolExecutionOptions<unknown>) => {
+          const mcpClient = await createMCPClient({
+            transport: { type: "http", url: GUIDE_MCP_URL },
+          });
+          try {
+            const guideQuestionTool = (await mcpClient.tools()).askQuestion;
+            if (!guideQuestionTool?.execute) {
+              throw new Error("Le guide data.gouv.fr est momentanément indisponible.");
+            }
+            return await guideQuestionTool.execute(input, options);
           }
-          return guideQuestionTool.execute(input, options);
+          finally {
+            await mcpClient.close();
+          }
         },
       },
     };
     const agent = new ToolLoopAgent({
-      model: useAgentModel(),
-      instructions: buildPublicationInstructions(context.data),
+      model: useAgentModel(activeModelId),
+      ...useAgentModelSettings(),
+      instructions: buildPublicationInstructions(context.data, agentModelLabel(activeModelId)),
       tools,
       stopWhen: isStepCount(4),
     });
@@ -66,17 +68,18 @@ export default defineEventHandler(async (event) => {
       messageMetadata({ part }) {
         if (part.type === "start") return { createdAt: new Date().toISOString() };
       },
-      onFinish: async () => {
-        await mcpClient.close();
-      },
       onError(error) {
         console.error("Publication agent error", error);
-        return "L’assistant de publication n’a pas pu terminer cette réponse. Réessayez dans quelques instants.";
+        return agentErrorMessage(error);
       },
     });
   }
   catch (error) {
-    await mcpClient.close();
-    throw error;
+    const normalized = normalizeAgentError(error);
+    throw createError({
+      statusCode: normalized.code === "prototype_configuration" ? 503 : 500,
+      statusMessage: "L’assistant de publication n’a pas pu démarrer.",
+      data: normalized,
+    });
   }
 });

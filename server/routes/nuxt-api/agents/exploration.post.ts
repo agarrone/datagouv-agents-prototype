@@ -8,7 +8,9 @@ import {
 import { explorationTools } from "~~/shared/agents/exploration-tools";
 import { resourceContextSchema } from "~~/shared/schemas/agent";
 import type { ExplorationMessage } from "~~/shared/types/exploration";
-import { useAgentModel } from "~~/server/agents/provider";
+import { resolveAgentModelId, useAgentModel } from "~~/server/agents/provider";
+import { agentModelLabel } from "~~/shared/agents/models";
+import { useAgentModelSettings } from "~~/server/agents/model-settings";
 import { buildExplorationInstructions } from "~~/server/agents/prompts/exploration";
 import { explorerIntentInstruction } from "~~/server/agents/explorer-intent";
 import { deterministicSchemaAnswer } from "~~/server/agents/schema-answer";
@@ -36,6 +38,7 @@ export default defineEventHandler(async (event) => {
   const body = await readBody<{
     messages?: ExplorationMessage[];
     resource?: unknown;
+    modelId?: unknown;
   }>(event);
   if (!Array.isArray(body.messages)) {
     throw createError({
@@ -91,7 +94,14 @@ export default defineEventHandler(async (event) => {
       execute: async () => fetchDatasetMetadata(resource.data.datasetId),
     },
   };
-  const instructions = `${buildExplorationInstructions(resource.data)}${
+  let activeModelId: string;
+  try {
+    activeModelId = resolveAgentModelId(body.modelId);
+  }
+  catch (error) {
+    throw structuredHttpError(error, 400);
+  }
+  const instructions = `${buildExplorationInstructions(resource.data, agentModelLabel(activeModelId))}${
     explorerIntentInstruction(body.messages)
   }`;
   const previousSqlCalls = countSqlCallsForCurrentQuestion(body.messages);
@@ -99,7 +109,7 @@ export default defineEventHandler(async (event) => {
 
   let model: ReturnType<typeof useAgentModel>;
   try {
-    model = useAgentModel();
+    model = useAgentModel(activeModelId);
   }
   catch (error) {
     throw structuredHttpError(error, 503);
@@ -108,6 +118,7 @@ export default defineEventHandler(async (event) => {
   let completedStepCount = 0;
   const result = streamText({
     model,
+    ...useAgentModelSettings(),
     instructions,
     messages: await convertToModelMessages(body.messages, {
       tools,

@@ -86,9 +86,9 @@ useSeoMeta({
           <div class="bg-white p-4"><dt class="text-[11px] uppercase text-[#555555]">Fournisseur d’accès</dt><dd class="mt-1 text-[13px]">Albert API</dd></div>
           <div class="bg-white p-4"><dt class="text-[11px] uppercase text-[#555555]">Protocole</dt><dd class="mt-1 text-[13px]">Compatible avec l’API OpenAI</dd></div>
           <div class="bg-white p-4"><dt class="text-[11px] uppercase text-[#555555]">Configuration</dt><dd class="mt-1 font-mono text-[13px]">ALBERT_API_URL · ALBERT_API_KEY</dd></div>
-          <div class="bg-white p-4"><dt class="text-[11px] uppercase text-[#555555]">Modèle actuel</dt><dd class="mt-1 font-mono text-[13px]">GPT-OSS-120B</dd></div>
+          <div class="bg-white p-4"><dt class="text-[11px] uppercase text-[#555555]">Modèle actuel</dt><dd class="mt-1 font-mono text-[13px]">Mistral Medium 3.5</dd></div>
         </dl>
-        <p>Albert API est l’unique fournisseur d’accès aux modèles du prototype. Le modèle actuellement retenu est GPT-OSS-120B et la variable <code>ALBERT_MODEL</code> contient l’identifiant attendu par Albert pour y accéder. Aucun chemin de repli vers Vercel AI Gateway ou son jeton OIDC n’est activé. La puce de l’interface affiche bien le modèle, et son tooltip précise le fournisseur.</p>
+        <p>Albert API est l’unique fournisseur d’accès aux modèles du prototype. Le modèle actuellement retenu est Mistral Medium 3.5 et la variable <code>ALBERT_MODEL</code> contient l’identifiant attendu par Albert pour y accéder. Aucun chemin de repli vers Vercel AI Gateway ou son jeton OIDC n’est activé. La puce de l’interface affiche bien le modèle, et son tooltip précise le fournisseur.</p>
       </DocumentationSection>
 
       <DocumentationSection id="tools" eyebrow="Capacités" title="Outils disponibles" description="Le modèle choisit un tool, mais son contrat Zod et son exécution restent sous le contrôle de l’application.">

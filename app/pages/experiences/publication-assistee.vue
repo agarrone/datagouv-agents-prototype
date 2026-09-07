@@ -1,10 +1,13 @@
 <script setup lang="ts">
 import { useChat } from "@ai-sdk/vue";
-import { DefaultChatTransport } from "ai";
+import { DefaultChatTransport, lastAssistantMessageIsCompleteWithToolCalls } from "ai";
 import { explorationResources, type ExplorationResource } from "~~/shared/data/exploration-resources";
+import { nextPublicationStage, publicationWorkflow, type PublicationStageId } from "~~/shared/agents/publication-workflow";
+import { DEFAULT_AGENT_MODEL_ID, type AgentModelId } from "~~/shared/agents/models";
 import type {
   PublicationAgentTool,
   PublicationAssistantMessage,
+  PublicationPromptSuggestion,
   PublicationRecommendation,
 } from "~~/shared/types/publication";
 
@@ -63,7 +66,8 @@ const steps = [
 ];
 
 const step = ref(0);
-const assistantMetadataStage = ref<"identity" | "description" | "short-description" | "keywords" | "license" | "temporal" | "spatial" | "complete">("identity");
+const selectedModelId = ref<AgentModelId>(DEFAULT_AGENT_MODEL_ID);
+const assistantMetadataStage = ref<PublicationStageId>("identity");
 const selectedFileId = ref<string>();
 const uploadedFile = ref<{ metadata: PreparedFile; file: File }>();
 const fileInput = ref<HTMLInputElement>();
@@ -108,8 +112,11 @@ const publicationContext = computed(() => {
 });
 
 const {
+  addToolOutput,
+  clearError,
   error: agentError,
   messages,
+  regenerate,
   sendMessage,
   status: agentStatus,
   stop: stopAgent,
@@ -124,11 +131,13 @@ const {
           messages,
           trigger,
           messageId,
+          modelId: selectedModelId.value,
           context: publicationContext.value,
         },
       };
     },
   }),
+  sendAutomaticallyWhen: lastAssistantMessageIsCompleteWithToolCalls,
 });
 const agentBusy = computed(() => analyzing.value || agentStatus.value === "submitted" || agentStatus.value === "streaming");
 const tagInput = ref("");
@@ -146,16 +155,61 @@ const selectedFile = computed(() => {
   return preparedFiles.find(file => file.resource.id === selectedFileId.value);
 });
 const stepLabel = computed(() => `Étape ${step.value + 1} sur ${steps.length} · ${steps[step.value]?.title}`);
-const assistantStageLabel = computed(() => ({
-  identity: "Titre et acronyme",
-  description: "Description",
-  "short-description": "Description courte",
-  keywords: "Mots-clés",
-  license: "Licence",
-  temporal: "Temps",
-  spatial: "Espace",
-  complete: "Métadonnées proposées",
-}[assistantMetadataStage.value]));
+const assistantStageLabel = computed(() => publicationWorkflow[assistantMetadataStage.value].label);
+
+const publicationPromptSuggestions = computed<Record<PublicationPromptSuggestion["stage"], PublicationPromptSuggestion[]>>(() => ({
+  identity: [{
+    id: "suggest-identity",
+    label: "Proposer un titre et un acronyme",
+    stage: "identity",
+    prompt: "À partir du schéma du fichier, propose uniquement un titre précis pour ce jeu de données et, seulement s’il est pertinent, un acronyme.",
+  }],
+  description: [{
+    id: "suggest-description",
+    label: "Générer une description",
+    stage: "description",
+    prompt: "À partir du schéma, du titre et des informations déjà saisies, propose uniquement une description détaillée et vérifiable du jeu de données.",
+  }],
+  "short-description": [{
+    id: "suggest-short-description",
+    label: "Générer une description courte",
+    stage: "short-description",
+    prompt: "À partir du titre et de la description détaillée déjà saisis, propose uniquement une description courte d’une ou deux phrases.",
+    disabled: !draft.title.trim() || draft.description.trim().length < 200,
+    hint: "Renseignez un titre et une description d’au moins 200 caractères pour générer une description courte.",
+  }],
+  keywords: [{
+    id: "suggest-keywords",
+    label: "Suggérer des mots-clés",
+    stage: "keywords",
+    prompt: "À partir du schéma et des descriptions déjà saisies, propose uniquement des mots-clés utiles à la découverte de ce jeu de données.",
+  }],
+  license: [{
+    id: "suggest-license",
+    label: "Recommander une licence",
+    stage: "license",
+    prompt: "Recommande uniquement une licence adaptée à cette publication et explique brièvement ce que je dois confirmer avant de l’appliquer.",
+  }],
+  temporal: [{
+    id: "suggest-temporal",
+    label: "Proposer les informations temporelles",
+    stage: "temporal",
+    prompt: "À partir du schéma et des métadonnées saisies, propose uniquement une fréquence de mise à jour et une couverture temporelle, en signalant ce qui doit être confirmé.",
+  }],
+  spatial: [{
+    id: "suggest-spatial",
+    label: "Proposer les informations spatiales",
+    stage: "spatial",
+    prompt: "À partir du schéma et des métadonnées saisies, propose uniquement une couverture et une granularité spatiales, en signalant ce qui doit être confirmé.",
+  }],
+  complete: [{
+    id: "review-metadata",
+    label: "Vérifier les métadonnées",
+    stage: "complete",
+    prompt: "Relis les métadonnées actuellement saisies et indique uniquement les informations manquantes, ambiguës ou à confirmer avant la publication.",
+  }],
+}));
+const activePromptSuggestions = computed(() => publicationPromptSuggestions.value[assistantMetadataStage.value]);
 const agentStepLabel = computed(() => step.value === 1
   ? `${stepLabel.value} · ${assistantStageLabel.value}`
   : stepLabel.value);
@@ -384,45 +438,55 @@ function askAgent(question: string) {
   sendMessage({ text: question });
 }
 
-function queueAgentInstruction(text: string, attempt = 0) {
-  window.setTimeout(() => {
-    if (!agentBusy.value) {
-      sendMessage({ text: `__AUTO__ ${text}` });
-      return;
-    }
-    if (attempt < 8) queueAgentInstruction(text, attempt + 1);
-  }, 450);
+function requestAgentSuggestion(suggestion: PublicationPromptSuggestion) {
+  if (suggestion.disabled || agentBusy.value) return;
+  assistantMetadataStage.value = suggestion.stage;
+  askAgent(suggestion.prompt);
+}
+
+async function resolveAgentClarification(toolCallId: string, choice: string) {
+  clearError();
+  await addToolOutput({
+    tool: "request_publication_clarification",
+    toolCallId,
+    output: { choice },
+  });
+}
+
+function retryAgentResponse() {
+  clearError();
+  regenerate();
+}
+
+function advanceAssistantStage(stage: PublicationStageId) {
+  const next = nextPublicationStage(stage);
+  if (next) assistantMetadataStage.value = next;
 }
 
 function applyAgentSuggestion(tool: string, suggestion: Record<string, unknown>) {
   if (tool === "suggest_identity") {
     if (typeof suggestion.title === "string") draft.title = suggestion.title;
     if (typeof suggestion.acronym === "string") draft.acronym = suggestion.acronym;
-    assistantMetadataStage.value = "description";
-    queueAgentInstruction("L’identification est validée. Propose maintenant uniquement une description détaillée, sans description courte pour le moment.");
+    if (draft.title.trim()) advanceAssistantStage("identity");
   }
   if (tool === "suggest_descriptions") {
     if (typeof suggestion.description === "string") draft.description = suggestion.description;
     if (typeof suggestion.shortDescription === "string" && suggestion.shortDescription) draft.shortDescription = suggestion.shortDescription;
     if (!draft.shortDescription && draft.description.length >= 200) {
       assistantMetadataStage.value = "short-description";
-      queueAgentInstruction("La description détaillée est validée et dépasse 200 caractères. Propose maintenant uniquement la description courte d’une ou deux phrases.");
     }
     else if (draft.shortDescription) {
-      assistantMetadataStage.value = "keywords";
-      queueAgentInstruction("Les descriptions sont validées. Propose maintenant uniquement les mots-clés.");
+      advanceAssistantStage("short-description");
     }
   }
   if (tool === "suggest_keywords" && Array.isArray(suggestion.tags)) {
     draft.tags = suggestion.tags.filter((tag): tag is string => typeof tag === "string");
-    assistantMetadataStage.value = "license";
-    queueAgentInstruction("Les mots-clés sont validés. Propose maintenant uniquement la licence.");
+    if (draft.tags.length) advanceAssistantStage("keywords");
   }
   if (tool === "suggest_license" && typeof suggestion.license === "string") {
     const normalized = suggestion.license.toLocaleLowerCase("fr-FR");
     draft.license = normalized.includes("ouverte") ? "lov2" : normalized.includes("odbl") ? "odbl" : "other";
-    assistantMetadataStage.value = "temporal";
-    queueAgentInstruction("La licence est validée. Propose maintenant uniquement la fréquence de mise à jour et la couverture temporelle.");
+    advanceAssistantStage("license");
   }
   if (tool === "suggest_temporal_metadata") {
     const mappings: Array<[keyof PublicationDraft, string]> = [
@@ -441,27 +505,20 @@ function applyAgentSuggestion(tool: string, suggestion: Record<string, unknown>)
         (draft[field] as string | string[]) = value;
       }
     }
-    assistantMetadataStage.value = "spatial";
-    queueAgentInstruction("Les informations temporelles sont validées. Propose maintenant uniquement la couverture et la granularité spatiales.");
+    advanceAssistantStage("temporal");
   }
   if (tool === "suggest_spatial_metadata") {
     if (typeof suggestion.spatialCoverage === "string") draft.spatialCoverage = suggestion.spatialCoverage;
     if (typeof suggestion.spatialGranularity === "string") draft.spatialGranularity = suggestion.spatialGranularity;
-    assistantMetadataStage.value = "complete";
+    advanceAssistantStage("spatial");
   }
 }
 
 async function nextStep() {
   if (!canContinue.value || step.value >= steps.length - 1) return;
-  const previous = step.value;
   step.value += 1;
   window.scrollTo({ top: 0, behavior: "smooth" });
   await nextTick();
-  if (previous === 0 && publicationContext.value && messages.value.length === 0) {
-    sendMessage({
-      text: "__AUTO__ Commence l’accompagnement par la première étape uniquement : propose un titre précis et, s’il est pertinent, un acronyme. N’appelle aucun autre tool avant que cette proposition soit validée.",
-    });
-  }
 }
 
 function previousStep() {
@@ -578,6 +635,7 @@ useSeoMeta({
               <section class="grid gap-4 md:grid-cols-[minmax(0,1fr)_12rem]">
                 <label class="block"><span class="text-[12px] font-medium">Titre du jeu de données <span class="text-[#ce0500]">*</span></span><input v-model="draft.title" class="mt-1.5 h-10 w-full rounded-md border border-[#e5e5e5] px-3 text-[13px] outline-none focus:border-[#000091]" required></label>
                 <label class="block"><span class="text-[12px] font-medium">Acronyme</span><input v-model="draft.acronym" class="mt-1.5 h-10 w-full rounded-md border border-[#e5e5e5] px-3 text-[13px] uppercase outline-none focus:border-[#000091]" maxlength="20" placeholder="Ex. RNE"></label>
+                <PublicationPromptSuggestions class="md:col-span-2" :disabled="agentBusy" :suggestions="publicationPromptSuggestions.identity" @select="requestAgentSuggestion" />
               </section>
               <section class="space-y-4 border-t border-[#e5e5e5] pt-5">
                 <div>
@@ -589,24 +647,27 @@ useSeoMeta({
                   </div>
                   <textarea id="publication-description" ref="descriptionTextarea" v-model="draft.description" class="h-40 w-full resize-y p-3 text-[13px] leading-6 outline-none" placeholder="Présentez le contenu, la granularité, la couverture et les limites…" required />
                 </div>
+                <PublicationPromptSuggestions class="mt-2" :disabled="agentBusy" :suggestions="publicationPromptSuggestions.description" @select="requestAgentSuggestion" />
                 </div>
-                <label class="block"><span class="text-[12px] font-medium">Description courte</span><span class="mt-0.5 block text-[11px] text-[#777777]">Une phrase concise utilisée dans les listes et résultats de recherche.</span><input v-model="draft.shortDescription" class="mt-1.5 h-10 w-full rounded-md border border-[#e5e5e5] px-3 text-[13px] outline-none focus:border-[#000091]" maxlength="280" placeholder="Résumez le contenu du jeu de données en une phrase"></label>
+                <div><label class="block"><span class="text-[12px] font-medium">Description courte</span><span class="mt-0.5 block text-[11px] text-[#777777]">Une phrase concise utilisée dans les listes et résultats de recherche.</span><input v-model="draft.shortDescription" class="mt-1.5 h-10 w-full rounded-md border border-[#e5e5e5] px-3 text-[13px] outline-none focus:border-[#000091]" maxlength="280" placeholder="Résumez le contenu du jeu de données en une phrase"></label><PublicationPromptSuggestions class="mt-2" :disabled="agentBusy" :suggestions="publicationPromptSuggestions['short-description']" @select="requestAgentSuggestion" /></div>
               </section>
               <label class="block"><span class="text-[12px] font-medium">Organisation productrice <span class="text-[#ce0500]">*</span></span><input v-model="draft.organization" class="mt-1.5 h-10 w-full rounded-md border border-[#e5e5e5] px-3 text-[13px] outline-none focus:border-[#000091]" required></label>
               <section class="space-y-4 border-t border-[#e5e5e5] pt-5">
-                <div><span class="text-[12px] font-medium">Mots-clés</span><div class="mt-1.5 flex gap-2"><input v-model="tagInput" class="h-10 min-w-0 flex-1 rounded-md border border-[#e5e5e5] px-3 text-[13px]" placeholder="Ajouter un mot-clé" @keydown.enter.prevent="addTag"><button class="h-10 rounded-md border border-[#000091] px-3 text-[12px] font-medium text-[#000091]" type="button" @click="addTag">Ajouter</button></div><div class="mt-2 flex flex-wrap gap-1.5"><button v-for="tag in draft.tags" :key="tag" class="inline-flex h-7 items-center gap-1 rounded-full border border-[#e5e5e5] bg-white px-2.5 text-[11px]" type="button" :aria-label="`Retirer ${tag}`" @click="draft.tags = draft.tags.filter(item => item !== tag)">{{ tag }}<i aria-hidden="true" class="ri-close-line text-[14px]" /></button></div></div>
+                <div><span class="text-[12px] font-medium">Mots-clés</span><div class="mt-1.5 flex gap-2"><input v-model="tagInput" class="h-10 min-w-0 flex-1 rounded-md border border-[#e5e5e5] px-3 text-[13px]" placeholder="Ajouter un mot-clé" @keydown.enter.prevent="addTag"><button class="h-10 rounded-md border border-[#000091] px-3 text-[12px] font-medium text-[#000091]" type="button" @click="addTag">Ajouter</button></div><div class="mt-2 flex flex-wrap gap-1.5"><button v-for="tag in draft.tags" :key="tag" class="inline-flex h-7 items-center gap-1 rounded-full border border-[#e5e5e5] bg-white px-2.5 text-[11px]" type="button" :aria-label="`Retirer ${tag}`" @click="draft.tags = draft.tags.filter(item => item !== tag)">{{ tag }}<i aria-hidden="true" class="ri-close-line text-[14px]" /></button></div><PublicationPromptSuggestions class="mt-2" :disabled="agentBusy" :suggestions="publicationPromptSuggestions.keywords" @select="requestAgentSuggestion" /></div>
               </section>
               <section class="border-t border-[#e5e5e5] pt-5">
-                <label class="block"><span class="text-[12px] font-medium">Licence</span><select v-model="draft.license" class="mt-1.5 h-10 w-full rounded-md border border-[#e5e5e5] bg-white px-3 text-[13px]"><option value="">Sélectionner une licence</option><option value="lov2">Licence Ouverte 2.0</option><option value="odbl">ODbL 1.0</option><option value="other">Autre licence</option><option value="unspecified">Licence non spécifiée</option></select></label>
+                <label class="block"><span class="text-[12px] font-medium">Licence</span><select v-model="draft.license" class="mt-1.5 h-10 w-full rounded-md border border-[#e5e5e5] bg-white px-3 text-[13px]"><option value="">Sélectionner une licence</option><option value="lov2">Licence Ouverte 2.0</option><option value="odbl">ODbL 1.0</option><option value="other">Autre licence</option><option value="unspecified">Licence non spécifiée</option></select></label><PublicationPromptSuggestions class="mt-2" :disabled="agentBusy" :suggestions="publicationPromptSuggestions.license" @select="requestAgentSuggestion" />
               </section>
               <section class="grid gap-4 border-t border-[#e5e5e5] pt-5 md:grid-cols-2">
                 <label class="block"><span class="text-[12px] font-medium">Fréquence de mise à jour <span class="text-[#ce0500]">*</span></span><select v-model="draft.frequency" class="mt-1.5 h-10 w-full rounded-md border border-[#e5e5e5] bg-white px-3 text-[13px]"><option value="" disabled>Sélectionner</option><option value="quotidienne">Quotidienne</option><option value="mensuelle">Mensuelle</option><option value="trimestrielle">Trimestrielle</option><option value="annuelle">Annuelle</option><option value="ponctuelle">Ponctuelle</option></select></label>
                 <fieldset><legend class="text-[12px] font-medium">Couverture temporelle</legend><div class="mt-1.5 grid gap-3 sm:grid-cols-2"><label><span class="text-[11px] text-[#555555]">Début</span><input v-model="draft.temporalStart" class="mt-1 h-10 w-full rounded-md border border-[#e5e5e5] px-3 text-[13px]" type="date"></label><label><span class="text-[11px] text-[#555555]">Fin</span><input v-model="draft.temporalEnd" class="mt-1 h-10 w-full rounded-md border border-[#e5e5e5] px-3 text-[13px]" type="date"></label></div></fieldset>
                 <p v-if="temporalRangeInvalid" class="text-[11px] text-[#ce0500] md:col-span-2" role="alert">La date de fin doit être postérieure à la date de début.</p>
+                <PublicationPromptSuggestions class="md:col-span-2" :disabled="agentBusy" :suggestions="publicationPromptSuggestions.temporal" @select="requestAgentSuggestion" />
               </section>
               <section class="grid gap-4 border-t border-[#e5e5e5] pt-5 md:grid-cols-2">
                 <label class="block"><span class="text-[12px] font-medium">Couverture spatiale</span><div class="relative mt-1.5"><i aria-hidden="true" class="ri-search-line absolute left-3 top-1/2 -translate-y-1/2 text-[14px] text-[#777777]" /><input v-model="draft.spatialCoverage" class="h-10 w-full rounded-md border border-[#e5e5e5] pl-9 pr-3 text-[13px]" placeholder="Rechercher un territoire ou un code Insee"></div></label>
                 <label class="block"><span class="text-[12px] font-medium">Granularité spatiale</span><select v-model="draft.spatialGranularity" class="mt-1.5 h-10 w-full rounded-md border border-[#e5e5e5] bg-white px-3 text-[13px]"><option value="">Sélectionner une granularité</option><option value="nationale">Nationale</option><option value="regionale">Régionale</option><option value="departementale">Départementale</option><option value="intercommunale">Intercommunale</option><option value="communale">Communale</option><option value="adresse">Adresse</option><option value="autre">Autre</option></select></label>
+                <PublicationPromptSuggestions class="md:col-span-2" :disabled="agentBusy" :suggestions="publicationPromptSuggestions.spatial" @select="requestAgentSuggestion" />
               </section>
             </form>
 
@@ -624,7 +685,7 @@ useSeoMeta({
             </footer>
           </section>
 
-          <PublicationAgentPanel :busy="agentBusy" :context="agentContext" :error-message="agentError?.message" :messages="messages" :recommendations="recommendations" :resource-organization="selectedFile?.resource.organization" :resource-title="selectedFile?.resource.title" :step-label="agentStepLabel" :tool="activeTool" @apply-suggestion="applyAgentSuggestion" @ask="askAgent" />
+          <PublicationAgentPanel v-model:model-id="selectedModelId" :busy="agentBusy" :context="agentContext" :error-message="agentError?.message" :messages="messages" :recommendations="recommendations" :resource-organization="selectedFile?.resource.organization" :resource-title="selectedFile?.resource.title" :step-label="agentStepLabel" :suggestions="step === 1 ? activePromptSuggestions : []" :tool="activeTool" @apply-suggestion="applyAgentSuggestion" @ask="askAgent" @clarify="resolveAgentClarification" @retry="retryAgentResponse" @select-suggestion="requestAgentSuggestion" @stop="stopAgent" />
         </div>
       </template>
     </div>

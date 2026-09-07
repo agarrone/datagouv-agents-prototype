@@ -3,6 +3,9 @@ export const sqlPrompt = `Politique SQL :
   corrections comprises ; si aucune requête n’aboutit, explique l’échec ;
 - écris une unique requête DuckDB en lecture seule sur la table data ;
 - utilise uniquement les colonnes attestées par le schéma ;
+- entoure systématiquement chaque nom de colonne de guillemets doubles, même
+  lorsqu’il paraît simple ; c’est indispensable pour les noms contenant un
+  point, un espace, un tiret ou un mot réservé (par exemple "metric.views") ;
 - limite les projections aux colonnes utiles à la réponse ;
 - respecte le mode de correspondance demandé : égalité, contient, commence par,
   se termine par, comparaison numérique ou intervalle ;

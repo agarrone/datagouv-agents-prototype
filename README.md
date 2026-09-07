@@ -76,7 +76,7 @@ reçoit le contexte courant, le schéma et les résultats nécessaires à la ré
 
 - Nuxt 4, Vue 3 et TypeScript strict ;
 - Vercel AI SDK 7 et AI SDK Vue ;
-- GPT-OSS-120B mis à disposition par Albert API ;
+- Mistral Medium 3.5 mis à disposition par Albert API ;
 - DuckDB-WASM pour le SQL local ;
 - ECharts pour les graphiques ;
 - MapLibre GL et les fonds OpenMapTiles de data.gouv.fr pour les cartes ;
@@ -111,7 +111,7 @@ ALBERT_MODEL=
 ```
 
 Albert est le fournisseur d’accès aux modèles. Le modèle actuellement utilisé
-est GPT-OSS-120B ; `ALBERT_MODEL` contient l’identifiant attendu par Albert pour
+est Mistral Medium 3.5 ; `ALBERT_MODEL` contient l’identifiant attendu par Albert pour
 l’appeler. Les secrets restent exclusivement côté serveur. Le prototype ne
 configure pas Vercel AI Gateway.
 
