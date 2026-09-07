@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { LanguageModelUsage } from "ai";
+import { agentModels, agentModelLabel, DEFAULT_AGENT_MODEL_ID, type AgentModelId } from "~~/shared/agents/models";
 
 const props = defineProps<{
   disabled: boolean;
@@ -12,9 +13,16 @@ const props = defineProps<{
 }>();
 
 const model = defineModel<string>({ required: true });
+const selectedModelId = defineModel<AgentModelId>("selectedModelId", { default: DEFAULT_AGENT_MODEL_ID });
 const emit = defineEmits<{ cancelEdit: []; submit: []; stop: [] }>();
 const textarea = ref<HTMLTextAreaElement | null>(null);
 const modelDetails = ref<HTMLDetailsElement | null>(null);
+const selectedModelLabel = computed(() => agentModelLabel(selectedModelId.value));
+
+function selectModel(id: AgentModelId) {
+  selectedModelId.value = id;
+  if (modelDetails.value) modelDetails.value.open = false;
+}
 
 function resizeTextarea() {
   const element = textarea.value;
@@ -99,18 +107,29 @@ function handleEnter(event: KeyboardEvent) {
         <footer class="flex items-center justify-between gap-3">
           <div class="flex min-w-0 items-center gap-1">
             <ExplorationTokenUsage :usage="usage" />
-            <details ref="modelDetails" class="group/model relative h-6">
+            <details ref="modelDetails" class="group/model relative h-6" :class="responding ? 'pointer-events-none opacity-60' : ''">
               <summary
-                aria-label="Informations sur le modèle GPT-OSS-120B"
+                :aria-label="`Choisir le modèle. Modèle actif : ${selectedModelLabel}`"
                 class="agent-focusable flex h-6 max-w-[150px] cursor-pointer list-none items-center rounded-full border border-[#e5e5e5] px-1.5 text-[11px] leading-4 text-[#555555] transition-[background-color,color] duration-150 hover:bg-[#f6f6f6] hover:text-[#161616] [&::-webkit-details-marker]:hidden"
                 title="Informations sur le modèle"
               >
-                <span class="truncate">GPT-OSS-120B</span>
+                <span class="truncate">{{ selectedModelLabel }}</span>
+                <i aria-hidden="true" class="ri-arrow-down-s-line ml-1 text-[13px] leading-none" />
               </summary>
-              <div
-                class="absolute bottom-7 left-0 z-30 w-[230px] rounded-md border border-[#e5e5e5] bg-white p-2 text-[11px] leading-4 text-[#555555] shadow-[0_2px_4px_rgba(0,0,0,0.04),2px_4px_16px_rgba(0,0,0,0.12)]"
-              >
-                Modèle GPT-OSS-120B, mis à disposition par le fournisseur d’accès Albert API.
+              <div class="absolute bottom-7 left-0 z-30 w-[230px] overflow-hidden rounded-md border border-[#e5e5e5] bg-white p-1 text-[11px] leading-4 text-[#555555] shadow-[0_2px_4px_rgba(0,0,0,0.04),2px_4px_16px_rgba(0,0,0,0.12)]">
+                <p class="px-2 py-1 text-[10px] uppercase tracking-[0.04em] text-[#777777]">Modèle via Albert API</p>
+                <button
+                  v-for="availableModel in agentModels"
+                  :key="availableModel.id"
+                  :disabled="responding"
+                  class="agent-focusable flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left hover:bg-[#f6f6f6]"
+                  :class="availableModel.id === selectedModelId ? 'text-[#000091]' : 'text-[#3a3a3a]'"
+                  type="button"
+                  @click="selectModel(availableModel.id)"
+                >
+                  <i aria-hidden="true" class="ri-check-line text-[14px]" :class="availableModel.id === selectedModelId ? 'opacity-100' : 'opacity-0'" />
+                  <span>{{ availableModel.label }}</span>
+                </button>
               </div>
             </details>
           </div>

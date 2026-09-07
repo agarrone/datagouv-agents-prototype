@@ -33,6 +33,14 @@ export const spatialSuggestionSchema = z.object({
 
 /** Chaque tool correspond à une étape visible de l’accompagnement. */
 export const publicationTools = {
+  request_publication_clarification: tool({
+    description: "Suspend la suggestion lorsqu’une information métier indispensable manque. Pose une question courte et propose 2 à 4 réponses compréhensibles, affichées comme des choix cliquables.",
+    inputSchema: z.object({
+      question: z.string().trim().min(1),
+      choices: z.array(z.string().trim().min(1).max(100)).min(2).max(4),
+    }),
+    outputSchema: z.object({ choice: z.string().trim().min(1) }),
+  }),
   suggest_identity: tool({
     description: "Première étape uniquement : propose un titre précis utilisant le vocabulaire de recherche et un éventuel acronyme. L’acronyme peut être vide.",
     inputSchema: identitySuggestionSchema,

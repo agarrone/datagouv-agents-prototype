@@ -14,12 +14,14 @@ import {
   type ExplorationResource,
 } from "~~/shared/data/exploration-resources";
 import type { ExplorationMessage } from "~~/shared/types/exploration";
+import { DEFAULT_AGENT_MODEL_ID, type AgentModelId } from "~~/shared/agents/models";
 import {
   classifyExplorationError,
   type ExplorationRecoveryAction,
 } from "~~/shared/errors/exploration";
 
 const input = ref("");
+const selectedModelId = ref<AgentModelId>(DEFAULT_AGENT_MODEL_ID);
 const route = useRoute();
 const initialPrompt = queryValue("prompt").trim();
 const initialPromptPending = ref(Boolean(initialPrompt));
@@ -111,6 +113,7 @@ const {
           messages,
           trigger,
           messageId,
+          modelId: selectedModelId.value,
           resource: {
             datasetId: resource.datasetReference,
             resourceId: resource.id,
@@ -744,6 +747,7 @@ async function resolveClarification(toolCallId: string, choice: string) {
           v-show="panelMode === 'assistant'"
           ref="composer"
           v-model="input"
+          v-model:selected-model-id="selectedModelId"
           :disabled="dataset.status.value !== 'ready'"
           :editing="Boolean(editingMessageId)"
           :resource-organization="dataset.activeResource.value?.organization"

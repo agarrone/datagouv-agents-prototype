@@ -112,19 +112,19 @@ function tableToRows(
 async function createDatabase(parquetUrl: string) {
   const [
     duckdb,
-    { default: duckdbMvpWasm },
-    { default: duckdbMvpWorker },
+    { default: duckdbEhWasm },
+    { default: duckdbEhWorker },
   ] = await Promise.all([
     import("@duckdb/duckdb-wasm"),
-    import("@duckdb/duckdb-wasm/dist/duckdb-mvp.wasm?url"),
+    import("@duckdb/duckdb-wasm/dist/duckdb-eh.wasm?url"),
     import(
-      "@duckdb/duckdb-wasm/dist/duckdb-browser-mvp.worker.js?url"
+      "@duckdb/duckdb-wasm/dist/duckdb-browser-eh.worker.js?url"
     ),
   ]);
-  const worker = new Worker(duckdbMvpWorker);
+  const worker = new Worker(duckdbEhWorker);
   activeWorker = worker;
   const database = new duckdb.AsyncDuckDB(new duckdb.VoidLogger(), worker);
-  await database.instantiate(duckdbMvpWasm);
+  await database.instantiate(duckdbEhWasm);
   await database.registerFileURL(
     "resource.parquet",
     parquetUrl,
@@ -145,17 +145,17 @@ async function createDatabase(parquetUrl: string) {
 async function createDatabaseFromFile(file: File) {
   const [
     duckdb,
-    { default: duckdbMvpWasm },
-    { default: duckdbMvpWorker },
+    { default: duckdbEhWasm },
+    { default: duckdbEhWorker },
   ] = await Promise.all([
     import("@duckdb/duckdb-wasm"),
-    import("@duckdb/duckdb-wasm/dist/duckdb-mvp.wasm?url"),
-    import("@duckdb/duckdb-wasm/dist/duckdb-browser-mvp.worker.js?url"),
+    import("@duckdb/duckdb-wasm/dist/duckdb-eh.wasm?url"),
+    import("@duckdb/duckdb-wasm/dist/duckdb-browser-eh.worker.js?url"),
   ]);
-  const worker = new Worker(duckdbMvpWorker);
+  const worker = new Worker(duckdbEhWorker);
   activeWorker = worker;
   const database = new duckdb.AsyncDuckDB(new duckdb.VoidLogger(), worker);
-  await database.instantiate(duckdbMvpWasm);
+  await database.instantiate(duckdbEhWasm);
   const extension = file.name.split(".").pop()?.toLocaleLowerCase() ?? "";
   const registeredName = extension === "parquet" ? "upload.parquet" : "upload.csv";
   await database.registerFileBuffer(

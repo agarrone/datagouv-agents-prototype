@@ -75,7 +75,7 @@ useSeoMeta({
       </DocumentationSection>
 
       <DocumentationSection id="modele" title="Le modèle utilisé">
-        <p>Le prototype utilise actuellement <strong>GPT-OSS-120B</strong>. Ce modèle est mis à disposition par <strong>Albert API</strong>, qui est le fournisseur d’accès aux modèles et non un modèle. La clé Albert n’est jamais exposée au navigateur.</p>
+        <p>Le prototype utilise actuellement <strong>Mistral Medium 3.5</strong>. Ce modèle est mis à disposition par <strong>Albert API</strong>, qui est le fournisseur d’accès aux modèles et non un modèle. La clé Albert n’est jamais exposée au navigateur.</p>
         <p>Le modèle ne reçoit pas spontanément l’intégralité du fichier. Il reçoit le contexte de la ressource, puis demande à l’application d’exécuter les outils nécessaires.</p>
       </DocumentationSection>
 

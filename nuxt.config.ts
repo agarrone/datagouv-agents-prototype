@@ -17,6 +17,8 @@ export default defineNuxtConfig({
     albertApiUrl: "",
     albertApiKey: "",
     albertModel: "",
+    albertTemperature: "",
+    albertPresencePenalty: "",
   },
   typescript: {
     strict: true,
