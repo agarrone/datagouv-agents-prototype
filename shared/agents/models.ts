@@ -1,17 +1,17 @@
 export const agentModels = [
   {
-    id: "mistral-medium-3-5-128b",
+    id: "mistral-medium-3-5",
     label: "Mistral Medium 3.5",
   },
   {
-    id: "openai/gpt-oss-120b",
+    id: "gpt-oss-120b",
     label: "GPT-OSS-120B",
   },
 ] as const;
 
 export type AgentModelId = typeof agentModels[number]["id"];
 
-export const DEFAULT_AGENT_MODEL_ID: AgentModelId = "mistral-medium-3-5-128b";
+export const DEFAULT_AGENT_MODEL_ID: AgentModelId = "mistral-medium-3-5";
 
 export function isAgentModelId(value: unknown): value is AgentModelId {
   return typeof value === "string" && agentModels.some(model => model.id === value);
