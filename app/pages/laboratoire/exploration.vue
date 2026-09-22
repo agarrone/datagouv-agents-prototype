@@ -81,6 +81,7 @@ const announcedToolErrorCount = ref(0);
 let settledErrorSoundTimer: ReturnType<typeof setTimeout> | undefined;
 let respondingSettleTimer: ReturnType<typeof setTimeout> | undefined;
 let mobileMediaQuery: MediaQueryList | undefined;
+let currentTurnStartedAt = Date.now();
 const runtimeBridge: {
   addToolOutput?: ChatAddToolOutputFunction<ExplorationMessage>;
 } = {};
@@ -90,6 +91,21 @@ const toolRuntime = useExplorationToolRuntime(dataset, (output) => {
   }
   return runtimeBridge.addToolOutput(output);
 });
+
+function shouldContinueAfterTools(options: { messages: ExplorationMessage[] }) {
+  const lastMessage = options.messages.at(-1);
+  if (lastMessage?.role === "assistant") {
+    const visualizationReady = lastMessage.parts.some(part =>
+      (part.type === "tool-create_chart" || part.type === "tool-create_map")
+      && part.state === "output-available",
+    );
+    // La carte ou le graphique constitue le résultat final. Ne pas renvoyer
+    // ses centaines de lignes au modèle uniquement pour obtenir une phrase de
+    // conclusion déjà portée par le titre, la description et le raisonnement.
+    if (visualizationReady) return false;
+  }
+  return lastAssistantMessageIsCompleteWithToolCalls(options);
+}
 
 const {
   addToolOutput,
@@ -114,6 +130,7 @@ const {
           trigger,
           messageId,
           modelId: selectedModelId.value,
+          turnStartedAt: currentTurnStartedAt,
           resource: {
             datasetId: resource.datasetReference,
             resourceId: resource.id,
@@ -132,7 +149,7 @@ const {
       };
     },
   }),
-  sendAutomaticallyWhen: lastAssistantMessageIsCompleteWithToolCalls,
+  sendAutomaticallyWhen: shouldContinueAfterTools,
   onToolCall: toolRuntime.handleToolCall,
   onFinish({ message }) {
     const questionCount = messages.value.filter(item => item.role === "user").length;
@@ -217,6 +234,9 @@ const datasetErrorPresentation = computed(() => dataset.error.value
 const lastUserMessageId = computed(() => [...messages.value]
   .reverse()
   .find(message => message.role === "user")?.id);
+const lastUserMessageIndex = computed(() => messages.value.findLastIndex(
+  message => message.role === "user",
+));
 
 function previousUserQuestion(messageIndex: number) {
   for (let index = messageIndex - 1; index >= 0; index -= 1) {
@@ -359,6 +379,10 @@ async function submit() {
   clearError();
   const messageId = editingMessageId.value;
   latestResponseUsage.value = undefined;
+  currentTurnStartedAt = Date.now();
+  // La déduplication ne vaut que pour une question : une nouvelle intention
+  // peut légitimement réutiliser le même SQL sur un état différent.
+  toolRuntime.reset();
   input.value = "";
   editingMessageId.value = null;
   await sendMessage({
@@ -436,6 +460,7 @@ async function selectResource(resource: ExplorationResource) {
   try {
     await dataset.load(resource);
     if (changesResource) {
+      toolRuntime.reset();
       messages.value = [];
       input.value = "";
       editingMessageId.value = null;
@@ -502,6 +527,7 @@ async function applyExplorerProposal(
   sql: string,
   title: string,
 ) {
+  currentTurnStartedAt = Date.now();
   try {
     const view = await dataset.applyExplorerView(sql, title);
     if (/\bwhere\b/i.test(sql)) playUiSound("whisper");
@@ -529,6 +555,7 @@ async function applyExplorerProposal(
 }
 
 async function declineExplorerProposal(toolCallId: string, title: string) {
+  currentTurnStartedAt = Date.now();
   await addToolOutput({
     tool: "propose_explorer_view",
     toolCallId,
@@ -546,6 +573,7 @@ async function declineExplorerProposal(toolCallId: string, title: string) {
 
 async function resolveClarification(toolCallId: string, choice: string) {
   clearError();
+  currentTurnStartedAt = Date.now();
   await addToolOutput({
     tool: "request_clarification",
     toolCallId,
@@ -710,6 +738,7 @@ async function resolveClarification(toolCallId: string, choice: string) {
             :message="message"
             :question="message.role === 'assistant' ? previousUserQuestion(messageIndex) : undefined"
             :source="dataset.activeResource.value ? `${dataset.activeResource.value.title} · ${dataset.activeResource.value.organization}` : undefined"
+            :superseded="message.role === 'assistant' && messageIndex < lastUserMessageIndex"
             :responding="isResponding && message.id === activeAssistantMessageId"
             :show-feedback-prompt="message.role === 'assistant' && message.id === conversationFeedbackMessageId"
             :feedback-context="message.role === 'assistant' && dataset.activeResource.value ? {

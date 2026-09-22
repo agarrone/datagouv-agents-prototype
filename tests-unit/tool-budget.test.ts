@@ -10,17 +10,17 @@ function message(value: Partial<ExplorationMessage>): ExplorationMessage {
 }
 
 describe("SQL tool budget", () => {
-  it("counts distinct SQL calls after the latest user question", () => {
+  it("counts distinct SQL attempts after the latest user question", () => {
     const messages = [
       message({ role: "user", parts: [{ type: "text", text: "Ancienne question" }] }),
-      message({ role: "assistant", parts: [{ type: "tool-execute_sql", toolCallId: "old" }] }),
+      message({ role: "assistant", parts: [{ type: "tool-execute_sql", toolCallId: "old", state: "output-error", input: { sql: "SELECT old", purpose: "Ancien" }, errorText: "Ancien échec" }] }),
       message({ role: "user", parts: [{ type: "text", text: "Question courante" }] }),
       message({
         role: "assistant",
         parts: [
-          { type: "tool-execute_sql", toolCallId: "sql-1" },
-          { type: "tool-execute_sql", toolCallId: "sql-2" },
-          { type: "tool-execute_sql", toolCallId: "sql-2" },
+          { type: "tool-execute_sql", toolCallId: "sql-1", state: "output-error", input: { sql: "SELECT 1;", purpose: "Premier" }, errorText: "Échec" },
+          { type: "tool-execute_sql", toolCallId: "sql-2", state: "output-error", input: { sql: "SELECT 2", purpose: "Deuxième" }, errorText: "Échec" },
+          { type: "tool-execute_sql", toolCallId: "sql-3", state: "output-error", input: { sql: "SELECT 1", purpose: "Même requête, autre objectif" }, errorText: "Échec" },
         ],
       }),
     ];
@@ -32,6 +32,23 @@ describe("SQL tool budget", () => {
   it("returns zero when the current question has no SQL call", () => {
     const messages = [
       message({ role: "user", parts: [{ type: "text", text: "Bonjour" }] }),
+    ];
+
+    expect(countSqlCallsForCurrentQuestion(messages)).toBe(0);
+  });
+
+  it("does not count an interrupted SQL call that was never executed", () => {
+    const messages = [
+      message({ role: "user", parts: [{ type: "text", text: "Question" }] }),
+      message({
+        role: "assistant",
+        parts: [{
+          type: "tool-execute_sql",
+          toolCallId: "sql-interrupted",
+          state: "input-available",
+          input: { sql: "SELECT 1", purpose: "Tester" },
+        }],
+      }),
     ];
 
     expect(countSqlCallsForCurrentQuestion(messages)).toBe(0);

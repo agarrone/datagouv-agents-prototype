@@ -15,11 +15,25 @@ import { buildExplorationInstructions } from "~~/server/agents/prompts/explorati
 import { explorerIntentInstruction } from "~~/server/agents/explorer-intent";
 import { deterministicSchemaAnswer } from "~~/server/agents/schema-answer";
 import {
-  countSqlCallsForCurrentQuestion,
   MAX_SQL_CALLS_PER_QUESTION,
+  sqlAttemptSignature,
+  sqlAttemptSignaturesForCurrentQuestion,
 } from "~~/server/agents/tool-budget";
 import { fetchDatasetMetadata } from "~~/server/services/datagouv";
 import { agentErrorMessage, normalizeAgentError } from "~~/server/agents/errors";
+
+const MODEL_REQUEST_TIMEOUT_MS = 120_000;
+const TURN_EXECUTION_TIMEOUT_MS = 240_000;
+const MAX_TOOL_OPERATIONS_PER_QUESTION = 8;
+
+function modelAbortSignal(event: Parameters<typeof defineEventHandler>[0] extends (event: infer T) => unknown ? T : never, timeoutMs: number) {
+  const timeoutSignal = AbortSignal.timeout(timeoutMs);
+  const requestSignal = event.node.req.signal;
+
+  return requestSignal instanceof AbortSignal
+    ? AbortSignal.any([requestSignal, timeoutSignal])
+    : timeoutSignal;
+}
 
 function structuredHttpError(error: unknown, fallbackStatusCode = 500) {
   const normalized = normalizeAgentError(error);
@@ -34,11 +48,58 @@ function structuredHttpError(error: unknown, fallbackStatusCode = 500) {
   });
 }
 
+function completedToolCallsForCurrentQuestion(messages: ExplorationMessage[]) {
+  const lastUserIndex = messages.findLastIndex(message => message.role === "user");
+  const completed = new Map<string, number>();
+  if (lastUserIndex < 0) return completed;
+
+  for (const message of messages.slice(lastUserIndex + 1)) {
+    for (const part of message.parts) {
+      if (!("state" in part) || part.state !== "output-available") continue;
+      if (!("input" in part)) continue;
+      const input = part.input;
+      const key = part.type === "tool-execute_sql"
+        && input
+        && typeof input === "object"
+        && "sql" in input
+        && typeof input.sql === "string"
+        ? `${part.type}:${sqlAttemptSignature(input.sql)}`
+        : `${part.type}:${JSON.stringify(input)}`;
+      completed.set(key, (completed.get(key) ?? 0) + 1);
+    }
+  }
+  return completed;
+}
+
+function terminalToolOperationsForCurrentQuestion(messages: ExplorationMessage[]) {
+  const lastUserIndex = messages.findLastIndex(message => message.role === "user");
+  const operations = new Set<string>();
+  if (lastUserIndex < 0) return operations;
+
+  for (const message of messages.slice(lastUserIndex + 1)) {
+    for (const part of message.parts) {
+      if (!("state" in part) || (part.state !== "output-available" && part.state !== "output-error")) continue;
+      if (part.type === "tool-request_clarification") continue;
+      const input = "input" in part ? part.input : undefined;
+      const key = part.type === "tool-execute_sql"
+        && input
+        && typeof input === "object"
+        && "sql" in input
+        && typeof input.sql === "string"
+        ? `${part.type}:${sqlAttemptSignature(input.sql)}`
+        : `${part.type}:${JSON.stringify(input)}`;
+      operations.add(key);
+    }
+  }
+  return operations;
+}
+
 export default defineEventHandler(async (event) => {
   const body = await readBody<{
     messages?: ExplorationMessage[];
     resource?: unknown;
     modelId?: unknown;
+    turnStartedAt?: unknown;
   }>(event);
   if (!Array.isArray(body.messages)) {
     throw createError({
@@ -104,8 +165,28 @@ export default defineEventHandler(async (event) => {
   const instructions = `${buildExplorationInstructions(resource.data, agentModelLabel(activeModelId))}${
     explorerIntentInstruction(body.messages)
   }`;
-  const previousSqlCalls = countSqlCallsForCurrentQuestion(body.messages);
+  const previousSqlSignatures = sqlAttemptSignaturesForCurrentQuestion(body.messages);
+  const previousToolOperations = terminalToolOperationsForCurrentQuestion(body.messages);
   const allToolNames = Object.keys(tools) as Array<keyof typeof tools>;
+  const completedCalls = completedToolCallsForCurrentQuestion(body.messages);
+  const completedToolTypes = new Set(
+    [...completedCalls.keys()].map(key => key.slice(0, key.indexOf(":"))),
+  );
+  const repeatedToolTypes = new Set(
+    [...completedCalls.entries()]
+      .filter(([, count]) => count > 1)
+      .map(([key]) => key.slice(0, key.indexOf(":"))),
+  );
+  const unavailableTools = new Set<keyof typeof tools>();
+  if (completedToolTypes.has("tool-create_chart")) unavailableTools.add("create_chart");
+  if (completedToolTypes.has("tool-create_map")) unavailableTools.add("create_map");
+  if (repeatedToolTypes.has("tool-execute_sql")) unavailableTools.add("execute_sql");
+  if (previousToolOperations.size >= MAX_TOOL_OPERATIONS_PER_QUESTION) {
+    allToolNames.forEach(name => unavailableTools.add(name));
+  }
+  const loopGuardInstruction = unavailableTools.size > 0
+    ? "\n\nDes opérations identiques ont déjà abouti pendant cette question. Ne les répète pas : utilise leurs résultats et termine maintenant la réponse en français."
+    : "";
 
   let model: ReturnType<typeof useAgentModel>;
   try {
@@ -116,37 +197,70 @@ export default defineEventHandler(async (event) => {
   }
 
   let completedStepCount = 0;
+  const requestedTurnStartedAt = typeof body.turnStartedAt === "number"
+    ? body.turnStartedAt
+    : Date.now();
+  const remainingTurnTime = Math.max(
+    1,
+    TURN_EXECUTION_TIMEOUT_MS - Math.max(0, Date.now() - requestedTurnStartedAt),
+  );
   const result = streamText({
     model,
     ...useAgentModelSettings(),
-    instructions,
+    instructions: `${instructions}${loopGuardInstruction}`,
     messages: await convertToModelMessages(body.messages, {
       tools,
+      // Une clarification, une proposition de vue ou une réponse interrompue
+      // peut légitimement laisser un appel interactif sans sortie. Il ne doit
+      // pas rendre toutes les questions suivantes impossibles à convertir.
+      ignoreIncompleteToolCalls: true,
     }),
     tools,
     prepareStep({ steps, instructions: stepInstructions }) {
-      const currentSqlCalls = steps.reduce(
-        (count, step) => count + step.toolCalls.filter(
-          call => call.toolName === "execute_sql",
-        ).length,
-        0,
-      );
-      if (previousSqlCalls + currentSqlCalls < MAX_SQL_CALLS_PER_QUESTION) {
-        return undefined;
+      const sqlSignatures = new Set(previousSqlSignatures);
+      const toolOperations = new Set(previousToolOperations);
+      for (const step of steps) {
+        for (const call of step.toolCalls) {
+          const genericKey = call.toolName === "execute_sql"
+            && call.input
+            && typeof call.input === "object"
+            && "sql" in call.input
+            && typeof call.input.sql === "string"
+            ? `tool-execute_sql:${sqlAttemptSignature(call.input.sql)}`
+            : `tool-${call.toolName}:${JSON.stringify(call.input)}`;
+          toolOperations.add(genericKey);
+          if (call.toolName !== "execute_sql") continue;
+          const input = call.input;
+          if (input && typeof input === "object" && "sql" in input && typeof input.sql === "string") {
+            sqlSignatures.add(sqlAttemptSignature(input.sql));
+          }
+        }
       }
-
       const currentInstructions = typeof stepInstructions === "string"
         ? stepInstructions
-        : instructions;
+        : `${instructions}${loopGuardInstruction}`;
+      const sqlLimitReached = sqlSignatures.size >= MAX_SQL_CALLS_PER_QUESTION;
+      const excludedTools = new Set(unavailableTools);
+      if (sqlLimitReached) excludedTools.add("execute_sql");
+      const toolLimitReached = toolOperations.size >= MAX_TOOL_OPERATIONS_PER_QUESTION;
+      if (toolLimitReached) allToolNames.forEach(name => excludedTools.add(name));
+
+      if (excludedTools.size === 0) return undefined;
+
       return {
-        activeTools: allToolNames.filter(name => name !== "execute_sql"),
-        instructions: currentInstructions.includes("Limite technique SQL atteinte")
+        activeTools: allToolNames.filter(name => !excludedTools.has(name)),
+        instructions: toolLimitReached
+          ? `${currentInstructions}\n\nGarde-fou interne : le budget global d’opérations de cette question est atteint. N’appelle plus aucun tool. Termine avec les résultats vérifiés disponibles, sans exposer cette limite si ces résultats suffisent.`
+          : !sqlLimitReached || currentInstructions.includes("Garde-fou interne : trois requêtes SQL")
           ? currentInstructions
-          : `${currentInstructions}\n\nLimite technique SQL atteinte : les trois appels autorisés pour cette question ont été consommés. N’appelle plus execute_sql ; réponds avec les résultats déjà obtenus ou explique sobrement pourquoi ils ne suffisent pas.`,
+          : `${currentInstructions}\n\nGarde-fou interne : trois requêtes SQL distinctes ont déjà été tentées pour la question courante. N’appelle plus execute_sql. Si les résultats obtenus suffisent, réponds normalement sans mentionner cette limite technique. Sinon, explique seulement que l’analyse n’a pas pu être vérifiée et propose à l’utilisateur de préciser sa question.`,
       };
     },
     stopWhen: isStepCount(5),
-    abortSignal: event.node.req.signal,
+    abortSignal: modelAbortSignal(
+      event,
+      Math.min(MODEL_REQUEST_TIMEOUT_MS, remainingTurnTime),
+    ),
     onStepFinish() {
       completedStepCount += 1;
     },

@@ -337,11 +337,11 @@ export function useDatasetEngine() {
     const table = await connection.query(`
       SELECT *
       FROM (${readOnlySql}) AS agent_result
-      LIMIT 101
+      LIMIT 21
     `);
     const allRows = tableToRows(table);
-    const truncated = allRows.length > 100;
-    const rows = allRows.slice(0, 100);
+    const truncated = allRows.length > 20;
+    const rows = allRows.slice(0, 20);
     verifiedQueries.add(readOnlySql);
     latestVerifiedQuery = readOnlySql;
 
@@ -579,6 +579,10 @@ export function useDatasetEngine() {
     activeView.value = null;
   }
 
+  function visualizationSourceKey() {
+    return latestVerifiedQuery;
+  }
+
   return {
     activeResource: readonly(activeResource),
     activeView: readonly(activeView),
@@ -598,5 +602,6 @@ export function useDatasetEngine() {
     resetExplorerView,
     schema: readonly(schema),
     status: readonly(status),
+    visualizationSourceKey,
   };
 }
