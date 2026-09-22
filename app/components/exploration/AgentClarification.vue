@@ -4,6 +4,7 @@ defineProps<{
   question: string;
   selected?: string;
   disabled?: boolean;
+  abandoned?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -30,6 +31,9 @@ const emit = defineEmits<{
     </div>
     <p v-if="selected" class="mt-1.5 text-[11px] leading-4 text-[#555555]">
       Choix retenu : {{ selected }}
+    </p>
+    <p v-else-if="abandoned" class="mt-1.5 text-[11px] leading-4 text-[#777777]">
+      Clarification non poursuivie
     </p>
   </section>
 </template>

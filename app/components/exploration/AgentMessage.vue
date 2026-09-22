@@ -18,6 +18,7 @@ const props = defineProps<{
   source?: string;
   feedbackContext?: FeedbackContext;
   showFeedbackPrompt?: boolean;
+  superseded?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -88,6 +89,8 @@ const displayedToolParts = computed(() => toolParts.value.filter((part, index, p
   );
 }));
 const toolsActive = computed(() => toolParts.value.some(part =>
+  !props.superseded
+  &&
   "state" in part
   && part.state !== "output-available"
   && part.state !== "output-error",
@@ -304,7 +307,9 @@ const toolTraceEntries = computed<ToolTraceEntry[]>(() => displayedToolParts.val
     return {
       ...base,
       description: "input" in part ? part.input?.reason : undefined,
-      summary: part.state === "output-available"
+      summary: props.superseded && part.state === "input-available"
+        ? "Non poursuivie"
+        : part.state === "output-available"
         ? `Vue prête · ${part.output.rowCount.toLocaleString("fr-FR")} lignes`
         : "Préparation en cours",
     };
@@ -584,7 +589,8 @@ function toolErrorContext(type: string) {
         <ExplorationAgentClarification
           v-if="'input' in part && part.input?.question && part.input.choices?.length"
           :choices="clarificationChoices(part.input.choices)"
-          :disabled="responding && part.state !== 'input-available'"
+          :abandoned="superseded"
+          :disabled="superseded || (responding && part.state !== 'input-available')"
           :question="part.input.question"
           :selected="undefined"
           @select="emit('clarify', part.toolCallId, $event)"
@@ -601,8 +607,8 @@ function toolErrorContext(type: string) {
           :reason="part.input.reason"
           :recovering="responding"
           :sql="part.input.sql"
-          :state="part.state"
-          :applied="part.state === 'output-available' ? part.output.applied : undefined"
+          :state="superseded && part.state === 'input-available' ? 'output-available' : part.state"
+          :applied="superseded && part.state === 'input-available' ? false : part.state === 'output-available' ? part.output.applied : undefined"
           :result-row-count="part.state === 'output-available' ? part.output.rowCount : undefined"
           :error="part.state === 'output-error' ? part.errorText : undefined"
           @apply="emit(

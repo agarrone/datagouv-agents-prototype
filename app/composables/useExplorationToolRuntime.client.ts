@@ -18,6 +18,7 @@ export interface ExplorationToolDataset {
   executeSql: (sql: string) => Promise<DatasetQueryResult>;
   createChartData: (requiredFields: string[]) => Promise<DatasetQueryResult>;
   createMapData: (spec: MapSpec) => Promise<MapDatasetResult>;
+  visualizationSourceKey: () => string | undefined;
 }
 
 export type ExplorationToolCallOptions = Parameters<
@@ -31,6 +32,59 @@ export function useExplorationToolRuntime(
   dataset: ExplorationToolDataset,
   addToolOutput: ExplorationAddToolOutput,
 ) {
+  const completedCalls = new Map<string, unknown>();
+  const pendingCalls = new Map<string, Promise<unknown>>();
+
+  function callKey(toolName: string, input: unknown) {
+    if (
+      toolName === "execute_sql"
+      && input
+      && typeof input === "object"
+      && "sql" in input
+      && typeof input.sql === "string"
+    ) {
+      return `${toolName}:${input.sql.trim().replace(/;+\s*$/, "")}`;
+    }
+    if (toolName === "create_chart" || toolName === "create_map") {
+      return `${toolName}:${dataset.visualizationSourceKey() ?? "no-source"}:${JSON.stringify(input)}`;
+    }
+    return `${toolName}:${JSON.stringify(input)}`;
+  }
+
+  function publishToolOutput(output: Parameters<ExplorationAddToolOutput>[0]) {
+    void Promise.resolve(addToolOutput(output)).catch((reason) => {
+      console.error("Impossible de publier le résultat du tool", {
+        tool: output.tool,
+        toolCallId: output.toolCallId,
+        reason,
+      });
+    });
+  }
+
+  async function executeOnce<T>(
+    toolName: string,
+    input: unknown,
+    execute: () => Promise<T>,
+  ): Promise<T> {
+    const key = callKey(toolName, input);
+    if (completedCalls.has(key)) return completedCalls.get(key) as T;
+
+    const pending = pendingCalls.get(key);
+    if (pending) return pending as Promise<T>;
+
+    const execution = execute().then((output) => {
+      completedCalls.set(key, output);
+      return output;
+    }).finally(() => pendingCalls.delete(key));
+    pendingCalls.set(key, execution);
+    return execution;
+  }
+
+  function reset() {
+    completedCalls.clear();
+    pendingCalls.clear();
+  }
+
   async function handleToolCall({ toolCall }: ExplorationToolCallOptions) {
     if (toolCall.dynamic) return;
 
@@ -42,8 +96,12 @@ export function useExplorationToolRuntime(
       }
 
       if (toolCall.toolName === "inspect_schema") {
-        const output = await dataset.inspectSchema();
-        void addToolOutput({
+        const output = await executeOnce(
+          toolCall.toolName,
+          toolCall.input,
+          dataset.inspectSchema,
+        );
+        publishToolOutput({
           tool: "inspect_schema",
           toolCallId: toolCall.toolCallId,
           output,
@@ -52,8 +110,12 @@ export function useExplorationToolRuntime(
       }
 
       if (toolCall.toolName === "execute_sql") {
-        const output = await dataset.executeSql(toolCall.input.sql);
-        void addToolOutput({
+        const output = await executeOnce(
+          toolCall.toolName,
+          toolCall.input,
+          () => dataset.executeSql(toolCall.input.sql),
+        );
+        publishToolOutput({
           tool: "execute_sql",
           toolCallId: toolCall.toolCallId,
           output,
@@ -62,10 +124,12 @@ export function useExplorationToolRuntime(
       }
 
       if (toolCall.toolName === "create_chart") {
-        const output = await dataset.createChartData(
-          chartRequiredFields(toolCall.input),
+        const output = await executeOnce(
+          toolCall.toolName,
+          toolCall.input,
+          () => dataset.createChartData(chartRequiredFields(toolCall.input)),
         );
-        void addToolOutput({
+        publishToolOutput({
           tool: "create_chart",
           toolCallId: toolCall.toolCallId,
           output,
@@ -74,17 +138,19 @@ export function useExplorationToolRuntime(
       }
 
       if (toolCall.toolName === "create_map") {
-        const output = await dataset.createMapData(
+        const output = await executeOnce(
+          toolCall.toolName,
           toolCall.input,
+          () => dataset.createMapData(toolCall.input),
         );
-        void addToolOutput({
+        publishToolOutput({
           tool: "create_map",
           toolCallId: toolCall.toolCallId,
           output,
         });
       }
     } catch (reason) {
-      void addToolOutput({
+      publishToolOutput({
         state: "output-error",
         tool: toolCall.toolName,
         toolCallId: toolCall.toolCallId,
@@ -95,5 +161,5 @@ export function useExplorationToolRuntime(
     }
   }
 
-  return { handleToolCall };
+  return { handleToolCall, reset };
 }
