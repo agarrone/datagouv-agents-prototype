@@ -7,6 +7,9 @@ const props = defineProps<{
   responding: boolean;
   resourceTitle?: string;
   resourceOrganization?: string;
+  contextTitle?: string;
+  contextDescription?: string;
+  contextInitiallyOpen?: boolean;
   editing?: boolean;
   usage?: LanguageModelUsage;
   disabledPlaceholder?: string;
@@ -71,7 +74,10 @@ function handleEnter(event: KeyboardEvent) {
     >
       <ExplorationResourceContext
         v-if="resourceTitle"
+        :context-description="contextDescription"
+        :context-title="contextTitle"
         :organization="resourceOrganization"
+        :initially-open="contextInitiallyOpen"
         :title="resourceTitle"
       />
       <div class="prompt-input-body flex h-28 flex-col justify-between bg-black/[0.02] px-2 py-2">

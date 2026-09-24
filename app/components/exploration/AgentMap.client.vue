@@ -544,6 +544,7 @@ onBeforeUnmount(() => {
     <div
       :class="isFullscreen ? 'fixed inset-0 z-[150] bg-white' : ''"
       :data-fullscreen="isFullscreen ? 'true' : 'false'"
+      data-visualization-card="map"
     >
       <ExplorationResultCard
         class="flex h-full flex-col"

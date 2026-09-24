@@ -5,11 +5,15 @@ withDefaults(defineProps<{
   title?: string;
   subtitle?: string;
   showSql?: boolean;
+  secondaryLabel?: string;
+  secondaryIcon?: string;
 }>(), {
   closable: false,
   showSql: true,
   subtitle: "Assistant d’exploration",
   title: "Interroger ces données",
+  secondaryLabel: "Console SQL",
+  secondaryIcon: "ri-terminal-line",
 });
 const emit = defineEmits<{ close: [] }>();
 </script>
@@ -54,8 +58,8 @@ const emit = defineEmits<{ close: [] }>();
         type="button"
         @click="mode = 'sql'"
       >
-        <i aria-hidden="true" class="ri-terminal-line text-base leading-none" :class="mode === 'sql' ? 'text-[#000091]' : 'text-[#555555]'" />
-        Console SQL
+        <i aria-hidden="true" :class="[secondaryIcon, mode === 'sql' ? 'text-[#000091]' : 'text-[#555555]']" class="text-base leading-none" />
+        {{ secondaryLabel }}
       </button>
     </nav>
   </header>

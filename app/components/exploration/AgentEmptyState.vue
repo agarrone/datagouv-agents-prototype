@@ -7,6 +7,9 @@ const props = defineProps<{
   loading?: boolean;
   resourceTitle?: string;
   schemaColumns?: readonly DatasetColumn[];
+  title?: string;
+  readyDescription?: string;
+  suggestions?: readonly string[];
 }>();
 
 const emit = defineEmits<{
@@ -14,7 +17,7 @@ const emit = defineEmits<{
   suggestion: [value: string];
 }>();
 
-const suggestions = computed(() => getStarterQuestions(props.schemaColumns ?? []));
+const suggestions = computed(() => props.suggestions ?? getStarterQuestions(props.schemaColumns ?? []));
 </script>
 
 <template>
@@ -33,7 +36,7 @@ const suggestions = computed(() => getStarterQuestions(props.schemaColumns ?? []
     </div>
 
     <h3 class="px-1 text-balance text-[15px] font-semibold leading-[1.4] text-[#161616]">
-      Assistant d’exploration de données
+      {{ title ?? "Assistant d’exploration de données" }}
     </h3>
 
     <template v-if="!ready">
@@ -59,7 +62,7 @@ const suggestions = computed(() => getStarterQuestions(props.schemaColumns ?? []
 
     <template v-else>
       <p class="mt-1 px-1 text-[13px] leading-5 text-[#555555]">
-        Posez une question sur ces données.
+        {{ readyDescription ?? "Posez une question sur ces données." }}
       </p>
       <div class="mt-2 flex flex-wrap gap-1.5">
         <ExplorationSuggestion
