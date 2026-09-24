@@ -1,11 +1,24 @@
 <script setup lang="ts">
-defineProps<{
+const props = withDefaults(defineProps<{
   title: string;
   organization?: string;
   format?: string;
-}>();
+  contextTitle?: string;
+  contextDescription?: string;
+  initiallyOpen?: boolean;
+}>(), {
+  contextTitle: undefined,
+  contextDescription: undefined,
+  initiallyOpen: false,
+  organization: undefined,
+  format: undefined,
+});
 
-const open = ref(false);
+const open = ref(props.initiallyOpen);
+
+watch(() => props.contextTitle, (contextTitle) => {
+  if (contextTitle) open.value = true;
+});
 </script>
 
 <template>
@@ -25,7 +38,7 @@ const open = ref(false);
         class="ri-arrow-down-s-line text-sm leading-none transition-transform duration-200 ease-out"
         :class="open ? '' : '-rotate-90'"
       />
-      <span>1 ressource utilisée</span>
+      <span>{{ contextTitle ? "Contexte utilisé par l’assistant" : "1 ressource utilisée" }}</span>
     </button>
     <div class="resource-context-panel grid grid-rows-[0fr] transition-[grid-template-rows] duration-200 ease-out" :class="open ? 'grid-rows-[1fr]' : ''">
       <div class="min-h-0 overflow-hidden">
@@ -34,6 +47,10 @@ const open = ref(false);
             <i aria-hidden="true" class="ri-table-line shrink-0 text-sm leading-none" />
             <span class="max-w-64 truncate text-[12px] font-medium leading-[1.35] max-sm:max-w-44">{{ title }}</span>
             <span class="shrink-0 border-l border-[#cacafb] pl-1.5 text-[11px] uppercase leading-4">{{ format ?? 'PARQUET' }}</span>
+          </span>
+          <span v-if="contextTitle" class="inline-flex h-7 min-w-0 max-w-full shrink-0 cursor-default items-center gap-1.5 rounded border border-[#cacafb] bg-white px-2 text-[#000091]" :title="contextDescription || contextTitle">
+            <i aria-hidden="true" class="ri-focus-3-line shrink-0 text-sm leading-none" />
+            <span class="max-w-56 truncate text-[12px] font-medium leading-[1.35]">{{ contextTitle }}</span>
           </span>
         </div>
       </div>

@@ -30,6 +30,7 @@ const props = defineProps<{
   truncated: boolean;
   source?: string;
   playCompletionSound?: boolean;
+  renderer?: "canvas" | "svg";
   appearance?: {
     orientation?: "horizontal" | "vertical";
     palette?: string[];
@@ -205,7 +206,7 @@ function chartOption(): EChartsCoreOption {
 
 function renderChart() {
   if (!chartElement.value) return;
-  chart ??= init(chartElement.value, undefined, { renderer: "canvas" });
+  chart ??= init(chartElement.value, undefined, { renderer: props.renderer ?? "canvas" });
   chart.setOption(chartOption(), true);
   if (props.playCompletionSound !== false && !completionSoundPlayed) {
     completionSoundPlayed = true;
@@ -397,6 +398,7 @@ onBeforeUnmount(() => {
     <div
       :class="isFullscreen ? 'fixed inset-0 z-[150] bg-white' : ''"
       :data-fullscreen="isFullscreen ? 'true' : 'false'"
+      data-visualization-card="chart"
     >
       <ExplorationResultCard
         class="flex h-full flex-col"

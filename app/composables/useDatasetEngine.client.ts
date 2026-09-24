@@ -234,11 +234,12 @@ export function useDatasetEngine() {
     if (schema.value) return schema.value;
 
     const connection = await getConnection();
-    const [description, count, sample] = await Promise.all([
-      connection.query("DESCRIBE data"),
-      connection.query("SELECT COUNT(*) AS count FROM data"),
-      connection.query("SELECT * FROM data LIMIT 5"),
-    ]);
+    // DuckDB-WASM n'autorise pas de manière fiable plusieurs requêtes
+    // concurrentes sur une même connexion. Les exécuter séquentiellement évite
+    // les erreurs Arrow intermittentes lors de l'initialisation d'une ressource.
+    const description = await connection.query("DESCRIBE data");
+    const count = await connection.query("SELECT COUNT(*) AS count FROM data");
+    const sample = await connection.query("SELECT * FROM data LIMIT 5");
     const descriptionRows = tableToRows(description);
     const countRows = tableToRows(count);
 
@@ -277,11 +278,9 @@ export function useDatasetEngine() {
     try {
       await resetDatabase();
       const connection = await getConnection(resource.parquetUrl);
-      const [description, count, sample] = await Promise.all([
-        connection.query("DESCRIBE data"),
-        connection.query("SELECT COUNT(*) AS count FROM data"),
-        connection.query("SELECT * FROM data LIMIT 5"),
-      ]);
+      const description = await connection.query("DESCRIBE data");
+      const count = await connection.query("SELECT COUNT(*) AS count FROM data");
+      const sample = await connection.query("SELECT * FROM data LIMIT 5");
       const descriptionRows = tableToRows(description);
       const countRows = tableToRows(count);
       const result: DatasetSchemaResult = {

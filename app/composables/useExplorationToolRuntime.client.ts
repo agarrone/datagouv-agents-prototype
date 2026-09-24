@@ -6,12 +6,19 @@ import {
   chartRequiredFields,
 } from "~~/shared/agents/visualization-fields";
 import type {
+  ChartSpec,
   MapDatasetResult,
   MapSpec,
   DatasetQueryResult,
   DatasetSchemaResult,
   ExplorationMessage,
 } from "~~/shared/types/exploration";
+
+interface ExplorationToolRuntimeHooks {
+  onChartReady?: (spec: ChartSpec, result: DatasetQueryResult) => void;
+  onMapReady?: (spec: MapSpec, result: MapDatasetResult) => void;
+  onSqlReady?: (sql: string, result: DatasetQueryResult) => void;
+}
 
 export interface ExplorationToolDataset {
   inspectSchema: () => Promise<DatasetSchemaResult>;
@@ -31,6 +38,7 @@ export type ExplorationAddToolOutput = ChatAddToolOutputFunction<
 export function useExplorationToolRuntime(
   dataset: ExplorationToolDataset,
   addToolOutput: ExplorationAddToolOutput,
+  hooks: ExplorationToolRuntimeHooks = {},
 ) {
   const completedCalls = new Map<string, unknown>();
   const pendingCalls = new Map<string, Promise<unknown>>();
@@ -115,6 +123,7 @@ export function useExplorationToolRuntime(
           toolCall.input,
           () => dataset.executeSql(toolCall.input.sql),
         );
+        hooks.onSqlReady?.(toolCall.input.sql, output);
         publishToolOutput({
           tool: "execute_sql",
           toolCallId: toolCall.toolCallId,
@@ -129,6 +138,7 @@ export function useExplorationToolRuntime(
           toolCall.input,
           () => dataset.createChartData(chartRequiredFields(toolCall.input)),
         );
+        hooks.onChartReady?.(toolCall.input, output);
         publishToolOutput({
           tool: "create_chart",
           toolCallId: toolCall.toolCallId,
@@ -143,6 +153,7 @@ export function useExplorationToolRuntime(
           toolCall.input,
           () => dataset.createMapData(toolCall.input),
         );
+        hooks.onMapReady?.(output.resolvedSpec, output);
         publishToolOutput({
           tool: "create_map",
           toolCallId: toolCall.toolCallId,
