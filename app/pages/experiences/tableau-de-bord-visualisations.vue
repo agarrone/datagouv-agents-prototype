@@ -139,6 +139,10 @@ interface DashboardBlockDraft {
   error: string;
 }
 
+function cloneSerializable<T>(value: T): T {
+  return JSON.parse(JSON.stringify(value)) as T;
+}
+
 const dataset = useDatasetEngine();
 const charts = ref<DashboardChart[]>([]);
 const textBlocks = ref<DashboardTextBlock[]>([]);
@@ -210,6 +214,7 @@ const dashboardId = ref<string>(crypto.randomUUID());
 const savedVisualizationDefinition = ref<DashboardVisualizationDefinition | null>(null);
 const visualizationIsDirty = ref(false);
 const trackVisualizationChanges = ref(false);
+const suspendManualDefinitionSync = ref(false);
 const persistenceStatus = ref<"idle" | "saving" | "saved" | "error">("idle");
 const lastPersistedAt = ref<Date | null>(null);
 const persistenceHydrated = ref(false);
@@ -240,7 +245,7 @@ function togglePreviewMode() {
   selectedBlockId.value = null;
   if (previewMode.value) {
     assistantOpen.value = false;
-    builderOpen.value = false;
+    closeBuilder();
   }
 }
 
@@ -255,6 +260,7 @@ const selectedDimension = ref("");
 const selectedAggregation = ref<Aggregation>("count");
 const selectedMeasure = ref("");
 const selectedAdditionalSeries = ref<DashboardSeriesConfig[]>([]);
+const selectedSortDirection = ref<"auto" | "ascending" | "descending">("auto");
 const selectedLimit = ref(10);
 const selectedSize = ref<CardSize>("medium");
 const selectedTitle = ref("");
@@ -273,6 +279,8 @@ const selectedMapBoundary = ref<"france-regions" | "france-departments">("france
 const naturalLanguagePrompt = ref("");
 const naturalLanguageError = ref("");
 const agentDraft = ref<{ spec: ChartSpec; rows: DatasetRow[] } | null>(null);
+const agentProposalSql = ref("");
+const proposalApplyError = ref("");
 const selectedModelId = ref<AgentModelId>(DEFAULT_AGENT_MODEL_ID);
 
 const chartTypes: Array<{ id: ChartType; label: string; icon: string; description: string }> = [
@@ -306,6 +314,12 @@ const selectedDataset = computed(() => (
   explorationResources.find(resource => resource.id === selectedResourceId.value)
   ?? explorationResources[0]!
 ));
+
+function datasetIdForResource(resource: ExplorationResource) {
+  return explorationResources.find(item => item.datasetReference === resource.datasetReference)?.id
+    ?? resource.id.split(":")[0]
+    ?? resource.id;
+}
 
 const usableDatasetResources = computed(() => datasetResourceChoices.value.filter(resource => Boolean(resource.parquetUrl)));
 
@@ -350,6 +364,35 @@ function semanticTypeForField(field: string): DashboardSemanticType {
   if (/INT|DOUBLE|FLOAT|DECIMAL|NUMERIC|REAL|HUGEINT/i.test(type)) return "number";
   if (/VARCHAR|TEXT|STRING/i.test(type)) return /nom|type|cat[ée]gorie|r[ée]gion|d[ée]partement|code/i.test(name) ? "category" : "text";
   return "unknown";
+}
+
+function sourceColumnForOutputField(sql: string, outputField: string) {
+  const escapedAlias = outputField.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const match = new RegExp(`([\\s\\S]*?)\\s+AS\\s+"?${escapedAlias}"?(?:\\s|,|$)`, "i").exec(sql);
+  const expression = match?.[1]?.split(",").at(-1) ?? "";
+  return activeSchema.value?.columns.find((column) => {
+    const quoted = quoteIdentifier(column.name);
+    return expression.includes(quoted) || new RegExp(`\\b${column.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i").test(expression);
+  })?.name;
+}
+
+function aggregationFromSql(sql: string, outputField = "value"): { aggregation: Aggregation; measure: string } {
+  const escapedAlias = outputField.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const valueExpression = new RegExp(`((?:COUNT|SUM|AVG)\\s*\\([\\s\\S]*?\\))\\s*(?:::INTEGER)?\\s+AS\\s+"?${escapedAlias}"?`, "i").exec(sql)?.[1] ?? "";
+  const aggregation: Aggregation = /COUNT\s*\(\s*DISTINCT/i.test(valueExpression)
+    ? "countDistinct"
+    : /SUM\s*\(/i.test(valueExpression)
+      ? "sum"
+      : /AVG\s*\(/i.test(valueExpression)
+        ? "average"
+        : "count";
+  const measure = activeSchema.value?.columns.find(column => valueExpression.includes(quoteIdentifier(column.name)))?.name ?? "";
+  return { aggregation, measure };
+}
+
+function limitFromSql(sql: string) {
+  const value = Number(/\bLIMIT\s+(\d+)/i.exec(sql)?.[1]);
+  return Number.isFinite(value) && value > 0 ? value : undefined;
 }
 
 function addSeries() {
@@ -587,6 +630,7 @@ const toolRuntime = useExplorationToolRuntime(dataset, (output) => {
     selectedSize.value = "medium";
     selectedSpecJson.value = JSON.stringify(spec, null, 2);
     visualizationDraft.value = currentVisualizationDefinition(spec);
+    proposalApplyError.value = "";
   },
   onMapReady(spec, result) {
     visualizationKind.value = "map";
@@ -595,8 +639,10 @@ const toolRuntime = useExplorationToolRuntime(dataset, (output) => {
     selectedDescription.value = spec.description;
     selectedSpecJson.value = JSON.stringify(spec, null, 2);
     visualizationDraft.value = currentVisualizationDefinition(spec);
+    proposalApplyError.value = "";
   },
   onSqlReady(sql) {
+    agentProposalSql.value = sql;
     selectedSql.value = sql;
     if (visualizationDraft.value) {
       visualizationDraft.value = {
@@ -712,7 +758,7 @@ function chartDefinition(chart: DashboardChart): ChartDefinition {
     description: chart.description,
     size: chart.size,
     data: { resourceId: chart.resource.id, datasetReference: chart.resource.datasetReference, resourceName: resourceContextName(chart.resource), resourceUrl: chart.resource.parquetUrl, engine: "duckdb-sql", query: chart.sql },
-    filters: structuredClone(toRaw(chart.filters ?? [])),
+    filters: cloneSerializable(chart.filters ?? []),
     specification: chartSpec(chart),
     appearance: chart.appearance ?? {
       orientation: chart.type === "bar" ? "horizontal" : "vertical",
@@ -731,7 +777,7 @@ function mapDefinition(map: DashboardMap): MapDefinition {
     description: map.spec.description,
     size: map.size,
     data: { resourceId: map.resource.id, datasetReference: map.resource.datasetReference, resourceName: resourceContextName(map.resource), resourceUrl: map.resource.parquetUrl, engine: "duckdb-sql", query: map.sql },
-    filters: structuredClone(toRaw(map.filters ?? [])),
+    filters: cloneSerializable(map.filters ?? []),
     specification: map.spec,
     appearance: map.appearance ?? {
       basemap: map.spec.type === "choropleth" ? "light" : "standard",
@@ -750,7 +796,7 @@ function indicatorDefinition(indicator: DashboardIndicator): IndicatorDefinition
     description: indicator.description,
     size: indicator.size,
     data: { resourceId: indicator.resource.id, datasetReference: indicator.resource.datasetReference, resourceName: resourceContextName(indicator.resource), resourceUrl: indicator.resource.parquetUrl, engine: "duckdb-sql", query: indicator.sql },
-    filters: structuredClone(toRaw(indicator.filters ?? [])),
+    filters: cloneSerializable(indicator.filters ?? []),
     specification: {
       type: "number",
       title: indicator.title,
@@ -778,7 +824,7 @@ function currentVisualizationDefinition(
       engine: "duckdb-sql" as const,
       query: selectedSql.value,
     },
-    filters: structuredClone(toRaw(selectedBlockFilters.value)),
+    filters: cloneSerializable(selectedBlockFilters.value),
   };
   if (visualizationKind.value === "chart") {
     const spec = parsedSpec as ChartSpec;
@@ -914,7 +960,11 @@ function aggregationSql() {
 
 function buildSql() {
   const dimension = quoteIdentifier(selectedDimension.value);
-  const direction = selectedType.value === "line" || selectedType.value === "area" ? "ASC" : "DESC";
+  const direction = selectedSortDirection.value === "ascending"
+    ? "ASC"
+    : selectedSortDirection.value === "descending"
+      ? "DESC"
+      : selectedType.value === "line" || selectedType.value === "area" ? "ASC" : "DESC";
   const additionalSeries = selectedAdditionalSeries.value
     .map((series, index) => `${aggregationExpression(series.aggregation, series.measure)} AS value_${index + 2}`)
     .join(",\n      ");
@@ -984,7 +1034,7 @@ function buildIndicatorSql() {
 }
 
 function updateManualDefinition() {
-  if (agentDraft.value || agentMapDraft.value) return;
+  if (suspendManualDefinitionSync.value || agentDraft.value || agentMapDraft.value) return;
   if (visualizationKind.value === "map") {
     if (selectedMapType.value === "choropleth") {
       selectedSql.value = buildChoroplethSql();
@@ -1035,7 +1085,7 @@ function updateManualDefinition() {
 }
 
 watch(
-  [visualizationKind, selectedType, selectedDimension, selectedAggregation, selectedMeasure, selectedLimit, selectedLatitude, selectedLongitude, selectedCoordinates, selectedLabel, selectedTitle, selectedDescription, selectedUnit, selectedMapType, selectedMapBoundary],
+  [visualizationKind, selectedType, selectedDimension, selectedAggregation, selectedMeasure, selectedLimit, selectedSortDirection, selectedLatitude, selectedLongitude, selectedCoordinates, selectedLabel, selectedTitle, selectedDescription, selectedUnit, selectedMapType, selectedMapBoundary],
   updateManualDefinition,
 );
 
@@ -1061,7 +1111,7 @@ watch(
 );
 
 watch(
-  [selectedResourceId, selectedDatasetResourceId, selectedType, selectedDimension, selectedAggregation, selectedMeasure, selectedLimit, selectedUnit, selectedLatitude, selectedLongitude, selectedCoordinates, selectedLabel, selectedMapType, selectedMapBoundary, selectedTitle, selectedDescription, selectedSize, selectedSql, selectedSpecJson, selectedBlockFilters, selectedAdditionalSeries, selectedChartOrientation, selectedChartPalette, selectedShowLegend, selectedShowValues, selectedMapBasemap, selectedMapPalette, selectedMapOpacity, selectedMapShowLegend],
+  [selectedResourceId, selectedDatasetResourceId, selectedType, selectedDimension, selectedAggregation, selectedMeasure, selectedLimit, selectedSortDirection, selectedUnit, selectedLatitude, selectedLongitude, selectedCoordinates, selectedLabel, selectedMapType, selectedMapBoundary, selectedTitle, selectedDescription, selectedSize, selectedSql, selectedSpecJson, selectedBlockFilters, selectedAdditionalSeries, selectedChartOrientation, selectedChartPalette, selectedShowLegend, selectedShowValues, selectedMapBasemap, selectedMapPalette, selectedMapOpacity, selectedMapShowLegend],
   () => {
     if (trackVisualizationChanges.value && isEditingVisualization.value) visualizationIsDirty.value = true;
   },
@@ -1184,6 +1234,7 @@ function resetBuilder() {
   selectedAggregation.value = "count";
   selectedMeasure.value = "";
   selectedAdditionalSeries.value = [];
+  selectedSortDirection.value = "auto";
   selectedLimit.value = 10;
   selectedSize.value = "medium";
   selectedTitle.value = "";
@@ -1199,6 +1250,10 @@ function resetBuilder() {
   selectedMapShowLegend.value = true;
   selectedMapType.value = "points";
   selectedMapBoundary.value = "france-regions";
+  selectedLatitude.value = "";
+  selectedLongitude.value = "";
+  selectedCoordinates.value = "";
+  selectedLabel.value = "";
   selectedUnit.value = "";
   activeSchema.value = null;
   builderError.value = "";
@@ -1206,6 +1261,8 @@ function resetBuilder() {
   naturalLanguageError.value = "";
   agentDraft.value = null;
   agentMapDraft.value = null;
+  agentProposalSql.value = "";
+  proposalApplyError.value = "";
   selectedSql.value = "";
   selectedSpecJson.value = "";
   manualPreviewRows.value = [];
@@ -1305,6 +1362,7 @@ function removeTextBlock(id: string) {
   blockOrder.value = blockOrder.value.filter(block => block.id !== id);
   if (activeDraft.value?.kind === "text" && activeDraft.value.blockId === id) activeDraft.value = null;
   if (editingTextBlockId.value === id) editingTextBlockId.value = null;
+  if (selectedBlockId.value === id) selectedBlockId.value = null;
 }
 
 function getTextBlock(id: string) { return textBlocks.value.find(block => block.id === id); }
@@ -1351,11 +1409,13 @@ function removeGroup(groupId: string) {
     if (block.groupId === groupId) block.groupId = fallbackGroup.id;
   });
   groups.value = groups.value.filter(group => group.id !== groupId);
+  if (targetGroupId.value === groupId) targetGroupId.value = fallbackGroup.id;
 }
 
 async function addGroupFilter(group: DashboardGroup) {
+  const resource = groupBlocks(group.id).find(block => block.kind !== "text")?.data.resource ?? selectedResource.value;
   if (!activeSchema.value) {
-    try { activeSchema.value = await dataset.load(selectedResource.value); }
+    try { activeSchema.value = await dataset.load(resource); }
     catch { return; }
   }
   const column = activeSchema.value?.columns.find(item => /région|region/i.test(item.name))?.name
@@ -1369,13 +1429,17 @@ async function addGroupFilter(group: DashboardGroup) {
     options: ["Toutes les valeurs"],
   };
   group.filters.push(filter);
-  await updateGroupFilterOptions(filter);
+  await updateGroupFilterOptions(filter, group);
 }
 
-async function updateGroupFilterOptions(filter: DashboardFilter) {
+async function updateGroupFilterOptions(filter: DashboardFilter, group?: DashboardGroup) {
   if (!filter.column) return;
+  const previousResource = dataset.activeResource.value;
+  const resource = group
+    ? groupBlocks(group.id).find(block => block.kind !== "text")?.data.resource ?? selectedResource.value
+    : selectedResource.value;
   try {
-    await dataset.load(selectedResource.value);
+    await dataset.load(resource);
     const result = await dataset.getExplorerValueOptions(filter.column);
     const values = result
       .map(option => option.label.trim())
@@ -1387,6 +1451,12 @@ async function updateGroupFilterOptions(filter: DashboardFilter) {
   catch {
     filter.options = ["Toutes les valeurs"];
     filter.value = filter.options[0]!;
+  }
+  finally {
+    if (previousResource && previousResource.parquetUrl !== resource.parquetUrl) {
+      try { await dataset.load(previousResource); }
+      catch { /* The next explicit action will reload its own resource. */ }
+    }
   }
 }
 
@@ -1445,7 +1515,15 @@ function applyGroupFilters(sql: string, filters: DashboardFilter[]) {
 }
 
 async function refreshGroupFilters() {
+  if (agentResponding.value || builderLoading.value) return;
   const version = ++filterRefreshVersion;
+  const previousResource = dataset.activeResource.value;
+  const restorePreviousResource = async () => {
+    if (previousResource && dataset.activeResource.value?.parquetUrl !== previousResource.parquetUrl) {
+      try { await dataset.load(previousResource); }
+      catch { /* The next explicit action will reload its own resource. */ }
+    }
+  };
   const nextRows: Record<string, DatasetRow[]> = {};
   const nextValues: Record<string, string | number> = {};
   const nextErrors: Record<string, DashboardFilterError> = {};
@@ -1464,7 +1542,10 @@ async function refreshGroupFilters() {
       await dataset.load(block.data.resource);
       const sql = applyBlockFilters(applyGroupFilters(block.data.sql, groupFilters), blockFilters);
       const result = await dataset.executeSql(sql);
-      if (version !== filterRefreshVersion) return;
+      if (version !== filterRefreshVersion) {
+        await restorePreviousResource();
+        return;
+      }
       nextRows[block.data.id] = result.rows;
       if (block.kind === "indicator") {
         const value = result.rows[0]?.value;
@@ -1490,10 +1571,14 @@ async function refreshGroupFilters() {
       };
     }
   }
-  if (version !== filterRefreshVersion) return;
+  if (version !== filterRefreshVersion) {
+    await restorePreviousResource();
+    return;
+  }
   filteredRowsByBlock.value = nextRows;
   filteredIndicatorValues.value = nextValues;
   filterErrorsByBlock.value = nextErrors;
+  await restorePreviousResource();
 }
 
 watch([groups, charts, maps, indicators], refreshGroupFilters, { deep: true });
@@ -1510,10 +1595,10 @@ function persistDashboard() {
     version: 2,
     id: dashboardId.value,
     page: { title: pageTitle.value, heading: pageHeading.value, description: pageDescription.value },
-    groups: structuredClone(toRaw(groups.value)),
-    layout: structuredClone(toRaw(blockOrder.value)),
+    groups: cloneSerializable(groups.value),
+    layout: cloneSerializable(blockOrder.value),
     visualizations,
-    textBlocks: structuredClone(toRaw(textBlocks.value)),
+    textBlocks: cloneSerializable(textBlocks.value),
     updatedAt: new Date().toISOString(),
   };
   try {
@@ -1533,23 +1618,28 @@ function restoreDashboardDocument(document: DashboardDocument) {
   pageTitle.value = document.page.title;
   pageHeading.value = document.page.heading;
   pageDescription.value = document.page.description;
-  groups.value = structuredClone(document.groups);
-  blockOrder.value = structuredClone(document.layout);
-  textBlocks.value = structuredClone(document.textBlocks);
+  groups.value = cloneSerializable(document.groups);
+  blockOrder.value = cloneSerializable(document.layout);
+  textBlocks.value = cloneSerializable(document.textBlocks);
   charts.value = [];
   maps.value = [];
   indicators.value = [];
   for (const record of document.visualizations) {
     const definition = record.definition;
-    const datasetResource = explorationResources.find(item => item.id === definition.data.resourceId) ?? explorationResources[0]!;
+    const datasetResource = explorationResources.find(item => item.id === definition.data.resourceId)
+      ?? explorationResources.find(item => item.datasetReference === definition.data.datasetReference)
+      ?? explorationResources[0]!;
     const resource: ExplorationResource = {
       ...datasetResource,
+      id: record.resource.id,
+      title: record.resource.title,
+      organization: record.resource.organization,
       datasetReference: definition.data.datasetReference ?? datasetResource.datasetReference,
       parquetUrl: definition.data.resourceUrl ?? datasetResource.parquetUrl,
       resourceName: definition.data.resourceName,
     };
     if (definition.kind === "chart") {
-      charts.value.push({ id: record.id, resource, type: definition.specification.type, title: definition.title, description: definition.description, dimension: definition.specification.xField, aggregation: "count", limit: record.rows.length, size: definition.size, rows: record.rows, spec: definition.specification, sql: definition.data.query, filters: definition.filters, appearance: definition.appearance, definition, revision: record.revision, savedAt: record.savedAt });
+      charts.value.push({ id: record.id, resource, type: definition.specification.type, title: definition.title, description: definition.description, dimension: definition.specification.xField, aggregation: "count", limit: limitFromSql(definition.data.query) ?? Math.min(Math.max(record.rows.length, 5), 50), size: definition.size, rows: record.rows, spec: definition.specification, sql: definition.data.query, filters: definition.filters, appearance: definition.appearance, definition, revision: record.revision, savedAt: record.savedAt });
     }
     else if (definition.kind === "map") {
       maps.value.push({ id: record.id, resource, title: definition.title, size: definition.size, rows: record.rows, spec: definition.specification, sql: definition.data.query, filters: definition.filters, appearance: definition.appearance, definition, revision: record.revision, savedAt: record.savedAt });
@@ -1671,6 +1761,7 @@ function applyDatasetResourceChoice(resourceId: string) {
   selectedDatasetResourceId.value = choice.id;
   selectedResourceOverride.value = {
     ...selectedDataset.value,
+    id: `${selectedDataset.value.id}:${choice.id}`,
     parquetUrl: choice.parquetUrl,
     resourceName: choice.title,
   };
@@ -1704,6 +1795,8 @@ async function selectDataset(resourceId: string) {
   selectedResourceOverride.value = null;
   agentDraft.value = null;
   agentMapDraft.value = null;
+  agentProposalSql.value = "";
+  proposalApplyError.value = "";
   clearAgentError();
   toolRuntime.reset();
   await loadDatasetResourceChoices();
@@ -1714,6 +1807,8 @@ async function selectDatasetResource(resourceId: string) {
   applyDatasetResourceChoice(resourceId);
   agentDraft.value = null;
   agentMapDraft.value = null;
+  agentProposalSql.value = "";
+  proposalApplyError.value = "";
   clearAgentError();
   toolRuntime.reset();
   await loadBuilderResource();
@@ -1726,6 +1821,8 @@ async function submitNaturalLanguage(prompt = naturalLanguagePrompt.value) {
   naturalLanguageError.value = "";
   agentDraft.value = null;
   agentMapDraft.value = null;
+  agentProposalSql.value = "";
+  proposalApplyError.value = "";
   clearAgentError();
   toolRuntime.reset();
   try {
@@ -1762,11 +1859,21 @@ async function retryAgent() {
 function discardAgentProposal() {
   agentDraft.value = null;
   agentMapDraft.value = null;
+  agentProposalSql.value = "";
+  proposalApplyError.value = "";
 }
 
 async function applyAgentProposal() {
   targetGroupId.value = selectedBlockReference.value?.groupId ?? assistantTargetGroup.value?.id ?? groups.value[0]!.id;
-  await saveChart();
+  proposalApplyError.value = "";
+  if (!selectedSql.value.trim() && agentProposalSql.value.trim()) selectedSql.value = agentProposalSql.value;
+  if (!selectedSql.value.trim()) {
+    proposalApplyError.value = "La proposition ne contient pas la requête SQL vérifiée. Demandez à l’assistant de recréer la visualisation.";
+    return;
+  }
+  const saved = await saveChart();
+  if (!saved) proposalApplyError.value = builderError.value || "La visualisation n’a pas pu être ajoutée.";
+  else discardAgentProposal();
 }
 
 function editAgentProposalManually() {
@@ -1807,7 +1914,10 @@ function canContinue() {
 async function saveChart() {
   if (visualizationKind.value === "map") return saveMap();
   if (visualizationKind.value === "indicator") return saveIndicator();
-  if (!selectedSql.value.trim() || !selectedSpecJson.value.trim()) return;
+  if (!selectedSql.value.trim() || !selectedSpecJson.value.trim()) {
+    builderError.value = "La requête SQL et la spécification du graphique sont requises.";
+    return false;
+  }
   builderLoading.value = true;
   builderError.value = "";
   try {
@@ -1830,9 +1940,11 @@ async function saveChart() {
     const validation = validateDashboardVisualization(definition, resultRows);
     if (!validation.valid) throw new Error(validation.errors.join(" "));
     visualizationDraft.value = definition;
-    savedVisualizationDefinition.value = structuredClone(toRaw(definition));
+    savedVisualizationDefinition.value = cloneSerializable(definition);
     visualizationIsDirty.value = false;
     const previousChart = editingChartId.value ? getChart(editingChartId.value) : undefined;
+    const sourceDimension = sourceColumnForOutputField(selectedSql.value, draftedSpec.xField) ?? selectedDimension.value;
+    const inferredAggregation = aggregationFromSql(selectedSql.value, draftedSpec.series[0]?.field);
     const chart: DashboardChart = {
       id: editingChartId.value
         ?? (assistantOpen.value && selectedBlockId.value && getChart(selectedBlockId.value) ? selectedBlockId.value : crypto.randomUUID()),
@@ -1840,16 +1952,16 @@ async function saveChart() {
       type: draftedSpec.type,
       title: draftedSpec.title || selectedTitle.value.trim() || suggestedTitle.value,
       description: draftedSpec.description || selectedDescription.value.trim() || defaultDescription(),
-      dimension: draftedSpec.xField,
-      aggregation: selectedAggregation.value,
-      measure: selectedAggregation.value === "count" ? undefined : selectedMeasure.value,
-      seriesConfig: structuredClone(toRaw(selectedAdditionalSeries.value)),
-      limit: selectedLimit.value,
+      dimension: sourceDimension,
+      aggregation: inferredAggregation.aggregation,
+      measure: inferredAggregation.aggregation === "count" ? undefined : inferredAggregation.measure || selectedMeasure.value,
+      seriesConfig: cloneSerializable(selectedAdditionalSeries.value),
+      limit: limitFromSql(selectedSql.value) ?? selectedLimit.value,
       size: selectedSize.value,
       rows: resultRows,
       spec: draftedSpec,
       sql: selectedSql.value,
-      filters: structuredClone(toRaw(selectedBlockFilters.value)),
+      filters: cloneSerializable(selectedBlockFilters.value),
       appearance: chartAppearance(),
       definition,
       revision: (previousChart?.revision ?? 0) + 1,
@@ -1862,33 +1974,37 @@ async function saveChart() {
       insertBlockReference({ id: chart.id, kind: "chart", groupId: targetGroupId.value });
     }
     closeBuilder();
+    return true;
   }
   catch (reason) {
     builderError.value = reason instanceof Error ? reason.message : "Le graphique n’a pas pu être créé.";
+    return false;
   }
   finally {
     builderLoading.value = false;
+    void refreshGroupFilters();
   }
 }
 
 async function editChart(chart: DashboardChart) {
   resetBuilder();
+  suspendManualDefinitionSync.value = true;
   const definition = chartDefinition(chart);
-  visualizationDraft.value = structuredClone(toRaw(definition));
-  savedVisualizationDefinition.value = structuredClone(toRaw(definition));
+  visualizationDraft.value = cloneSerializable(definition);
+  savedVisualizationDefinition.value = cloneSerializable(definition);
   selectedBlockId.value = chart.id;
   editingChartId.value = chart.id;
-  selectedResourceId.value = chart.resource.id;
+  selectedResourceId.value = datasetIdForResource(chart.resource);
   selectedType.value = chart.type;
   selectedDimension.value = chart.dimension;
   selectedAggregation.value = chart.aggregation;
   selectedMeasure.value = chart.measure ?? "";
-  selectedAdditionalSeries.value = structuredClone(toRaw(chart.seriesConfig ?? []));
+  selectedAdditionalSeries.value = cloneSerializable(chart.seriesConfig ?? []);
   selectedLimit.value = chart.limit;
   selectedSize.value = definition.size;
   selectedTitle.value = definition.title;
   selectedDescription.value = definition.description;
-  selectedBlockFilters.value = structuredClone(toRaw(definition.filters));
+  selectedBlockFilters.value = cloneSerializable(definition.filters);
   const appearance = definition.appearance;
   selectedChartOrientation.value = appearance?.orientation ?? (chart.type === "bar" ? "horizontal" : "vertical");
   selectedChartPalette.value = Object.entries(chartPalettes).find(([, palette]) => JSON.stringify(palette) === JSON.stringify(appearance?.palette))?.[0] ?? "default";
@@ -1901,22 +2017,37 @@ async function editChart(chart: DashboardChart) {
   activeDraft.value = { blockId: chart.id, kind: "chart", title: chart.title, description: chart.description, size: chart.size, sql: savedSql, specJson: savedSpecJson, rows: chart.rows, indicatorValue: null, error: "" };
   await loadDatasetResourceChoices(chart.resource.parquetUrl);
   await loadBuilderResource(true);
+  selectedDimension.value = sourceColumnForOutputField(savedSql, definition.specification.xField)
+    ?? (activeSchema.value?.columns.some(column => column.name === chart.dimension) ? chart.dimension : selectedDimension.value);
+  const inferredAggregation = aggregationFromSql(savedSql, definition.specification.series[0]?.field);
+  selectedAggregation.value = inferredAggregation.aggregation;
+  selectedMeasure.value = inferredAggregation.measure || selectedMeasure.value;
+  selectedSortDirection.value = /ORDER\s+BY\s+[^,]*\s+ASC\b/i.test(savedSql)
+    ? "ascending"
+    : /ORDER\s+BY\s+[^,]*\s+DESC\b/i.test(savedSql) ? "descending" : "auto";
   selectedSql.value = savedSql;
   selectedSpecJson.value = savedSpecJson;
   const normalizedDefinition = currentVisualizationDefinition(definition.specification);
   visualizationDraft.value = normalizedDefinition;
-  savedVisualizationDefinition.value = structuredClone(toRaw(normalizedDefinition));
+  savedVisualizationDefinition.value = cloneSerializable(normalizedDefinition);
+  await nextTick();
+  suspendManualDefinitionSync.value = false;
   beginTrackingVisualizationChanges();
 }
 
 function duplicateChart(chart: DashboardChart) {
   const index = charts.value.findIndex(item => item.id === chart.id);
   const id = crypto.randomUUID();
+  const definition = cloneSerializable(chartDefinition(chart));
+  definition.title = `${definition.title} — copie`;
   charts.value.splice(index + 1, 0, {
     ...chart,
     id,
     title: `${chart.title} — copie`,
     rows: [...chart.rows],
+    definition,
+    revision: 1,
+    savedAt: new Date().toISOString(),
   });
   const blockIndex = blockOrder.value.findIndex(block => block.id === chart.id);
   blockOrder.value.splice(blockIndex + 1, 0, { id, kind: "chart", groupId: blockOrder.value[blockIndex]?.groupId ?? groups.value[0]!.id });
@@ -1925,6 +2056,10 @@ function duplicateChart(chart: DashboardChart) {
 function removeChart(chartId: string) {
   charts.value = charts.value.filter(chart => chart.id !== chartId);
   blockOrder.value = blockOrder.value.filter(block => block.id !== chartId);
+  if (selectedBlockId.value === chartId) {
+    selectedBlockId.value = null;
+    closeBuilder();
+  }
 }
 
 async function saveMap() {
@@ -1950,7 +2085,7 @@ async function saveMap() {
     const validation = validateDashboardVisualization(definition, rows);
     if (!validation.valid) throw new Error(validation.errors.join(" "));
     visualizationDraft.value = definition;
-    savedVisualizationDefinition.value = structuredClone(toRaw(definition));
+    savedVisualizationDefinition.value = cloneSerializable(definition);
     visualizationIsDirty.value = false;
     const id = editingMapId.value
       ?? (assistantOpen.value && selectedBlockId.value && getMap(selectedBlockId.value) ? selectedBlockId.value : crypto.randomUUID());
@@ -1963,7 +2098,7 @@ async function saveMap() {
       rows,
       spec,
       sql: selectedSql.value,
-      filters: structuredClone(toRaw(selectedBlockFilters.value)),
+      filters: cloneSerializable(selectedBlockFilters.value),
       appearance: mapAppearance(),
       definition,
       revision: (previousMap?.revision ?? 0) + 1,
@@ -1976,28 +2111,34 @@ async function saveMap() {
       insertBlockReference({ id, kind: "map", groupId: targetGroupId.value });
     }
     closeBuilder();
+    return true;
   }
   catch (reason) {
     builderError.value = reason instanceof Error ? reason.message : "La carte n’a pas pu être créée.";
+    return false;
   }
-  finally { builderLoading.value = false; }
+  finally {
+    builderLoading.value = false;
+    void refreshGroupFilters();
+  }
 }
 
 async function editMap(map: DashboardMap) {
   selectedBlockId.value = map.id;
   resetBuilder();
+  suspendManualDefinitionSync.value = true;
   const definition = mapDefinition(map);
-  visualizationDraft.value = structuredClone(toRaw(definition));
-  savedVisualizationDefinition.value = structuredClone(toRaw(definition));
+  visualizationDraft.value = cloneSerializable(definition);
+  savedVisualizationDefinition.value = cloneSerializable(definition);
   editingMapId.value = map.id;
   visualizationKind.value = "map";
-  selectedResourceId.value = map.resource.id;
+  selectedResourceId.value = datasetIdForResource(map.resource);
   selectedTitle.value = definition.title;
   selectedDescription.value = definition.description;
   selectedSize.value = definition.size;
   selectedMapType.value = definition.specification.type === "choropleth" ? "choropleth" : "points";
   if (definition.specification.type === "choropleth") selectedMapBoundary.value = definition.specification.boundary;
-  selectedBlockFilters.value = structuredClone(toRaw(definition.filters));
+  selectedBlockFilters.value = cloneSerializable(definition.filters);
   selectedMapBasemap.value = definition.appearance.basemap;
   selectedMapPalette.value = Object.entries(mapPalettes).find(([, palette]) => JSON.stringify(palette) === JSON.stringify(definition.appearance.fillPalette))?.[0] ?? "blue";
   selectedMapOpacity.value = definition.appearance.fillOpacity;
@@ -2007,11 +2148,34 @@ async function editMap(map: DashboardMap) {
   activeDraft.value = { blockId: map.id, kind: "map", title: definition.title, description: definition.description, size: definition.size, sql: definition.data.query, specJson: JSON.stringify(definition.specification, null, 2), rows: map.rows, indicatorValue: null, error: "" };
   await loadDatasetResourceChoices(map.resource.parquetUrl);
   await loadBuilderResource(true);
+  if (definition.specification.type === "points") {
+    const latitudeSource = sourceColumnForOutputField(definition.data.query, definition.specification.latitudeField);
+    const longitudeSource = sourceColumnForOutputField(definition.data.query, definition.specification.longitudeField);
+    selectedLabel.value = sourceColumnForOutputField(definition.data.query, definition.specification.labelField) ?? selectedLabel.value;
+    if (latitudeSource && latitudeSource === longitudeSource) {
+      selectedCoordinates.value = latitudeSource;
+      selectedLatitude.value = "";
+      selectedLongitude.value = "";
+    }
+    else {
+      selectedCoordinates.value = "";
+      selectedLatitude.value = latitudeSource ?? selectedLatitude.value;
+      selectedLongitude.value = longitudeSource ?? selectedLongitude.value;
+    }
+  }
+  else if (definition.specification.type === "choropleth") {
+    selectedDimension.value = sourceColumnForOutputField(definition.data.query, definition.specification.dataKey) ?? selectedDimension.value;
+    const inferredAggregation = aggregationFromSql(definition.data.query, definition.specification.valueField);
+    selectedAggregation.value = inferredAggregation.aggregation;
+    selectedMeasure.value = inferredAggregation.measure || selectedMeasure.value;
+  }
   selectedSql.value = definition.data.query;
   selectedSpecJson.value = JSON.stringify(definition.specification, null, 2);
   const normalizedDefinition = currentVisualizationDefinition(definition.specification);
   visualizationDraft.value = normalizedDefinition;
-  savedVisualizationDefinition.value = structuredClone(toRaw(normalizedDefinition));
+  savedVisualizationDefinition.value = cloneSerializable(normalizedDefinition);
+  await nextTick();
+  suspendManualDefinitionSync.value = false;
   beginTrackingVisualizationChanges();
 }
 
@@ -2028,7 +2192,7 @@ async function saveIndicator() {
     const validation = validateDashboardVisualization(definition, result.rows);
     if (!validation.valid) throw new Error(validation.errors.join(" "));
     visualizationDraft.value = definition;
-    savedVisualizationDefinition.value = structuredClone(toRaw(definition));
+    savedVisualizationDefinition.value = cloneSerializable(definition);
     visualizationIsDirty.value = false;
     const id = editingIndicatorId.value ?? crypto.randomUUID();
     const previousIndicator = getIndicator(id);
@@ -2041,7 +2205,7 @@ async function saveIndicator() {
       unit: spec.unit ?? selectedUnit.value,
       size: selectedSize.value,
       sql: selectedSql.value,
-      filters: structuredClone(toRaw(selectedBlockFilters.value)),
+      filters: cloneSerializable(selectedBlockFilters.value),
       definition,
       revision: (previousIndicator?.revision ?? 0) + 1,
       savedAt: new Date().toISOString(),
@@ -2057,23 +2221,27 @@ async function saveIndicator() {
   catch (reason) {
     builderError.value = reason instanceof Error ? reason.message : "L’indicateur n’a pas pu être créé.";
   }
-  finally { builderLoading.value = false; }
+  finally {
+    builderLoading.value = false;
+    void refreshGroupFilters();
+  }
 }
 
 async function editIndicator(indicator: DashboardIndicator) {
   resetBuilder();
+  suspendManualDefinitionSync.value = true;
   const definition = indicatorDefinition(indicator);
-  visualizationDraft.value = structuredClone(toRaw(definition));
-  savedVisualizationDefinition.value = structuredClone(toRaw(definition));
+  visualizationDraft.value = cloneSerializable(definition);
+  savedVisualizationDefinition.value = cloneSerializable(definition);
   selectedBlockId.value = indicator.id;
   editingIndicatorId.value = indicator.id;
   visualizationKind.value = "indicator";
-  selectedResourceId.value = indicator.resource.id;
+  selectedResourceId.value = datasetIdForResource(indicator.resource);
   selectedTitle.value = definition.title;
   selectedDescription.value = definition.description;
   selectedUnit.value = definition.specification.unit ?? "";
   selectedSize.value = definition.size;
-  selectedBlockFilters.value = structuredClone(toRaw(definition.filters));
+  selectedBlockFilters.value = cloneSerializable(definition.filters);
   const savedSql = definition.data.query;
   const savedSpecJson = JSON.stringify(definition.specification, null, 2);
   panelMode.value = "sql";
@@ -2081,22 +2249,35 @@ async function editIndicator(indicator: DashboardIndicator) {
   activeDraft.value = { blockId: indicator.id, kind: "indicator", title: indicator.title, description: indicator.description, size: indicator.size, sql: savedSql, specJson: savedSpecJson, rows: [], indicatorValue: indicator.value, error: "" };
   await loadDatasetResourceChoices(indicator.resource.parquetUrl);
   await loadBuilderResource(true);
+  const inferredAggregation = aggregationFromSql(savedSql, definition.specification.valueField);
+  selectedAggregation.value = inferredAggregation.aggregation;
+  selectedMeasure.value = inferredAggregation.measure || selectedMeasure.value;
   selectedSql.value = savedSql;
   selectedSpecJson.value = savedSpecJson;
   const normalizedDefinition = currentVisualizationDefinition(definition.specification);
   visualizationDraft.value = normalizedDefinition;
-  savedVisualizationDefinition.value = structuredClone(toRaw(normalizedDefinition));
+  savedVisualizationDefinition.value = cloneSerializable(normalizedDefinition);
+  await nextTick();
+  suspendManualDefinitionSync.value = false;
   beginTrackingVisualizationChanges();
 }
 
 function removeIndicator(id: string) {
   indicators.value = indicators.value.filter(indicator => indicator.id !== id);
   blockOrder.value = blockOrder.value.filter(block => block.id !== id);
+  if (selectedBlockId.value === id) {
+    selectedBlockId.value = null;
+    closeBuilder();
+  }
 }
 
 function removeMap(id: string) {
   maps.value = maps.value.filter(map => map.id !== id);
   blockOrder.value = blockOrder.value.filter(block => block.id !== id);
+  if (selectedBlockId.value === id) {
+    selectedBlockId.value = null;
+    closeBuilder();
+  }
 }
 
 useSeoMeta({
@@ -2146,7 +2327,7 @@ useSeoMeta({
             <button class="agent-focusable inline-flex h-8 shrink-0 items-center gap-2 rounded-md border border-[#000091] px-3 text-[12px] font-medium text-[#000091] hover:bg-[#f5f5fe]" :class="assistantOpen ? 'bg-[#f5f5fe]' : 'bg-white'" type="button" @click="toggleAssistant()"><i aria-hidden="true" class="ri-sparkling-line text-[15px]" />Assistant</button>
           </div>
         </header>
-        <div class="min-h-0 flex-1 overflow-y-auto px-4 py-6 sm:px-6 lg:px-8" @click.self="selectedBlockId = null; builderOpen = false">
+        <div class="min-h-0 flex-1 overflow-y-auto px-4 py-6 sm:px-6 lg:px-8" @click.self="selectedBlockId = null; closeBuilder()">
       <section class="mb-5">
         <div class="w-full">
           <template v-if="previewMode"><h1 class="text-[24px] font-bold leading-8">{{ pageHeading }}</h1><p class="mt-1 text-[13px] leading-5 text-[#555555]">{{ pageDescription }}</p></template>
@@ -2174,8 +2355,9 @@ useSeoMeta({
                 <input v-else v-model="filter.label" aria-label="Nom du filtre" class="min-w-0 flex-1 border-0 bg-transparent p-0 text-[10px] font-medium uppercase tracking-[0.04em] text-[#666666] outline-none focus-visible:ring-2 focus-visible:ring-[#000091]">
                 <button v-if="!previewMode" class="agent-focusable grid size-5 place-items-center rounded text-[#777777] opacity-0 hover:bg-white hover:text-[#ce0500] group-hover/filter:opacity-100" title="Supprimer le filtre" type="button" @click="removeGroupFilter(group, filter.id)"><i aria-hidden="true" class="ri-close-line text-[13px]" /></button>
               </div>
-              <select v-if="!previewMode" v-model="filter.column" class="mt-1 h-7 w-full rounded-md border border-[#e5e5e5] bg-white px-2 text-[10px] text-[#555555]" aria-label="Colonne filtrée" @change="updateGroupFilterOptions(filter)"><option v-for="column in dimensionColumns" :key="column.name" :value="column.name">{{ column.name }}</option></select>
-              <select v-model="filter.value" class="mt-1 h-8 w-full rounded-md border border-[#e5e5e5] bg-white px-2 text-[11px] text-[#161616] outline-none focus:border-[#000091] focus:ring-1 focus:ring-[#000091]">
+              <select v-if="!previewMode" v-model="filter.column" class="mt-1 h-7 w-full rounded-md border border-[#e5e5e5] bg-white px-2 text-[10px] text-[#555555]" aria-label="Colonne filtrée" @change="updateGroupFilterOptions(filter, group)"><option v-if="filter.column && !dimensionColumns.some(column => column.name === filter.column)" :value="filter.column">{{ filter.column }}</option><option v-for="column in dimensionColumns" :key="column.name" :value="column.name">{{ column.name }}</option></select>
+              <select v-model="filter.value" :aria-label="`Valeur du filtre ${filter.label}`" class="mt-1 h-8 w-full rounded-md border border-[#e5e5e5] bg-white px-2 text-[11px] text-[#161616] outline-none focus:border-[#000091] focus:ring-1 focus:ring-[#000091]">
+                <option v-if="filter.value && !filter.options.includes(filter.value)" :value="filter.value">{{ filter.value }}</option>
                 <option v-for="option in filter.options" :key="option" :value="option">{{ option }}</option>
               </select>
             </div>
@@ -2345,6 +2527,7 @@ useSeoMeta({
             <button class="agent-focusable inline-flex h-7 items-center gap-1.5 rounded-md border border-[#cacafb] bg-white px-2.5 font-medium text-[#000091]" type="button" @click="editAgentProposalManually"><i aria-hidden="true" class="ri-settings-3-line text-[14px]" />Modifier manuellement</button>
             <button class="agent-focusable inline-flex h-7 items-center rounded-md px-2 font-medium text-[#555555] hover:bg-white" type="button" @click="discardAgentProposal">Ignorer</button>
           </div>
+          <p v-if="proposalApplyError" role="alert" class="mt-2 rounded-md border border-[#ffbdbd] bg-[#fff4f4] px-2.5 py-2 text-[11px] leading-4 text-[#ce0500]"><strong class="font-semibold">Ajout impossible.</strong> {{ proposalApplyError }}</p>
         </div>
 
         <ExplorationAgentComposer
@@ -2449,7 +2632,25 @@ useSeoMeta({
                         </button>
                       </div>
                     </fieldset>
-                    <template v-if="visualizationKind === 'chart'"><label class="block"><span class="font-medium">Regrouper par</span><select v-model="selectedDimension" class="mt-1.5 h-9 w-full rounded-md border border-[#e5e5e5] bg-white px-2"><option v-for="column in dimensionColumns" :key="column.name" :value="column.name">{{ column.name }}</option></select></label><label class="block"><span class="font-medium">Calcul</span><select v-model="selectedAggregation" class="mt-1.5 h-9 w-full rounded-md border border-[#e5e5e5] bg-white px-2"><option value="count">Nombre de lignes</option><option value="countDistinct">Nombre de valeurs distinctes</option><option value="sum">Somme</option><option value="average">Moyenne</option></select></label><label v-if="selectedAggregation !== 'count'" class="block"><span class="font-medium">Colonne à mesurer</span><select v-model="selectedMeasure" class="mt-1.5 h-9 w-full rounded-md border border-[#e5e5e5] bg-white px-2"><option v-for="column in selectedAggregation === 'countDistinct' ? dimensionColumns : numericColumns" :key="column.name" :value="column.name">{{ column.name }}</option></select></label><label class="block"><span class="font-medium">Nombre de catégories</span><select v-model.number="selectedLimit" class="mt-1.5 h-9 w-full rounded-md border border-[#e5e5e5] bg-white px-2"><option :value="5">5</option><option :value="10">10</option><option :value="15">15</option><option :value="20">20</option></select></label>
+                    <template v-if="visualizationKind === 'chart'">
+                      <fieldset class="rounded-md border border-[#e5e5e5] p-3">
+                        <legend class="px-1 font-medium">Axe X · catégories</legend>
+                        <div class="mt-1 space-y-3">
+                          <label class="block"><span class="text-[11px] font-medium">Colonne à afficher</span><select v-model="selectedDimension" class="mt-1 h-9 w-full rounded-md border border-[#e5e5e5] bg-white px-2"><option v-for="column in dimensionColumns" :key="column.name" :value="column.name">{{ column.name }}</option></select></label>
+                          <div class="grid grid-cols-2 gap-2">
+                            <label class="block"><span class="text-[11px] font-medium">Type détecté</span><span class="mt-1 flex h-9 items-center rounded-md bg-[#f6f6f6] px-2 text-[11px] text-[#555555]">{{ semanticTypeForField(selectedDimension) }}</span></label>
+                            <label class="block"><span class="text-[11px] font-medium">Trier les catégories</span><select v-model="selectedSortDirection" class="mt-1 h-9 w-full rounded-md border border-[#e5e5e5] bg-white px-2"><option value="auto">Automatique</option><option value="ascending">Valeur croissante</option><option value="descending">Valeur décroissante</option></select></label>
+                          </div>
+                          <label class="block"><span class="text-[11px] font-medium">Nombre de catégories</span><select v-model.number="selectedLimit" class="mt-1 h-9 w-full rounded-md border border-[#e5e5e5] bg-white px-2"><option v-if="![5, 10, 15, 20, 50].includes(selectedLimit)" :value="selectedLimit">{{ selectedLimit }} (valeur actuelle)</option><option :value="5">5</option><option :value="10">10</option><option :value="15">15</option><option :value="20">20</option><option :value="50">50</option></select></label>
+                        </div>
+                      </fieldset>
+                      <fieldset class="rounded-md border border-[#e5e5e5] p-3">
+                        <legend class="px-1 font-medium">Axe Y · valeurs</legend>
+                        <div class="mt-1 space-y-3">
+                          <label class="block"><span class="text-[11px] font-medium">Calcul</span><select v-model="selectedAggregation" class="mt-1 h-9 w-full rounded-md border border-[#e5e5e5] bg-white px-2"><option value="count">Nombre de lignes</option><option value="countDistinct">Nombre de valeurs distinctes</option><option value="sum">Somme</option><option value="average">Moyenne</option></select></label>
+                          <label v-if="selectedAggregation !== 'count'" class="block"><span class="text-[11px] font-medium">Colonne à mesurer</span><select v-model="selectedMeasure" class="mt-1 h-9 w-full rounded-md border border-[#e5e5e5] bg-white px-2"><option v-for="column in selectedAggregation === 'countDistinct' ? dimensionColumns : numericColumns" :key="column.name" :value="column.name">{{ column.name }}</option></select></label>
+                        </div>
+                      </fieldset>
                       <fieldset class="rounded-md border border-[#e5e5e5] p-3">
                         <div class="flex items-center justify-between gap-2"><legend class="font-medium">Séries supplémentaires</legend><button class="agent-focusable inline-flex h-7 items-center gap-1 rounded-md px-2 text-[11px] font-medium text-[#000091] hover:bg-[#f5f5fe]" type="button" @click="addSeries"><i aria-hidden="true" class="ri-add-line text-[14px]" />Ajouter</button></div>
                         <p v-if="!selectedAdditionalSeries.length" class="mt-2 text-[11px] leading-4 text-[#666666]">Ajoutez une mesure pour comparer plusieurs séries sur le même graphique.</p>
