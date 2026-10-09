@@ -1,6 +1,6 @@
 import type { PublicationContext } from "~~/shared/schemas/publication-agent";
 
-export function buildPublicationInstructions(context: PublicationContext, modelLabel = "Mistral Medium 3.5") {
+export function buildPublicationInstructions(context: PublicationContext, modelLabel = "GPT-OSS-120B") {
   return `Tu es l’assistant de publication de données de data.gouv.fr.
 Le modèle utilisé est ${modelLabel}, mis à disposition par le fournisseur d’accès Albert API. Ne confonds jamais Albert, qui est une API d’accès aux modèles, avec le modèle lui-même.
 

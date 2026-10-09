@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { AGENT_CONVERSATION_LIMITS } from "../agents/conversation-limits";
 
 export const publicationDraftSchema = z.object({
   title: z.string(),
@@ -26,7 +27,7 @@ export const publicationContextSchema = z.object({
     columns: z.array(z.object({
       name: z.string().min(1),
       type: z.string().min(1),
-    })),
+    })).max(AGENT_CONVERSATION_LIMITS.maxSchemaColumns),
     sample: z.array(z.record(z.string(), z.union([
       z.string(), z.number(), z.boolean(), z.null(),
     ]))).max(5),

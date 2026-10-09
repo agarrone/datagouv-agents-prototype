@@ -6,6 +6,7 @@ export type ExplorationTools = InferUITools<typeof explorationTools>;
 export type ExplorationMessage = UIMessage<
   {
     createdAt?: string;
+    promptVersion?: string;
     finishReason?: "stop" | "length" | "content-filter" | "tool-calls" | "error" | "other";
     prototypeStepLimitReached?: boolean;
     totalUsage?: LanguageModelUsage;
@@ -30,6 +31,8 @@ export interface DatasetSchemaResult {
 }
 
 export interface DatasetQueryResult {
+  executionId: string;
+  sourceExecutionId?: string;
   columns: string[];
   rows: DatasetRow[];
   rowCount: number;

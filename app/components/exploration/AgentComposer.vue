@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { LanguageModelUsage } from "ai";
 import { agentModels, agentModelLabel, DEFAULT_AGENT_MODEL_ID, type AgentModelId } from "~~/shared/agents/models";
+import { AGENT_CONVERSATION_LIMITS } from "~~/shared/agents/conversation-limits";
 
 const props = defineProps<{
   disabled: boolean;
@@ -21,6 +22,8 @@ const emit = defineEmits<{ cancelEdit: []; submit: []; stop: [] }>();
 const textarea = ref<HTMLTextAreaElement | null>(null);
 const modelDetails = ref<HTMLDetailsElement | null>(null);
 const selectedModelLabel = computed(() => agentModelLabel(selectedModelId.value));
+const SUBMISSION_COOLDOWN_MS = 500;
+let lastSubmissionAt = 0;
 
 function selectModel(id: AgentModelId) {
   selectedModelId.value = id;
@@ -61,7 +64,14 @@ defineExpose({ focus });
 function handleEnter(event: KeyboardEvent) {
   if (event.shiftKey || event.isComposing) return;
   event.preventDefault();
-  if (!props.disabled && model.value.trim()) emit("submit");
+  submit();
+}
+
+function submit() {
+  const now = Date.now();
+  if (props.disabled || !model.value.trim() || now - lastSubmissionAt < SUBMISSION_COOLDOWN_MS) return;
+  lastSubmissionAt = now;
+  emit("submit");
 }
 </script>
 
@@ -70,7 +80,7 @@ function handleEnter(event: KeyboardEvent) {
     <form
       aria-label="Poser une question à l’assistant"
       class="agent-surface prompt-input mx-auto max-w-[42rem] overflow-hidden transition-[border-color,box-shadow] duration-150 focus-within:border-[#000091] focus-within:shadow-[0_0_0_1px_#000091]"
-      @submit.prevent="emit('submit')"
+      @submit.prevent="submit"
     >
       <ExplorationResourceContext
         v-if="resourceTitle"
@@ -104,6 +114,7 @@ function handleEnter(event: KeyboardEvent) {
           ref="textarea"
           v-model="model"
           rows="3"
+          :maxlength="AGENT_CONVERSATION_LIMITS.maxQuestionCharacters"
           aria-label="Question sur les données"
           class="prompt-input-textarea min-h-0 flex-1 resize-none border-0 bg-transparent text-[12px] leading-[1.45] text-[#161616] outline-none placeholder:text-[#777777]"
           :disabled="disabled"
@@ -112,6 +123,11 @@ function handleEnter(event: KeyboardEvent) {
         />
         <footer class="flex items-center justify-between gap-3">
           <div class="flex min-w-0 items-center gap-1">
+            <span
+              v-if="model.length >= 3_600"
+              class="mr-1 text-[10px] tabular-nums"
+              :class="model.length >= AGENT_CONVERSATION_LIMITS.maxQuestionCharacters ? 'text-[#ce0500]' : 'text-[#777777]'"
+            >{{ model.length.toLocaleString('fr-FR') }} / {{ AGENT_CONVERSATION_LIMITS.maxQuestionCharacters.toLocaleString('fr-FR') }}</span>
             <ExplorationTokenUsage :usage="usage" />
             <details ref="modelDetails" class="group/model relative h-6" :class="responding ? 'pointer-events-none opacity-60' : ''">
               <summary

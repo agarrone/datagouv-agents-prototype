@@ -160,6 +160,42 @@ export async function fetchDatasetMetadata(
   };
 }
 
+function parquetFileName(url: string) {
+  try {
+    return new URL(url).pathname.split("/").filter(Boolean).at(-1)?.toLowerCase() ?? "";
+  }
+  catch {
+    return "";
+  }
+}
+
+/**
+ * Vérifie qu'une ressource et son URL Parquet sont bien publiées par l'API
+ * data.gouv.fr. La comparaison par nom de fichier couvre les deux domaines
+ * historiques utilisés par Hydra pour exposer une même conversion Parquet.
+ */
+export async function verifyDatagouvResource(
+  datasetReference: string,
+  resourceId: string,
+  parquetUrl: string,
+) {
+  const metadata = await fetchDatasetMetadata(datasetReference);
+  const requestedFile = parquetFileName(parquetUrl);
+  const resource = metadata.resources.find(item =>
+    item.id === resourceId
+    && Boolean(item.parquetUrl)
+    && (
+      item.parquetUrl === parquetUrl
+      || Boolean(requestedFile && parquetFileName(item.parquetUrl!) === requestedFile)
+    ),
+  );
+
+  if (!resource) {
+    throw new Error("La ressource n’est pas attestée par data.gouv.fr.");
+  }
+  return resource;
+}
+
 export async function fetchDatasetPageMetadata(
   reference: string,
 ): Promise<DatagouvDatasetPageMetadata> {

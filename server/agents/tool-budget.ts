@@ -1,6 +1,8 @@
 import type { ExplorationMessage } from "~~/shared/types/exploration";
+import { EXPLORATION_AGENT_LIMITS } from "./exploration-config";
 
-export const MAX_SQL_CALLS_PER_QUESTION = 3;
+export const MAX_SQL_CALLS_PER_QUESTION
+  = EXPLORATION_AGENT_LIMITS.maxSqlCallsPerQuestion;
 
 export function sqlAttemptSignature(sql: string) {
   return sql.trim().replace(/;+\s*$/, "");

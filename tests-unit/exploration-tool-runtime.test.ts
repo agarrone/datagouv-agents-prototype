@@ -7,6 +7,7 @@ import {
 } from "../app/composables/useExplorationToolRuntime.client";
 
 const queryResult = {
+  executionId: "sql-execution-1",
   columns: ["count"],
   rows: [{ count: 12 }],
   rowCount: 1,
@@ -23,6 +24,8 @@ const mapSpec = {
 };
 const mapResult = {
   ...queryResult,
+  executionId: "map-execution-1",
+  sourceExecutionId: "sql-execution-1",
   resolvedSpec: mapSpec,
   fieldCorrections: [],
   warnings: [],
@@ -129,7 +132,7 @@ describe("exploration tool runtime", () => {
       },
     } as ExplorationToolCallOptions);
 
-    expect(dataset.createMapData).toHaveBeenCalledWith(mapSpec);
+    expect(dataset.createMapData).toHaveBeenCalledWith(mapSpec, "SELECT 1");
     expect(recorder.outputs).toEqual([{
       tool: "create_map",
       toolCallId: "map-1",
@@ -230,5 +233,7 @@ describe("exploration tool runtime", () => {
     await call("map-2");
 
     expect(dataset.createMapData).toHaveBeenCalledTimes(2);
+    expect(dataset.createMapData).toHaveBeenNthCalledWith(1, mapSpec, "SELECT first");
+    expect(dataset.createMapData).toHaveBeenNthCalledWith(2, mapSpec, "SELECT second");
   });
 });

@@ -76,14 +76,15 @@ reçoit le contexte courant, le schéma et les résultats nécessaires à la ré
 
 - Nuxt 4, Vue 3 et TypeScript strict ;
 - Vercel AI SDK 7 et AI SDK Vue ;
-- Mistral Medium 3.5 mis à disposition par Albert API ;
+- GPT-OSS-120B par défaut et Mistral Medium 3.5 en comparaison, mis à disposition par Albert API ;
 - DuckDB-WASM pour le SQL local ;
 - ECharts pour les graphiques ;
 - MapLibre GL et les fonds OpenMapTiles de data.gouv.fr pour les cartes ;
 - CodeMirror 6 pour la console SQL ;
 - Tailwind CSS 4 pour l’interface ;
 - Zod pour les contrats de données ;
-- Vitest pour les tests unitaires.
+- Vitest pour les tests unitaires ;
+- Playwright pour les parcours critiques dans un navigateur réel.
 
 ## Installation locale
 
@@ -108,12 +109,20 @@ configuration de modèle est nécessaire pour obtenir une réponse de l’assist
 ALBERT_API_URL=
 ALBERT_API_KEY=
 ALBERT_MODEL=
+RATE_LIMIT_SECRET=
+ALBERT_DAILY_REQUEST_LIMIT=
 ```
 
-Albert est le fournisseur d’accès aux modèles. Le modèle actuellement utilisé
-est Mistral Medium 3.5 ; `ALBERT_MODEL` contient l’identifiant attendu par Albert pour
-l’appeler. Les secrets restent exclusivement côté serveur. Le prototype ne
-configure pas Vercel AI Gateway.
+Albert est le fournisseur d’accès aux modèles. GPT-OSS-120B est sélectionné par
+défaut dans l’interface et Mistral Medium 3.5 reste disponible pour les tests
+comparatifs. `ALBERT_MODEL` contient l’identifiant de repli attendu par Albert
+pour les appels sans choix explicite. Les secrets restent exclusivement côté
+serveur. Le prototype ne configure pas Vercel AI Gateway.
+
+`RATE_LIMIT_SECRET` signe les sessions anonymes et produit une empreinte IP
+quotidienne non réversible. `ALBERT_DAILY_REQUEST_LIMIT` permet au prototype de
+s'arrêter à 80 % du quota quotidien du compte. Sans cette dernière valeur, le
+plafond global n'est pas appliqué ; les limites par session et IP restent actives.
 
 ## Sécurité et données
 
@@ -122,6 +131,8 @@ configure pas Vercel AI Gateway.
 - une requête doit réussir avant d’alimenter une vue, un graphique ou une carte ;
 - les résultats transmis au modèle sont limités ;
 - les clés de fournisseur ne sont jamais envoyées au navigateur ;
+- les protections anti-abus ne conservent pas les adresses IP brutes et leurs
+  compteurs expirent sous 48 heures ;
 - les questions et réponses évaluées sont envoyées à Grist avec le contexte de
   la ressource, sans identité utilisateur demandée.
 
@@ -143,6 +154,7 @@ shared/
   sql/                      validation du SQL en lecture seule
   types/                    types de l’explorateur et des messages
 tests-unit/                 tests des contrats, prompts, outils et garde-fous
+tests-browser/              parcours critiques de l’explorateur dans Chromium
 ```
 
 ## Vérifications
@@ -151,8 +163,14 @@ tests-unit/                 tests des contrats, prompts, outils et garde-fous
 pnpm lint
 pnpm typecheck
 pnpm test
+pnpm test:browser
 pnpm build
 ```
+
+Les tests navigateur utilisent la ressource locale
+`public/fixtures/datasets.parquet`. Ils ne consomment ni l’API data.gouv.fr ni
+un modèle d’IA. Au premier lancement, installer Chromium avec
+`pnpm exec playwright install chromium`.
 
 ## Limites actuelles
 

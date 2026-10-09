@@ -6,6 +6,7 @@ import {
   streamText,
 } from "ai";
 import { explorationTools } from "~~/shared/agents/exploration-tools";
+import { AGENT_CONVERSATION_LIMITS } from "~~/shared/agents/conversation-limits";
 import { resourceContextSchema } from "~~/shared/schemas/agent";
 import type { ExplorationMessage } from "~~/shared/types/exploration";
 import { resolveAgentModelId, useAgentModel } from "~~/server/agents/provider";
@@ -19,12 +20,21 @@ import {
   sqlAttemptSignature,
   sqlAttemptSignaturesForCurrentQuestion,
 } from "~~/server/agents/tool-budget";
-import { fetchDatasetMetadata } from "~~/server/services/datagouv";
+import { fetchDatasetMetadata, verifyDatagouvResource } from "~~/server/services/datagouv";
 import { agentErrorMessage, normalizeAgentError } from "~~/server/agents/errors";
+import { assertAgentRequestLimits } from "~~/server/agents/request-limits";
+import { acquireAgentCapacity } from "~~/server/agents/rate-limit";
+import {
+  EXPLORATION_AGENT_LIMITS,
+  EXPLORATION_PROMPT_VERSION,
+} from "~~/server/agents/exploration-config";
 
-const MODEL_REQUEST_TIMEOUT_MS = 120_000;
-const TURN_EXECUTION_TIMEOUT_MS = 240_000;
-const MAX_TOOL_OPERATIONS_PER_QUESTION = 8;
+const {
+  maxSteps: MAX_STEPS,
+  maxToolOperationsPerQuestion: MAX_TOOL_OPERATIONS_PER_QUESTION,
+  modelRequestTimeoutMs: MODEL_REQUEST_TIMEOUT_MS,
+  turnExecutionTimeoutMs: TURN_EXECUTION_TIMEOUT_MS,
+} = EXPLORATION_AGENT_LIMITS;
 
 function modelAbortSignal(event: Parameters<typeof defineEventHandler>[0] extends (event: infer T) => unknown ? T : never, timeoutMs: number) {
   const timeoutSignal = AbortSignal.timeout(timeoutMs);
@@ -101,6 +111,7 @@ export default defineEventHandler(async (event) => {
     modelId?: unknown;
     turnStartedAt?: unknown;
   }>(event);
+  assertAgentRequestLimits(body);
   if (!Array.isArray(body.messages)) {
     throw createError({
       statusCode: 400,
@@ -127,6 +138,26 @@ export default defineEventHandler(async (event) => {
     });
   }
 
+  try {
+    await verifyDatagouvResource(
+      resource.data.datasetId,
+      resource.data.resourceId,
+      resource.data.url,
+    );
+  }
+  catch {
+    throw createError({
+      statusCode: 403,
+      statusMessage: "Cette ressource ne provient pas de data.gouv.fr.",
+      data: {
+        code: "prototype_invalid_request",
+        source: "prototype",
+        retryable: false,
+        technicalDetails: "La ressource ou son URL Parquet ne correspond pas aux métadonnées publiques de data.gouv.fr.",
+      },
+    });
+  }
+
   const schemaAnswer = deterministicSchemaAnswer(body.messages, resource.data);
   if (schemaAnswer) {
     const stream = createUIMessageStream<ExplorationMessage>({
@@ -135,7 +166,10 @@ export default defineEventHandler(async (event) => {
         const textId = "schema-answer";
         writer.write({
           type: "start",
-          messageMetadata: { createdAt: new Date().toISOString() },
+          messageMetadata: {
+            createdAt: new Date().toISOString(),
+            promptVersion: EXPLORATION_PROMPT_VERSION,
+          },
         });
         writer.write({ type: "start-step" });
         writer.write({ type: "text-start", id: textId });
@@ -147,6 +181,8 @@ export default defineEventHandler(async (event) => {
     });
     return createUIMessageStreamResponse({ stream });
   }
+
+  const capacity = await acquireAgentCapacity(event);
 
   const tools = {
     ...explorationTools,
@@ -160,6 +196,7 @@ export default defineEventHandler(async (event) => {
     activeModelId = resolveAgentModelId(body.modelId);
   }
   catch (error) {
+    capacity.release();
     throw structuredHttpError(error, 400);
   }
   const instructions = `${buildExplorationInstructions(resource.data, agentModelLabel(activeModelId))}${
@@ -193,6 +230,7 @@ export default defineEventHandler(async (event) => {
     model = useAgentModel(activeModelId);
   }
   catch (error) {
+    capacity.release();
     throw structuredHttpError(error, 503);
   }
 
@@ -207,6 +245,7 @@ export default defineEventHandler(async (event) => {
   const result = streamText({
     model,
     ...useAgentModelSettings(),
+    maxOutputTokens: AGENT_CONVERSATION_LIMITS.maxOutputTokens,
     instructions: `${instructions}${loopGuardInstruction}`,
     messages: await convertToModelMessages(body.messages, {
       tools,
@@ -256,7 +295,7 @@ export default defineEventHandler(async (event) => {
           : `${currentInstructions}\n\nGarde-fou interne : trois requêtes SQL distinctes ont déjà été tentées pour la question courante. N’appelle plus execute_sql. Si les résultats obtenus suffisent, réponds normalement sans mentionner cette limite technique. Sinon, explique seulement que l’analyse n’a pas pu être vérifiée et propose à l’utilisateur de préciser sa question.`,
       };
     },
-    stopWhen: isStepCount(5),
+    stopWhen: isStepCount(MAX_STEPS),
     abortSignal: modelAbortSignal(
       event,
       Math.min(MODEL_REQUEST_TIMEOUT_MS, remainingTurnTime),
@@ -269,14 +308,22 @@ export default defineEventHandler(async (event) => {
   return result.toUIMessageStreamResponse({
     originalMessages: body.messages,
     messageMetadata({ part }) {
-      if (part.type === "start") return { createdAt: new Date().toISOString() };
-      if (part.type === "finish") return {
-        finishReason: part.finishReason,
-        prototypeStepLimitReached: completedStepCount >= 5 && part.finishReason === "tool-calls",
-        totalUsage: part.totalUsage,
+      if (part.type === "start") return {
+        createdAt: new Date().toISOString(),
+        promptVersion: EXPLORATION_PROMPT_VERSION,
       };
+      if (part.type === "finish") {
+        capacity.release();
+        return {
+          finishReason: part.finishReason,
+          promptVersion: EXPLORATION_PROMPT_VERSION,
+          prototypeStepLimitReached: completedStepCount >= MAX_STEPS && part.finishReason === "tool-calls",
+          totalUsage: part.totalUsage,
+        };
+      }
     },
     onError(error) {
+      capacity.release();
       console.error("Exploration agent error", error);
       return agentErrorMessage(error);
     },

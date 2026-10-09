@@ -23,8 +23,8 @@ interface ExplorationToolRuntimeHooks {
 export interface ExplorationToolDataset {
   inspectSchema: () => Promise<DatasetSchemaResult>;
   executeSql: (sql: string) => Promise<DatasetQueryResult>;
-  createChartData: (requiredFields: string[]) => Promise<DatasetQueryResult>;
-  createMapData: (spec: MapSpec) => Promise<MapDatasetResult>;
+  createChartData: (requiredFields: string[], sourceExecutionId?: string) => Promise<DatasetQueryResult>;
+  createMapData: (spec: MapSpec, sourceExecutionId?: string) => Promise<MapDatasetResult>;
   visualizationSourceKey: () => string | undefined;
 }
 
@@ -43,7 +43,7 @@ export function useExplorationToolRuntime(
   const completedCalls = new Map<string, unknown>();
   const pendingCalls = new Map<string, Promise<unknown>>();
 
-  function callKey(toolName: string, input: unknown) {
+  function callKey(toolName: string, input: unknown, cacheContext?: string) {
     if (
       toolName === "execute_sql"
       && input
@@ -54,7 +54,7 @@ export function useExplorationToolRuntime(
       return `${toolName}:${input.sql.trim().replace(/;+\s*$/, "")}`;
     }
     if (toolName === "create_chart" || toolName === "create_map") {
-      return `${toolName}:${dataset.visualizationSourceKey() ?? "no-source"}:${JSON.stringify(input)}`;
+      return `${toolName}:${cacheContext ?? "no-source"}:${JSON.stringify(input)}`;
     }
     return `${toolName}:${JSON.stringify(input)}`;
   }
@@ -73,8 +73,9 @@ export function useExplorationToolRuntime(
     toolName: string,
     input: unknown,
     execute: () => Promise<T>,
+    cacheContext?: string,
   ): Promise<T> {
-    const key = callKey(toolName, input);
+    const key = callKey(toolName, input, cacheContext);
     if (completedCalls.has(key)) return completedCalls.get(key) as T;
 
     const pending = pendingCalls.get(key);
@@ -133,10 +134,15 @@ export function useExplorationToolRuntime(
       }
 
       if (toolCall.toolName === "create_chart") {
+        const sourceExecutionId = dataset.visualizationSourceKey();
         const output = await executeOnce(
           toolCall.toolName,
           toolCall.input,
-          () => dataset.createChartData(chartRequiredFields(toolCall.input)),
+          () => dataset.createChartData(
+            chartRequiredFields(toolCall.input),
+            sourceExecutionId,
+          ),
+          sourceExecutionId,
         );
         hooks.onChartReady?.(toolCall.input, output);
         publishToolOutput({
@@ -148,10 +154,12 @@ export function useExplorationToolRuntime(
       }
 
       if (toolCall.toolName === "create_map") {
+        const sourceExecutionId = dataset.visualizationSourceKey();
         const output = await executeOnce(
           toolCall.toolName,
           toolCall.input,
-          () => dataset.createMapData(toolCall.input),
+          () => dataset.createMapData(toolCall.input, sourceExecutionId),
+          sourceExecutionId,
         );
         hooks.onMapReady?.(output.resolvedSpec, output);
         publishToolOutput({

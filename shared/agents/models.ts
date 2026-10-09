@@ -11,7 +11,7 @@ export const agentModels = [
 
 export type AgentModelId = typeof agentModels[number]["id"];
 
-export const DEFAULT_AGENT_MODEL_ID: AgentModelId = "mistral-medium-3-5";
+export const DEFAULT_AGENT_MODEL_ID: AgentModelId = "gpt-oss-120b";
 
 export function isAgentModelId(value: unknown): value is AgentModelId {
   return typeof value === "string" && agentModels.some(model => model.id === value);

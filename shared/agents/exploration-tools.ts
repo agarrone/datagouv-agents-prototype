@@ -71,6 +71,7 @@ export const explorationTools = {
         .describe("Description courte, en français et compréhensible par l’utilisateur, de ce que la requête vérifie."),
     }),
     outputSchema: z.object({
+      executionId: z.string(),
       columns: z.array(z.string()),
       rows: z.array(datasetRowSchema),
       rowCount: z.number(),
@@ -124,6 +125,8 @@ export const explorationTools = {
         .max(4),
     }),
     outputSchema: z.object({
+      executionId: z.string(),
+      sourceExecutionId: z.string(),
       columns: z.array(z.string()),
       rows: z.array(datasetRowSchema),
       rowCount: z.number(),
@@ -136,6 +139,8 @@ export const explorationTools = {
       "Affiche réellement une carte MapLibre dans la conversation à partir du résultat de la dernière requête execute_sql réussie. Pour créer une carte, appeler impérativement ce tool juste après execute_sql : ne jamais recopier la requête SQL ni simuler la carte dans le texte.",
     inputSchema: mapSpecSchema,
     outputSchema: z.object({
+      executionId: z.string(),
+      sourceExecutionId: z.string(),
       columns: z.array(z.string()),
       rows: z.array(datasetRowSchema),
       rowCount: z.number(),

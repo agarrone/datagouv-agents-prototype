@@ -542,6 +542,7 @@ onBeforeUnmount(() => {
 <template>
   <Teleport to="body" :disabled="!isFullscreen">
     <div
+      class="w-full min-w-0 max-w-full"
       :class="isFullscreen ? 'fixed inset-0 z-[150] bg-white' : ''"
       :data-fullscreen="isFullscreen ? 'true' : 'false'"
       data-visualization-card="map"

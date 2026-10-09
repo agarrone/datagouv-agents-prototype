@@ -5,6 +5,7 @@ export type ExplorationErrorCode =
   | "ai_authentication" | "ai_model_unavailable" | "ai_context_limit"
   | "ai_output_limit" | "ai_content_filter" | "ai_provider_unavailable"
   | "prototype_configuration" | "prototype_invalid_request"
+  | "prototype_rate_limit" | "prototype_global_budget" | "prototype_queue_timeout"
   | "prototype_step_limit" | "prototype_tool_runtime" | "sql_invalid"
   | "sql_restricted" | "duckdb_initialization" | "resource_unavailable"
   | "visualization_invalid" | "external_service_unavailable" | "unknown";
@@ -84,7 +85,7 @@ export function parseSerializedExplorationError(reason: unknown): SerializedExpl
 
 function inferError(reason: unknown, context?: "sql" | "duckdb" | "visualization" | "provider"): SerializedExplorationError {
   const technicalDetails = rawDetails(reason);
-  if (context === "sql") return { code: /seules les requêtes|non autoris[eé]e|une seule requête/i.test(technicalDetails) ? "sql_restricted" : "sql_invalid", source: "duckdb", technicalDetails, retryable: false };
+  if (context === "sql") return { code: /seules les requêtes|non autoris[eé]e|une seule requête|source externe|tables? système|utilisez uniquement la table data|requête trop longue/i.test(technicalDetails) ? "sql_restricted" : "sql_invalid", source: "duckdb", technicalDetails, retryable: false };
   if (context === "duckdb") return {
     code: /wasm|worker|instantiate|memory|allocation|out of memory/i.test(technicalDetails) ? "duckdb_initialization" : "resource_unavailable",
     source: "duckdb",
@@ -123,6 +124,9 @@ export function classifyExplorationError(reason: unknown, context?: "sql" | "duc
     ai_provider_unavailable: ["provider", "Service d’intelligence artificielle indisponible", "Le fournisseur IA n’a pas pu terminer la réponse. Vous pouvez réessayer dans quelques instants.", "retry", "Réessayer"],
     prototype_configuration: ["prototype", "Assistant non configuré", "Le prototype ne dispose pas d’une configuration IA complète. L’équipe doit corriger le déploiement.", undefined, undefined],
     prototype_invalid_request: ["prototype", "Demande mal préparée par le prototype", "Le prototype n’a pas correctement transmis la conversation ou le contexte de la ressource.", "retry", "Réessayer"],
+    prototype_rate_limit: ["prototype", "Demandes trop rapprochées", `Le prototype limite temporairement les demandes de cette session pour préserver le service.${retryDelay}`, "retry", "Réessayer"],
+    prototype_global_budget: ["prototype", "Quota partagé du prototype atteint", "Le prototype a atteint la marge de sécurité fixée pour son quota Albert. Le problème ne vient pas de votre question.", undefined, undefined],
+    prototype_queue_timeout: ["prototype", "Forte affluence", `La demande n’a pas pu démarrer avant la fin du délai d’attente.${retryDelay}`, "retry", "Réessayer"],
     prototype_step_limit: ["prototype", "Limite d’analyse du prototype atteinte", "L’assistant a consommé le nombre d’opérations autorisé pour cette question. Ce n’est pas un dépassement du quota de tokens du compte.", "clarify", "Préciser la question"],
     prototype_tool_runtime: ["prototype", "Opération du prototype interrompue", "Un composant local n’a pas pu exécuter l’opération demandée.", "retry", "Réessayer"],
     sql_invalid: ["sql", "La requête n’a pas pu être validée", "La requête ne correspond pas encore à la structure ou aux valeurs de cette ressource.", "clarify", "Préciser la question"],
