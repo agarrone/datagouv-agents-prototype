@@ -21,6 +21,16 @@ describe("exploration error presentation", () => {
     expect(visualization.actionLabel).toBe("Préciser la demande");
   });
 
+  it("presents blocked external SQL reads as a restriction", () => {
+    const error = classifyExplorationError(
+      "La requête ne peut pas lire une source externe. Utilisez uniquement la table data.",
+      "sql",
+    );
+
+    expect(error.code).toBe("sql_restricted");
+    expect(error.title).toBe("Opération SQL non autorisée");
+  });
+
   it("keeps the raw error only as technical details", () => {
     const error = classifyExplorationError("Parser Error at line 1", "sql");
     expect(error.message).not.toContain("Parser Error");
@@ -55,6 +65,33 @@ describe("exploration error presentation", () => {
 
     expect(error.title).toBe("Quota du compte épuisé");
     expect(error.action).toBeUndefined();
+  });
+
+  it("distinguishes local throttling, queue pressure and the shared budget", () => {
+    const local = classifyExplorationError({
+      code: "prototype_rate_limit",
+      source: "prototype",
+      retryable: true,
+      retryAfterSeconds: 5,
+      technicalDetails: "Deux réponses sont déjà en cours.",
+    });
+    const queue = classifyExplorationError({
+      code: "prototype_queue_timeout",
+      source: "prototype",
+      retryable: true,
+      retryAfterSeconds: 15,
+      technicalDetails: "File locale pleine.",
+    });
+    const budget = classifyExplorationError({
+      code: "prototype_global_budget",
+      source: "prototype",
+      retryable: true,
+      technicalDetails: "80 % du quota quotidien atteint.",
+    });
+
+    expect(local.title).toBe("Demandes trop rapprochées");
+    expect(queue.title).toBe("Forte affluence");
+    expect(budget.message).toContain("ne vient pas de votre question");
   });
 
   it("identifies output and prototype limits", () => {

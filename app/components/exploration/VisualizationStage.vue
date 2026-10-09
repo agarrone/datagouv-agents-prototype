@@ -29,7 +29,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="t-skel h-[28rem]" :class="revealed ? 'is-revealed' : ''">
+  <div class="t-skel h-[28rem] w-full min-w-0 max-w-full" :class="revealed ? 'is-revealed' : ''">
     <div class="t-skel-skeleton is-pulsing">
       <ExplorationVisualizationLoading class="h-full" :kind="kind" />
     </div>
@@ -40,7 +40,10 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
-.t-skel { position: relative; }
+.t-skel {
+  position: relative;
+  contain: inline-size;
+}
 .t-skel-skeleton,
 .t-skel-content {
   position: absolute;

@@ -62,7 +62,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <footer class="mt-2 flex min-h-6 flex-wrap items-center gap-1 text-[#555555]">
+  <footer class="mt-2 flex min-h-6 w-full min-w-0 max-w-full flex-wrap items-center justify-start gap-1 text-[#555555]">
     <button
       :aria-label="copied ? 'Réponse copiée' : 'Copier la réponse'"
       class="agent-focusable agent-pressable flex h-6 w-6 items-center justify-center rounded-md hover:bg-[#f6f6f6] hover:text-[#000091]"

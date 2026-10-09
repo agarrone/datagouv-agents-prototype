@@ -6,6 +6,7 @@ import {
 } from "ai";
 import type { ToolExecutionOptions } from "ai";
 import { publicationTools } from "~~/shared/agents/publication-tools";
+import { AGENT_CONVERSATION_LIMITS } from "~~/shared/agents/conversation-limits";
 import { publicationContextSchema } from "~~/shared/schemas/publication-agent";
 import type { PublicationAssistantMessage } from "~~/shared/types/publication";
 import { resolveAgentModelId, useAgentModel } from "~~/server/agents/provider";
@@ -13,6 +14,8 @@ import { agentModelLabel } from "~~/shared/agents/models";
 import { useAgentModelSettings } from "~~/server/agents/model-settings";
 import { buildPublicationInstructions } from "~~/server/agents/prompts/publication";
 import { agentErrorMessage, normalizeAgentError } from "~~/server/agents/errors";
+import { assertAgentRequestLimits } from "~~/server/agents/request-limits";
+import { acquireAgentCapacity } from "~~/server/agents/rate-limit";
 
 const GUIDE_MCP_URL = "https://guides.data.gouv.fr/~gitbook/mcp";
 
@@ -22,6 +25,7 @@ export default defineEventHandler(async (event) => {
     context?: unknown;
     modelId?: unknown;
   }>(event);
+  assertAgentRequestLimits(body);
   if (!Array.isArray(body.messages)) {
     throw createError({ statusCode: 400, statusMessage: "La liste des messages est absente." });
   }
@@ -29,6 +33,8 @@ export default defineEventHandler(async (event) => {
   if (!context.success) {
     throw createError({ statusCode: 400, statusMessage: "Le contexte de publication est absent ou invalide." });
   }
+
+  const capacity = await acquireAgentCapacity(event);
 
   try {
     const activeModelId = resolveAgentModelId(body.modelId);
@@ -56,6 +62,7 @@ export default defineEventHandler(async (event) => {
     const agent = new ToolLoopAgent({
       model: useAgentModel(activeModelId),
       ...useAgentModelSettings(),
+      maxOutputTokens: AGENT_CONVERSATION_LIMITS.maxOutputTokens,
       instructions: buildPublicationInstructions(context.data, agentModelLabel(activeModelId)),
       tools,
       stopWhen: isStepCount(4),
@@ -67,14 +74,17 @@ export default defineEventHandler(async (event) => {
       abortSignal: event.node.req.signal,
       messageMetadata({ part }) {
         if (part.type === "start") return { createdAt: new Date().toISOString() };
+        if (part.type === "finish") capacity.release();
       },
       onError(error) {
+        capacity.release();
         console.error("Publication agent error", error);
         return agentErrorMessage(error);
       },
     });
   }
   catch (error) {
+    capacity.release();
     const normalized = normalizeAgentError(error);
     throw createError({
       statusCode: normalized.code === "prototype_configuration" ? 503 : 500,

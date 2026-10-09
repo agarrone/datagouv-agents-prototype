@@ -7,6 +7,7 @@ const props = defineProps<{
 const container = ref<HTMLElement | null>(null);
 const showScrollButton = ref(false);
 let previousMessageCount = 0;
+let resizeObserver: ResizeObserver | undefined;
 
 function updateScrollButton() {
   if (!container.value) return;
@@ -51,7 +52,15 @@ watch(
   },
 );
 
-onMounted(updateScrollButton);
+onMounted(() => {
+  updateScrollButton();
+  if (!container.value) return;
+  resizeObserver = new ResizeObserver(updateScrollButton);
+  const content = container.value.firstElementChild;
+  if (content) resizeObserver.observe(content);
+});
+
+onBeforeUnmount(() => resizeObserver?.disconnect());
 </script>
 
 <template>
@@ -61,7 +70,7 @@ onMounted(updateScrollButton);
       class="agent-conversation-scroll h-full overflow-y-auto px-5 py-5 md:px-6"
       @scroll.passive="updateScrollButton"
     >
-      <div class="mx-auto max-w-[42rem] space-y-6">
+      <div class="mx-auto w-full min-w-0 max-w-[42rem] space-y-6">
         <slot />
       </div>
     </div>

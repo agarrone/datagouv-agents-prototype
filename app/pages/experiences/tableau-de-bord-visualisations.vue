@@ -12,6 +12,7 @@ import {
   type ExplorationResource,
 } from "~~/shared/data/exploration-resources";
 import { DEFAULT_AGENT_MODEL_ID, type AgentModelId } from "~~/shared/agents/models";
+import { recentConversationMessages } from "~~/shared/agents/conversation-limits";
 import type {
   ChartSpec,
   ChartType,
@@ -677,7 +678,7 @@ const {
       return {
         body: {
           id,
-          messages,
+          messages: recentConversationMessages(messages),
           trigger,
           messageId,
           modelId: selectedModelId.value,

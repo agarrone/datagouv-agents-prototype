@@ -16,7 +16,7 @@ withDefaults(defineProps<{
 </script>
 
 <template>
-  <section class="agent-surface">
+  <section class="agent-surface w-full min-w-0 max-w-full">
     <header class="flex min-h-12 items-start justify-between gap-3 border-b border-[#e5e5e5] px-5 py-3">
       <div class="min-w-0">
         <p v-if="eyebrow" class="mb-1 text-[11px] font-medium uppercase tracking-[0.05em] text-[#555555]">
@@ -35,7 +35,7 @@ withDefaults(defineProps<{
       </div>
     </header>
 
-    <div :class="contentClass">
+    <div class="min-w-0 max-w-full" :class="contentClass">
       <slot />
     </div>
 

@@ -4,6 +4,7 @@ import { DefaultChatTransport, lastAssistantMessageIsCompleteWithToolCalls } fro
 import { explorationResources, type ExplorationResource } from "~~/shared/data/exploration-resources";
 import { nextPublicationStage, publicationWorkflow, type PublicationStageId } from "~~/shared/agents/publication-workflow";
 import { DEFAULT_AGENT_MODEL_ID, type AgentModelId } from "~~/shared/agents/models";
+import { recentConversationMessages } from "~~/shared/agents/conversation-limits";
 import type {
   PublicationAgentTool,
   PublicationAssistantMessage,
@@ -128,7 +129,7 @@ const {
       return {
         body: {
           id,
-          messages,
+          messages: recentConversationMessages(messages),
           trigger,
           messageId,
           modelId: selectedModelId.value,

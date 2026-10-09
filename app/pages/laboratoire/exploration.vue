@@ -15,6 +15,7 @@ import {
 } from "~~/shared/data/exploration-resources";
 import type { ExplorationMessage } from "~~/shared/types/exploration";
 import { DEFAULT_AGENT_MODEL_ID, type AgentModelId } from "~~/shared/agents/models";
+import { recentConversationMessages } from "~~/shared/agents/conversation-limits";
 import {
   classifyExplorationError,
   type ExplorationRecoveryAction,
@@ -126,7 +127,7 @@ const {
       return {
         body: {
           id,
-          messages,
+          messages: recentConversationMessages(messages),
           trigger,
           messageId,
           modelId: selectedModelId.value,
@@ -319,8 +320,8 @@ onMounted(async () => {
   await Promise.all([
     loadDatasetMetadata(initialResource),
     (async () => {
-      await loadDatasetResources(initialResource);
-      if (requestedResourceId || resourceFromQuery) {
+      const hasVerifiedResource = await loadDatasetResources(initialResource);
+      if (hasVerifiedResource && (requestedResourceId || resourceFromQuery)) {
         await loadSelectedResource();
         await submitInitialPrompt();
       }
@@ -359,15 +360,18 @@ async function loadDatasetResources(resource: ExplorationResource) {
         parquetUrl: matchingResource.parquetUrl,
         resourceName: matchingResource.title,
       };
+      return true;
     }
+    selectedResource.value = null;
+    datasetMetadataError.value = "Aucune ressource tabulaire attestée par data.gouv.fr n’est disponible.";
+    return false;
   } catch {
-    datasetResources.value = [{
-      id: resource.id,
-      title: resourceContextName(resource),
-      format: "PARQUET",
-      url: resource.parquetUrl,
-      parquetUrl: resource.parquetUrl,
-    }];
+    // Échec fermé : ne jamais charger l'URL reçue dans la navigation sans
+    // avoir pu la rapprocher des métadonnées publiques de data.gouv.fr.
+    datasetResources.value = [];
+    selectedResource.value = null;
+    datasetMetadataError.value = "Les ressources data.gouv.fr n’ont pas pu être vérifiées. Réessayez plus tard.";
+    return false;
   } finally {
     datasetResourcesLoading.value = false;
   }
@@ -634,8 +638,8 @@ async function resolveClarification(toolCallId: string, choice: string) {
 
       <div class="workspace-grid relative grid min-h-0 w-full flex-1" :style="{ '--resources-width': `${resourcesCollapsed ? 44 : resourcesWidth}px`, '--assistant-width': `${assistantWidth}px`, '--assistant-open': assistantOpen ? '1' : '0' }">
       <ExplorationResourceSidebar
-        class="hidden lg:flex"
         v-model:collapsed="resourcesCollapsed"
+        class="hidden lg:flex"
         :loading="dataset.status.value === 'loading' || datasetResourcesLoading"
         :resources="datasetResources"
         :selected-id="selectedResource?.id"
@@ -726,7 +730,7 @@ async function resolveClarification(toolCallId: string, choice: string) {
             class="min-h-full"
             :loading="dataset.status.value === 'loading'"
             :ready="dataset.status.value === 'ready'"
-            :resource-title="selectedResource?.title"
+            :resource-title="selectedResource ? resourceContextName(selectedResource) : undefined"
             :schema-columns="dataset.schema.value?.columns ?? []"
             @load="loadSelectedResource"
             @suggestion="input = $event"
@@ -780,7 +784,7 @@ async function resolveClarification(toolCallId: string, choice: string) {
           :disabled="dataset.status.value !== 'ready'"
           :editing="Boolean(editingMessageId)"
           :resource-organization="dataset.activeResource.value?.organization"
-          :resource-title="dataset.activeResource.value?.title"
+          :resource-title="dataset.activeResource.value ? resourceContextName(dataset.activeResource.value) : undefined"
           :responding="isResponding"
           :usage="latestResponseUsage"
           @cancel-edit="cancelQuestionEditing"

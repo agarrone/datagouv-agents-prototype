@@ -147,8 +147,8 @@ const exploreRoute = computed(() => selectedResource.value
     <div class="grid gap-5 lg:grid-cols-2">
       <form class="space-y-2" @submit.prevent="search">
         <label for="dataset-search" class="block text-[13px] font-bold">Rechercher sur data.gouv.fr</label>
-        <div class="flex min-h-10 border-b-2 border-[#000091] bg-[#eeeeee]">
-          <i aria-hidden="true" class="ri-search-line ml-3 mt-3 text-base text-[#555555]" />
+        <div class="flex h-10 items-stretch border-b-2 border-[#000091] bg-[#eeeeee]">
+          <span aria-hidden="true" class="grid w-10 shrink-0 place-items-center text-[#555555]"><i class="ri-search-line text-base leading-none" /></span>
           <input id="dataset-search" v-model="query" class="min-w-0 flex-1 bg-transparent px-2 text-[13px] outline-none placeholder:text-[#777777]" placeholder="Nom du jeu de données" type="search">
           <button class="agent-focusable inline-flex items-center gap-2 bg-[#000091] px-4 text-[12px] font-medium text-white disabled:opacity-60" :disabled="isSearching" type="submit">
             <i v-if="isSearching" aria-hidden="true" class="ri-loader-4-line animate-spin" />
@@ -159,8 +159,8 @@ const exploreRoute = computed(() => selectedResource.value
 
       <form class="space-y-2" @submit.prevent="resolveLink">
         <label for="dataset-link" class="block text-[13px] font-bold">Coller le lien d’un jeu de données</label>
-        <div class="flex min-h-10 border-b-2 border-[#000091] bg-[#eeeeee]">
-          <i aria-hidden="true" class="ri-link ml-3 mt-3 text-base text-[#555555]" />
+        <div class="flex h-10 items-stretch border-b-2 border-[#000091] bg-[#eeeeee]">
+          <span aria-hidden="true" class="grid w-10 shrink-0 place-items-center text-[#555555]"><i class="ri-link text-base leading-none" /></span>
           <input id="dataset-link" v-model="link" class="min-w-0 flex-1 bg-transparent px-2 text-[13px] outline-none placeholder:text-[#777777]" placeholder="https://www.data.gouv.fr/datasets/..." type="url">
           <button class="agent-focusable inline-flex items-center gap-2 bg-[#000091] px-4 text-[12px] font-medium text-white disabled:opacity-60" :disabled="isResolving" type="submit">
             <i v-if="isResolving" aria-hidden="true" class="ri-loader-4-line animate-spin" />

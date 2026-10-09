@@ -14,9 +14,9 @@ describe("agent models", () => {
     ]);
   });
 
-  it("uses Mistral Medium 3.5 by default", () => {
-    expect(DEFAULT_AGENT_MODEL_ID).toBe("mistral-medium-3-5");
-    expect(agentModelLabel(DEFAULT_AGENT_MODEL_ID)).toBe("Mistral Medium 3.5");
+  it("uses GPT-OSS-120B by default", () => {
+    expect(DEFAULT_AGENT_MODEL_ID).toBe("gpt-oss-120b");
+    expect(agentModelLabel(DEFAULT_AGENT_MODEL_ID)).toBe("GPT-OSS-120B");
   });
 
   it("rejects arbitrary model identifiers", () => {

@@ -36,7 +36,7 @@ export const explorationPromptSections = [
 
 export function buildExplorationInstructions(
   context: ExplorationPromptContext,
-  modelLabel = "Mistral Medium 3.5",
+  modelLabel = "GPT-OSS-120B",
 ) {
   const activeContext = {
     datasetTitle: context.title,

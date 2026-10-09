@@ -16,6 +16,8 @@
     "postinstall": "nuxt prepare",
     "preview": "nuxt preview",
     "test": "vitest run",
+    "test:browser": "playwright test",
+    "test:browser:ui": "playwright test --ui",
     "test:watch": "vitest",
     "typecheck": "nuxt typecheck"
   },
@@ -51,6 +53,7 @@
   },
   "devDependencies": {
     "@nuxt/eslint": "1.16.0",
+    "@playwright/test": "^1.64.0",
     "@types/geojson": "^7946.0.16",
     "@types/markdown-it": "^14.1.2",
     "@vue/test-utils": "2.4.11",

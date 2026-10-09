@@ -1,4 +1,6 @@
 <template>
-  <NuxtPage />
+  <div>
+    <PrototypeBanner />
+    <NuxtPage />
+  </div>
 </template>
-

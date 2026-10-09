@@ -28,7 +28,32 @@ let connectionPromise: Promise<AsyncDuckDBConnection> | undefined;
 let activeWorker: Worker | undefined;
 const verifiedQueries = new Set<string>();
 const explorerViewPreviews = new Map<string, ExplorerViewPreview>();
-let latestVerifiedQuery: string | undefined;
+interface VerifiedQuery {
+  id: string;
+  resourceId: string;
+  sql: string;
+}
+
+const verifiedQueryExecutions = new Map<string, VerifiedQuery>();
+let latestVerifiedQuery: VerifiedQuery | undefined;
+let connectionQueue: Promise<void> = Promise.resolve();
+type QueryTable = Awaited<ReturnType<AsyncDuckDBConnection["query"]>>;
+
+function executionId(prefix: string) {
+  return `${prefix}-${crypto.randomUUID()}`;
+}
+
+function enqueueConnectionQuery(
+  connection: AsyncDuckDBConnection,
+  sql: string,
+): Promise<QueryTable> {
+  const execution = connectionQueue.then(
+    () => connection.query(sql),
+    () => connection.query(sql),
+  );
+  connectionQueue = execution.then(() => undefined, () => undefined);
+  return execution;
+}
 
 function quoteIdentifier(identifier: string) {
   return `"${identifier.replace(/"/g, '""')}"`;
@@ -187,11 +212,13 @@ async function getConnection(parquetUrl?: string) {
 }
 
 async function resetDatabase() {
+  await connectionQueue;
   const previousConnection = connectionPromise;
   const previousDatabase = databasePromise;
   connectionPromise = undefined;
   databasePromise = undefined;
   verifiedQueries.clear();
+  verifiedQueryExecutions.clear();
   explorerViewPreviews.clear();
   latestVerifiedQuery = undefined;
 
@@ -237,9 +264,9 @@ export function useDatasetEngine() {
     // DuckDB-WASM n'autorise pas de manière fiable plusieurs requêtes
     // concurrentes sur une même connexion. Les exécuter séquentiellement évite
     // les erreurs Arrow intermittentes lors de l'initialisation d'une ressource.
-    const description = await connection.query("DESCRIBE data");
-    const count = await connection.query("SELECT COUNT(*) AS count FROM data");
-    const sample = await connection.query("SELECT * FROM data LIMIT 5");
+    const description = await enqueueConnectionQuery(connection, "DESCRIBE data");
+    const count = await enqueueConnectionQuery(connection, "SELECT COUNT(*) AS count FROM data");
+    const sample = await enqueueConnectionQuery(connection, "SELECT * FROM data LIMIT 5");
     const descriptionRows = tableToRows(description);
     const countRows = tableToRows(count);
 
@@ -278,9 +305,9 @@ export function useDatasetEngine() {
     try {
       await resetDatabase();
       const connection = await getConnection(resource.parquetUrl);
-      const description = await connection.query("DESCRIBE data");
-      const count = await connection.query("SELECT COUNT(*) AS count FROM data");
-      const sample = await connection.query("SELECT * FROM data LIMIT 5");
+      const description = await enqueueConnectionQuery(connection, "DESCRIBE data");
+      const count = await enqueueConnectionQuery(connection, "SELECT COUNT(*) AS count FROM data");
+      const sample = await enqueueConnectionQuery(connection, "SELECT * FROM data LIMIT 5");
       const descriptionRows = tableToRows(description);
       const countRows = tableToRows(count);
       const result: DatasetSchemaResult = {
@@ -333,7 +360,7 @@ export function useDatasetEngine() {
     const connection = await getConnection();
     const readOnlySql = validateReadOnlySql(sql);
     const startedAt = performance.now();
-    const table = await connection.query(`
+    const table = await enqueueConnectionQuery(connection, `
       SELECT *
       FROM (${readOnlySql}) AS agent_result
       LIMIT 21
@@ -342,9 +369,16 @@ export function useDatasetEngine() {
     const truncated = allRows.length > 20;
     const rows = allRows.slice(0, 20);
     verifiedQueries.add(readOnlySql);
-    latestVerifiedQuery = readOnlySql;
+    const verifiedQuery: VerifiedQuery = {
+      id: executionId("sql"),
+      resourceId: activeResource.value?.id ?? "local-resource",
+      sql: readOnlySql,
+    };
+    verifiedQueryExecutions.set(verifiedQuery.id, verifiedQuery);
+    latestVerifiedQuery = verifiedQuery;
 
     return {
+      executionId: verifiedQuery.id,
       columns: table.schema.fields.map(field => field.name),
       rows,
       rowCount: rows.length,
@@ -366,23 +400,21 @@ export function useDatasetEngine() {
     }
     const startedAt = performance.now();
     const preview = explorerViewPreviews.get(readOnlySql);
-    const tablePromise = connection.query(`
+    const table = await enqueueConnectionQuery(connection, `
       SELECT *
       FROM (${readOnlySql}) AS explorer_view
       LIMIT 101
     `);
-    const [table, countTable] = await Promise.all([
-      tablePromise,
-      preview
-        ? Promise.resolve(undefined)
-        : connection.query(`
+    const countTable = preview
+      ? undefined
+      : await enqueueConnectionQuery(connection, `
             SELECT COUNT(*) AS count
             FROM (${readOnlySql}) AS explorer_view_count
-          `),
-    ]);
+          `);
     const allRows = tableToRows(table);
     const columns = table.schema.fields.map(field => field.name);
     const result: ExplorerViewResult = {
+      executionId: executionId("view"),
       title,
       sql: readOnlySql,
       columns,
@@ -402,17 +434,15 @@ export function useDatasetEngine() {
     const cached = explorerViewPreviews.get(readOnlySql);
     if (cached) return cached;
 
-    const [emptyTable, countTable] = await Promise.all([
-      connection.query(`
+    const emptyTable = await enqueueConnectionQuery(connection, `
         SELECT *
         FROM (${readOnlySql}) AS explorer_view_preview
         LIMIT 0
-      `),
-      connection.query(`
+      `);
+    const countTable = await enqueueConnectionQuery(connection, `
         SELECT COUNT(*) AS count
         FROM (${readOnlySql}) AS explorer_view_count
-      `),
-    ]);
+      `);
     const columns = emptyTable.schema.fields.map(field => field.name);
     const initialColumns = schema.value?.columns.map(column => column.name) ?? [];
     const result: ExplorerViewPreview = {
@@ -428,17 +458,24 @@ export function useDatasetEngine() {
 
   async function createChartData(
     requiredFields: string[],
+    sourceExecutionId?: string,
   ): Promise<DatasetQueryResult> {
     const connection = await getConnection();
-    if (!latestVerifiedQuery) {
+    const source = sourceExecutionId
+      ? verifiedQueryExecutions.get(sourceExecutionId)
+      : latestVerifiedQuery;
+    if (!source) {
       throw new Error(
         "Les données du graphique doivent être vérifiées par une requête SQL préalable.",
       );
     }
-    const readOnlySql = latestVerifiedQuery;
+    if (source.resourceId !== (activeResource.value?.id ?? "local-resource")) {
+      throw new Error("La requête vérifiée appartient à une autre ressource.");
+    }
+    const readOnlySql = source.sql;
 
     const startedAt = performance.now();
-    const table = await connection.query(`
+    const table = await enqueueConnectionQuery(connection, `
       SELECT *
       FROM (${readOnlySql}) AS chart_data
       LIMIT 1001
@@ -455,6 +492,8 @@ export function useDatasetEngine() {
 
     const allRows = tableToRows(table);
     return {
+      executionId: executionId("chart"),
+      sourceExecutionId: source.id,
       columns,
       rows: allRows.slice(0, 1000),
       rowCount: allRows.length > 1000 ? 1000 : allRows.length,
@@ -465,24 +504,34 @@ export function useDatasetEngine() {
 
   async function createMapData(
     spec: MapSpec,
+    sourceExecutionId?: string,
   ): Promise<MapDatasetResult> {
     const connection = await getConnection();
-    if (!latestVerifiedQuery) {
+    const source = sourceExecutionId
+      ? verifiedQueryExecutions.get(sourceExecutionId)
+      : latestVerifiedQuery;
+    if (!source) {
       throw new Error(
         "Les données de la carte doivent être vérifiées par une requête SQL préalable.",
       );
     }
 
+    if (source.resourceId !== (activeResource.value?.id ?? "local-resource")) {
+      throw new Error("La requête vérifiée appartient à une autre ressource.");
+    }
+
     const startedAt = performance.now();
-    const table = await connection.query(`
+    const table = await enqueueConnectionQuery(connection, `
       SELECT *
-      FROM (${latestVerifiedQuery}) AS map_data
+      FROM (${source.sql}) AS map_data
       LIMIT 5001
     `);
     const columns = table.schema.fields.map(field => field.name);
     const allRows = tableToRows(table);
     const resolution = resolveMapFields(spec, columns, allRows.slice(0, 5000));
     return {
+      executionId: executionId("map"),
+      sourceExecutionId: source.id,
       columns,
       rows: allRows.slice(0, 5000),
       rowCount: Math.min(allRows.length, 5000),
@@ -507,10 +556,14 @@ export function useDatasetEngine() {
     const order = query.sort
       ? `ORDER BY ${quoteIdentifier(query.sort.column)} ${query.sort.direction.toUpperCase()} NULLS LAST`
       : "";
-    const [table, countTable] = await Promise.all([
-      connection.query(`SELECT ${select} FROM ${source} ${where} ${order} LIMIT ${limit} OFFSET ${offset}`),
-      connection.query(`SELECT COUNT(*) AS count FROM ${source} ${where}`),
-    ]);
+    const table = await enqueueConnectionQuery(
+      connection,
+      `SELECT ${select} FROM ${source} ${where} ${order} LIMIT ${limit} OFFSET ${offset}`,
+    );
+    const countTable = await enqueueConnectionQuery(
+      connection,
+      `SELECT COUNT(*) AS count FROM ${source} ${where}`,
+    );
     return {
       columns: table.schema.fields.map(field => field.name),
       rows: tableToRows(table),
@@ -533,7 +586,7 @@ export function useDatasetEngine() {
     const searchClause = search.trim()
       ? `AND CAST(${field} AS VARCHAR) ILIKE ${quoteLiteral(`%${search.trim()}%`)}`
       : "";
-    const table = await connection.query(`
+    const table = await enqueueConnectionQuery(connection, `
       SELECT CAST(${field} AS VARCHAR) AS value, COUNT(*) AS count
       FROM ${source}
       WHERE ${field} IS NOT NULL ${searchClause}
@@ -562,7 +615,7 @@ export function useDatasetEngine() {
       : "";
     const fileName = `explorer-${Date.now()}.csv`;
     try {
-      await connection.query(`COPY (SELECT ${select} FROM ${source} ${where} ${order}) TO ${quoteLiteral(fileName)} (FORMAT CSV, HEADER)`);
+      await enqueueConnectionQuery(connection, `COPY (SELECT ${select} FROM ${source} ${where} ${order}) TO ${quoteLiteral(fileName)} (FORMAT CSV, HEADER)`);
       const bytes = await database.copyFileToBuffer(fileName);
       return new Blob([new Uint8Array(bytes)], { type: "text/csv;charset=utf-8" });
     } finally {
@@ -579,7 +632,7 @@ export function useDatasetEngine() {
   }
 
   function visualizationSourceKey() {
-    return latestVerifiedQuery;
+    return latestVerifiedQuery?.id;
   }
 
   return {

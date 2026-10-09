@@ -166,6 +166,23 @@ const assistantText = computed(() => props.message.parts
   .map(part => part.text)
   .join("\n\n")
   .trim());
+const completedVisualization = computed(() => displayedToolParts.value.findLast(part =>
+  (part.type === "tool-create_chart" || part.type === "tool-create_map")
+  && part.state === "output-available",
+));
+const feedbackContent = computed(() => {
+  if (assistantText.value) return assistantText.value;
+  const visualization = completedVisualization.value;
+  if (!visualization || !("input" in visualization) || !visualization.input) return "";
+  const kind = visualization.type === "tool-create_chart" ? "Graphique" : "Carte";
+  const title = visualization.type === "tool-create_map"
+    ? visualization.output.resolvedSpec.title
+    : visualization.input.title;
+  const description = visualization.type === "tool-create_map"
+    ? visualization.output.resolvedSpec.description
+    : visualization.input.description;
+  return [title ? `${kind} : ${title}` : kind, description].filter(Boolean).join("\n\n");
+});
 
 type ToolDetail = { label: string; value: string };
 type ToolTraceEntry = {
@@ -453,7 +470,7 @@ function toolErrorContext(type: string) {
   <article
     :class="message.role === 'user'
       ? 'ml-auto flex max-w-[88%] flex-col items-end'
-      : 'w-full'"
+      : 'w-full min-w-0 max-w-full'"
     class="agent-message-enter text-[13px]"
     :data-message-role="message.role"
   >
@@ -625,7 +642,7 @@ function toolErrorContext(type: string) {
         v-for="part in displayedToolParts.filter(item => item.type === 'tool-create_chart')"
         v-show="part.state !== 'output-error' || !responding"
         :key="part.toolCallId"
-        class="mt-3"
+        class="mt-3 min-w-0 max-w-full"
       >
         <ExplorationVisualizationStage
           v-if="part.state !== 'output-error'"
@@ -661,7 +678,7 @@ function toolErrorContext(type: string) {
         v-for="part in displayedToolParts.filter(item => item.type === 'tool-create_map')"
         v-show="part.state !== 'output-error' || !responding"
         :key="part.toolCallId"
-        class="mt-3"
+        class="mt-3 min-w-0 max-w-full"
       >
         <ExplorationVisualizationStage
           v-if="part.state !== 'output-error'"
@@ -721,13 +738,14 @@ function toolErrorContext(type: string) {
         @action="finishErrorPresentation.action && emit('recover', finishErrorPresentation.action, message.id)"
       />
       <ExplorationMessageActions
-        v-if="assistantText && !toolsActive && !responding"
-        :content="assistantText"
+        v-if="feedbackContent && !toolsActive && !responding"
+        class="max-w-full"
+        :content="feedbackContent"
         :feedback-context="feedbackContext"
       />
       <ExplorationConversationFeedbackPrompt
-        v-if="showFeedbackPrompt && feedbackContext && assistantText && !responding"
-        :answer="assistantText"
+        v-if="showFeedbackPrompt && feedbackContext && feedbackContent && !responding"
+        :answer="feedbackContent"
         :context="feedbackContext"
         @dismiss="emit('dismissFeedbackPrompt')"
       />

@@ -4,6 +4,7 @@ import {
   streamText,
 } from "ai";
 import { dashboardTools } from "~~/shared/agents/dashboard-tools";
+import { AGENT_CONVERSATION_LIMITS } from "~~/shared/agents/conversation-limits";
 import { agentModelLabel } from "~~/shared/agents/models";
 import { resourceContextSchema } from "~~/shared/schemas/agent";
 import type { ExplorationMessage } from "~~/shared/types/exploration";
@@ -11,7 +12,9 @@ import { agentErrorMessage, normalizeAgentError } from "~~/server/agents/errors"
 import { useAgentModelSettings } from "~~/server/agents/model-settings";
 import { buildDashboardInstructions, type DashboardPromptContext } from "~~/server/agents/prompts/dashboard";
 import { resolveAgentModelId, useAgentModel } from "~~/server/agents/provider";
-import { fetchDatasetMetadata } from "~~/server/services/datagouv";
+import { fetchDatasetMetadata, verifyDatagouvResource } from "~~/server/services/datagouv";
+import { assertAgentRequestLimits } from "~~/server/agents/request-limits";
+import { acquireAgentCapacity } from "~~/server/agents/rate-limit";
 
 const MODEL_REQUEST_TIMEOUT_MS = 120_000;
 
@@ -35,6 +38,7 @@ export default defineEventHandler(async (event) => {
     dashboard?: DashboardPromptContext["dashboard"];
     modelId?: unknown;
   }>(event);
+  assertAgentRequestLimits(body);
 
   if (!Array.isArray(body.messages) || !body.dashboard) {
     throw createError({ statusCode: 400, statusMessage: "Le contexte du tableau de bord est incomplet." });
@@ -43,6 +47,21 @@ export default defineEventHandler(async (event) => {
   if (!resource.success) {
     throw createError({ statusCode: 400, statusMessage: "Le contexte de la ressource est absent ou invalide." });
   }
+  try {
+    await verifyDatagouvResource(
+      resource.data.datasetId,
+      resource.data.resourceId,
+      resource.data.url,
+    );
+  }
+  catch {
+    throw createError({
+      statusCode: 403,
+      statusMessage: "Cette ressource ne provient pas de data.gouv.fr.",
+    });
+  }
+
+  const capacity = await acquireAgentCapacity(event);
 
   let activeModelId: string;
   let model: ReturnType<typeof useAgentModel>;
@@ -51,6 +70,7 @@ export default defineEventHandler(async (event) => {
     model = useAgentModel(activeModelId);
   }
   catch (error) {
+    capacity.release();
     throw structuredHttpError(error, 503);
   }
 
@@ -70,6 +90,7 @@ export default defineEventHandler(async (event) => {
   const result = streamText({
     model,
     ...useAgentModelSettings(),
+    maxOutputTokens: AGENT_CONVERSATION_LIMITS.maxOutputTokens,
     instructions,
     messages: await convertToModelMessages(body.messages, {
       tools,
@@ -88,13 +109,17 @@ export default defineEventHandler(async (event) => {
     sendReasoning: true,
     messageMetadata({ part }) {
       if (part.type === "start") return { createdAt: new Date().toISOString() };
-      if (part.type === "finish") return {
-        finishReason: part.finishReason,
-        prototypeStepLimitReached: completedStepCount >= 5 && part.finishReason === "tool-calls",
-        totalUsage: part.totalUsage,
-      };
+      if (part.type === "finish") {
+        capacity.release();
+        return {
+          finishReason: part.finishReason,
+          prototypeStepLimitReached: completedStepCount >= 5 && part.finishReason === "tool-calls",
+          totalUsage: part.totalUsage,
+        };
+      }
     },
     onError(error) {
+      capacity.release();
       console.error("Dashboard agent error", error);
       return agentErrorMessage(error);
     },
