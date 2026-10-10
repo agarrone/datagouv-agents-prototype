@@ -12,7 +12,7 @@ describe("feedbackSchema", () => {
       datasetName: "Jeu de test",
       datasetUrl: "https://www.data.gouv.fr/fr/datasets/jeu-de-test/",
       resourceName: "Ressource Parquet",
-      model: "agent-exploration",
+      model: "gpt-oss-120b",
       origin: "after_six_questions",
       createdAt: "2026-07-27T12:00:00.000Z",
     });
@@ -22,6 +22,7 @@ describe("feedbackSchema", () => {
       expect(result.data.origin).toBe("after_six_questions");
       expect(result.data.datasetName).toBe("Jeu de test");
       expect(result.data.datasetUrl).toBe("https://www.data.gouv.fr/fr/datasets/jeu-de-test/");
+      expect(result.data.model).toBe("gpt-oss-120b");
     }
   });
 

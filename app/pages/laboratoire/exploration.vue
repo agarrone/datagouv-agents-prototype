@@ -23,6 +23,7 @@ import {
 
 const input = ref("");
 const selectedModelId = ref<AgentModelId>(DEFAULT_AGENT_MODEL_ID);
+const genericFeedbackContext = useGenericFeedbackContext();
 const route = useRoute();
 const initialPrompt = queryValue("prompt").trim();
 const initialPromptPending = ref(Boolean(initialPrompt));
@@ -74,6 +75,23 @@ const selectedResource = ref<ExplorationResource | null>(
   ?? explorationResources[0]
   ?? null,
 );
+
+watchEffect(() => {
+  const resource = dataset.activeResource.value ?? selectedResource.value;
+  genericFeedbackContext.value = resource
+    ? {
+        datasetName: resource.title,
+        datasetUrl: `https://www.data.gouv.fr/fr/datasets/${encodeURIComponent(resource.datasetReference)}/`,
+        resourceName: resourceContextName(resource),
+        resourceUrl: resource.parquetUrl,
+        model: selectedModelId.value,
+      }
+    : {};
+});
+
+onBeforeUnmount(() => {
+  genericFeedbackContext.value = {};
+});
 const readySoundPlayed = ref(false);
 const latestResponseUsage = ref<LanguageModelUsage>();
 const conversationFeedbackMessageId = ref<string | null>(null);
@@ -752,7 +770,7 @@ async function resolveClarification(toolCallId: string, choice: string) {
               datasetName: dataset.activeResource.value.title,
               datasetUrl: `https://www.data.gouv.fr/fr/datasets/${encodeURIComponent(dataset.activeResource.value.datasetReference)}/`,
               resourceName: resourceContextName(dataset.activeResource.value),
-              model: 'agent-exploration',
+              model: message.metadata?.modelId ?? selectedModelId,
             } : undefined"
             @apply-proposal="applyExplorerProposal"
             @decline-proposal="declineExplorerProposal"

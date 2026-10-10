@@ -1,5 +1,6 @@
 import { feedbackSchema } from "~~/shared/schemas/feedback";
 import { buildFeedbackFields } from "~~/server/services/feedback";
+import { enforceFeedbackRateLimit } from "~~/server/agents/rate-limit";
 
 const gristFeedbackEndpoint =
   "https://grist.numerique.gouv.fr/o/datagouv/api/s/iMKAxQa486jfLdQ5AJEyHj/tables/Retours_assistant/records?utm_source=grist-forms";
@@ -8,12 +9,14 @@ export default defineEventHandler(async (event) => {
   const requestUrl = getRequestURL(event);
   const origin = getHeader(event, "origin");
 
-  if (origin && origin !== requestUrl.origin) {
+  if (!origin || origin !== requestUrl.origin) {
     throw createError({
       statusCode: 403,
       statusMessage: "Origine non autorisée.",
     });
   }
+
+  enforceFeedbackRateLimit(event);
 
   const feedback = feedbackSchema.safeParse(await readBody(event));
   if (!feedback.success) {
