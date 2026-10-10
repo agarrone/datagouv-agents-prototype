@@ -12,12 +12,14 @@ describe("Grist feedback fields", () => {
       datasetName: "Jeu de test",
       datasetUrl: "https://www.data.gouv.fr/fr/datasets/jeu-de-test/",
       resourceName: "Ressource Parquet",
+      model: "gpt-oss-120b",
     });
 
     expect(buildFeedbackFields(feedback)).toMatchObject({
       Dataset_name: "Jeu de test",
       Dataset_url: "https://www.data.gouv.fr/fr/datasets/jeu-de-test/",
       Ressource_name: "Ressource Parquet",
+      Model: "gpt-oss-120b",
     });
     expect(buildFeedbackFields(feedback)).not.toHaveProperty("Dataset");
   });

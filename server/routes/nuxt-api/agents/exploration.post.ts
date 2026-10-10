@@ -158,6 +158,14 @@ export default defineEventHandler(async (event) => {
     });
   }
 
+  let activeModelId: string;
+  try {
+    activeModelId = resolveAgentModelId(body.modelId);
+  }
+  catch (error) {
+    throw structuredHttpError(error, 400);
+  }
+
   const schemaAnswer = deterministicSchemaAnswer(body.messages, resource.data);
   if (schemaAnswer) {
     const stream = createUIMessageStream<ExplorationMessage>({
@@ -168,6 +176,7 @@ export default defineEventHandler(async (event) => {
           type: "start",
           messageMetadata: {
             createdAt: new Date().toISOString(),
+            modelId: activeModelId,
             promptVersion: EXPLORATION_PROMPT_VERSION,
           },
         });
@@ -191,14 +200,6 @@ export default defineEventHandler(async (event) => {
       execute: async () => fetchDatasetMetadata(resource.data.datasetId),
     },
   };
-  let activeModelId: string;
-  try {
-    activeModelId = resolveAgentModelId(body.modelId);
-  }
-  catch (error) {
-    capacity.release();
-    throw structuredHttpError(error, 400);
-  }
   const instructions = `${buildExplorationInstructions(resource.data, agentModelLabel(activeModelId))}${
     explorerIntentInstruction(body.messages)
   }`;
@@ -310,12 +311,14 @@ export default defineEventHandler(async (event) => {
     messageMetadata({ part }) {
       if (part.type === "start") return {
         createdAt: new Date().toISOString(),
+        modelId: activeModelId,
         promptVersion: EXPLORATION_PROMPT_VERSION,
       };
       if (part.type === "finish") {
         capacity.release();
         return {
           finishReason: part.finishReason,
+          modelId: activeModelId,
           promptVersion: EXPLORATION_PROMPT_VERSION,
           prototypeStepLimitReached: completedStepCount >= MAX_STEPS && part.finishReason === "tool-calls",
           totalUsage: part.totalUsage,

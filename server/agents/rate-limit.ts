@@ -14,6 +14,11 @@ const LIMITS = {
   retentionMs: 48 * 60 * 60 * 1_000,
 } as const;
 
+const FEEDBACK_LIMITS = {
+  sessionPerHour: 60,
+  ipPerHour: 240,
+} as const;
+
 type Counter = { count: number; expiresAt: number };
 type QueueEntry = {
   resolve: () => void;
@@ -193,4 +198,30 @@ export async function acquireAgentCapacity(event: H3Event) {
   return {
     release,
   };
+}
+
+/**
+ * Protège l’endpoint public de feedback sans décompter une requête Albert ni
+ * occuper un emplacement de génération. Les seuils autorisent largement un
+ * usage humain normal tout en freinant les envois automatisés.
+ */
+export function enforceFeedbackRateLimit(event: H3Event) {
+  const now = Date.now();
+  cleanup(now);
+  const session = sessionId(event);
+  const ipFingerprint = temporaryIpFingerprint(event, now);
+  const hour = 60 * 60 * 1_000;
+  const checks = [
+    [windowKey("feedback-session-hour", session, hour, now), FEEDBACK_LIMITS.sessionPerHour],
+    [windowKey("feedback-ip-hour", ipFingerprint, hour, now), FEEDBACK_LIMITS.ipPerHour],
+  ] as const;
+
+  for (const [key, limit] of checks) {
+    if (consume(key, limit, hour, now)) continue;
+    setResponseHeader(event, "retry-after", 3600);
+    throw createError({
+      statusCode: 429,
+      statusMessage: "Trop de retours ont été envoyés. Réessayez plus tard.",
+    });
+  }
 }

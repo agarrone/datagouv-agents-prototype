@@ -155,6 +155,7 @@ shared/
   types/                    types de l’explorateur et des messages
 tests-unit/                 tests des contrats, prompts, outils et garde-fous
 tests-browser/              parcours critiques de l’explorateur dans Chromium
+tests-integration/          tests optionnels des services externes
 ```
 
 ## Vérifications
@@ -172,13 +173,18 @@ Les tests navigateur utilisent la ressource locale
 un modèle d’IA. Au premier lancement, installer Chromium avec
 `pnpm exec playwright install chromium`.
 
+Le test réel du feedback nécessite un serveur local et crée une ligne clairement
+identifiée dans Grist :
+
+```bash
+RUN_GRIST_INTEGRATION_TEST=1 FEEDBACK_TEST_BASE_URL=http://localhost:3000 pnpm test:integration:feedback
+```
+
 ## Limites actuelles
 
 - la liste des ressources compatibles est définie dans le code ;
 - les conversations et résultats ne sont pas persistés ;
 - la boucle de l’agent est limitée à cinq étapes ;
-- le nom du modèle affiché dans l’interface n’est pas encore relié à la
-  configuration effective ;
 - les erreurs sont structurées et attribuées au fournisseur IA, au prototype,
   à DuckDB ou aux services externes ; leur mesure agrégée en production reste à
   mettre en place ;
