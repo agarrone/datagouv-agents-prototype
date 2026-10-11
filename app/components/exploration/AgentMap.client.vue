@@ -2,6 +2,7 @@
 import "maplibre-gl/dist/maplibre-gl.css";
 
 import type {
+  ExpressionSpecification,
   GeoJSONSource,
   MapGeoJSONFeature,
 } from "maplibre-gl";
@@ -67,11 +68,17 @@ function localizeMapLabels() {
     if (layer.type !== "symbol") return;
     const textField = layer.layout?.["text-field"];
     if (!textField || !JSON.stringify(textField).includes("name")) return;
-    map?.setLayoutProperty(layer.id, "text-field", [
+    const fallbackTextField: ExpressionSpecification = Array.isArray(textField)
+      ? textField as ExpressionSpecification
+      : typeof textField === "string"
+        ? ["literal", textField]
+        : ["get", "name"];
+    const localizedTextField: ExpressionSpecification = [
       "coalesce",
       ["get", "name:fr"],
-      textField,
-    ]);
+      fallbackTextField,
+    ];
+    map?.setLayoutProperty(layer.id, "text-field", localizedTextField);
   });
 }
 

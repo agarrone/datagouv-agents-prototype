@@ -31,8 +31,44 @@ async function executeSql(
   return console;
 }
 
+async function mockFixtureDatasetApis(page: import("@playwright/test").Page) {
+  await page.route("**/nuxt-api/datasets/resources?**", route => route.fulfill({
+    contentType: "application/json",
+    body: JSON.stringify({
+      resources: [{
+        id: "fixture-datasets",
+        title: "Ressource Parquet de test",
+        format: "PARQUET",
+        url: "http://localhost:3000/fixtures/datasets.parquet",
+        parquetUrl: "http://localhost:3000/fixtures/datasets.parquet",
+      }],
+    }),
+  }));
+  await page.route("**/nuxt-api/datasets/metadata?**", route => route.fulfill({
+    contentType: "application/json",
+    body: JSON.stringify({
+      dataset: {
+        id: "fixture-datasets",
+        slug: "fixture-datasets",
+        title: "Jeu de données de test",
+        acronym: null,
+        description: "Fixture locale utilisée uniquement par les tests navigateur.",
+        page: "https://www.data.gouv.fr/fr/datasets/fixture-datasets/",
+        license: "Licence Ouverte / Open Licence version 2.0",
+        lastUpdate: "2026-01-01T00:00:00.000Z",
+        qualityScore: 1,
+        organization: { name: "data.gouv.fr", logo: null, page: null },
+        metrics: { views: 0, downloads: 0, reuses: 0, discussions: 0 },
+        resourceCount: 1,
+        communityResourceCount: 0,
+      },
+    }),
+  }));
+}
+
 test.describe("Explorateur de données", () => {
   test.beforeEach(async ({ page }) => {
+    await mockFixtureDatasetApis(page);
     await page.goto(EXPLORATION_URL);
     await expect(
       page.getByRole("region", { name: "Espace d’exploration du jeu de données" }),
@@ -81,5 +117,28 @@ test.describe("Explorateur de données", () => {
       page.getByText("Requête personnalisée depuis la console SQL"),
     ).toBeHidden();
     await expect(page.getByText("12 lignes", { exact: true })).toBeVisible();
+  });
+
+  test("ouvre l’assistant comme une page blanche en plein écran sur mobile", async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 812 });
+    await page.getByRole("button", { name: "Poser une question" }).click();
+
+    const assistant = page.getByRole("dialog");
+    await expect(assistant).toBeVisible();
+    await expect(assistant).toHaveCSS("background-color", "rgb(255, 255, 255)");
+    await expect(assistant).toHaveCSS("position", "fixed");
+
+    await expect.poll(async () => {
+      const bounds = await assistant.boundingBox();
+      return bounds && {
+        x: Math.round(bounds.x),
+        y: Math.round(bounds.y),
+        width: Math.round(bounds.width),
+        height: Math.round(bounds.height),
+      };
+    }).toEqual({ x: 0, y: 0, width: 375, height: 812 });
+    await expect(assistant.getByRole("form", {
+      name: "Poser une question à l’assistant",
+    })).toBeVisible();
   });
 });

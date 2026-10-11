@@ -46,4 +46,24 @@ describe("data.gouv.fr resource verification", () => {
       "https://example.test/other.parquet",
     )).rejects.toThrow("attestée par data.gouv.fr");
   });
+
+  it("rejects an external URL reusing the filename of an attested Hydra resource", async () => {
+    mockDatasetResource("https://object.files.data.gouv.fr/hydra-parquet/resource-id.parquet");
+
+    await expect(verifyDatagouvResource(
+      "dataset-slug",
+      "resource-id",
+      "https://example.test/resource-id.parquet",
+    )).rejects.toThrow("attestée par data.gouv.fr");
+  });
+
+  it("rejects a resource identifier that is not part of the dataset", async () => {
+    mockDatasetResource("https://object.files.data.gouv.fr/hydra-parquet/resource-id.parquet");
+
+    await expect(verifyDatagouvResource(
+      "dataset-slug",
+      "another-resource-id",
+      "https://object.files.data.gouv.fr/hydra-parquet/resource-id.parquet",
+    )).rejects.toThrow("attestée par data.gouv.fr");
+  });
 });

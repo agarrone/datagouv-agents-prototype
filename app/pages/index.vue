@@ -19,10 +19,10 @@ useSeoMeta({
           Posez vos questions directement aux données
         </h1>
         <p class="mt-5 max-w-2xl text-[18px] leading-7 text-[#555555]">
-          Ce prototype permet d’explorer un jeu de données en langage naturel. Choisissez une ressource, puis demandez à l’assistant de décrire ses colonnes, de rechercher une information ou de représenter les résultats.
+          Explorez un jeu de données en langage naturel : posez une question, filtrez les données ou créez une visualisation.
         </p>
         <p class="mt-5 max-w-2xl text-[14px] leading-6 text-[#555555]">
-          Il s’agit d’un prototype : les réponses peuvent être incomplètes ou erronées. Votre retour nous aide à comprendre ce qui vous semble utile, confus ou manquant pendant le test.
+          Ce prototype peut se tromper. Vérifiez ses réponses et partagez-nous vos retours.
         </p>
         <nav aria-label="Documentation du prototype" class="mt-5 flex flex-wrap gap-x-6 gap-y-2 text-[13px]">
           <NuxtLink class="font-medium text-[#000091] underline underline-offset-4" to="/documentation">Lire la documentation</NuxtLink>

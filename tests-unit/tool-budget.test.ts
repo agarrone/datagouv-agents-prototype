@@ -53,4 +53,23 @@ describe("SQL tool budget", () => {
 
     expect(countSqlCallsForCurrentQuestion(messages)).toBe(0);
   });
+
+  it("resets the SQL budget when a new user question starts", () => {
+    const messages = [
+      message({ role: "user", parts: [{ type: "text", text: "Première question" }] }),
+      message({
+        role: "assistant",
+        parts: ["SELECT 1", "SELECT 2", "SELECT 3"].map((sql, index) => ({
+          type: "tool-execute_sql" as const,
+          toolCallId: `old-${index}`,
+          state: "output-error" as const,
+          input: { sql, purpose: "Ancienne tentative" },
+          errorText: "Échec",
+        })),
+      }),
+      message({ role: "user", parts: [{ type: "text", text: "Nouvelle question" }] }),
+    ];
+
+    expect(countSqlCallsForCurrentQuestion(messages)).toBe(0);
+  });
 });

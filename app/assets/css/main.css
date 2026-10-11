@@ -381,9 +381,21 @@ samp {
   }
 }
 
+@keyframes chat-sidebar-enter-mobile {
+  from { transform: translateX(var(--distance-base)); }
+  to { transform: translateX(0); }
+}
+
 .chat-sidebar {
-  animation: chat-sidebar-enter var(--duration-fast) var(--ease-smooth-out) both;
-  will-change: opacity, transform, filter;
+  animation: chat-sidebar-enter-mobile var(--duration-fast) var(--ease-smooth-out) both;
+  will-change: transform;
+}
+
+@media (min-width: 1024px) {
+  .chat-sidebar {
+    animation-name: chat-sidebar-enter;
+    will-change: opacity, transform, filter;
+  }
 }
 
 /* transitions.dev — shimmer text */
