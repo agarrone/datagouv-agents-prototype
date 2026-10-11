@@ -542,6 +542,7 @@ useSeoMeta({
 
 <template>
   <main class="min-h-dvh bg-[#f6f6f6] text-[#161616]">
+    <ExperimentNotice />
     <header class="border-b border-[#e5e5e5] bg-white">
       <div class="mx-auto w-full max-w-[90rem] px-4 py-7 sm:px-6 lg:px-10">
         <NuxtLink class="inline-flex items-center gap-1.5 text-[12px] text-[#000091] underline underline-offset-4" to="/">

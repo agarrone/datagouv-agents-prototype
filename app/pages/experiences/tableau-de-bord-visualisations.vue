@@ -2290,6 +2290,7 @@ useSeoMeta({
 
 <template>
   <main class="min-h-dvh bg-[#f6f6f6] text-[#161616]">
+    <ExperimentNotice v-if="!previewMode" />
     <header v-if="!previewMode" class="sticky top-0 z-30 border-b border-[#e5e5e5] bg-white/95 backdrop-blur-sm">
       <div class="mx-auto flex min-h-[68px] w-full max-w-[90rem] items-center justify-between gap-4 px-4 sm:px-6 lg:px-10">
         <div class="min-w-0 flex-1">
