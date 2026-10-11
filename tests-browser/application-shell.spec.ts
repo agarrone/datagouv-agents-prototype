@@ -52,3 +52,23 @@ test("présente des documentations courtes orientées utilisateur", async ({ pag
   })).toBeVisible();
   await expect(page.getByText("prototype_step_limit", { exact: false })).toHaveCount(0);
 });
+
+test("conserve les cartes de la page d’accueil dans le viewport mobile", async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 812 });
+  await page.goto("/");
+
+  const resourceCards = page.locator('button[aria-pressed]');
+  await expect(resourceCards.first()).toBeVisible();
+
+  const layout = await page.evaluate(() => ({
+    clientWidth: document.documentElement.clientWidth,
+    scrollWidth: document.documentElement.scrollWidth,
+  }));
+  expect(layout.scrollWidth).toBe(layout.clientWidth);
+
+  const cardsStayInViewport = await resourceCards.evaluateAll(cards => cards.every((card) => {
+    const bounds = card.getBoundingClientRect();
+    return bounds.left >= 0 && bounds.right <= document.documentElement.clientWidth;
+  }));
+  expect(cardsStayInViewport).toBe(true);
+});

@@ -90,7 +90,7 @@ function submit() {
         :initially-open="contextInitiallyOpen"
         :title="resourceTitle"
       />
-      <div class="prompt-input-body flex h-28 flex-col justify-between bg-black/[0.02] px-2 py-2">
+      <div class="prompt-input-body flex h-28 flex-col justify-between bg-white px-2 py-2 lg:bg-black/[0.02]">
         <div
           v-if="editing"
           class="mb-1 flex shrink-0 items-center justify-between gap-2 border-b border-[#e5e5e5] pb-1 text-[11px] leading-4 text-[#555555]"

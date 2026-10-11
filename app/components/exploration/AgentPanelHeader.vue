@@ -20,7 +20,7 @@ const emit = defineEmits<{ close: [] }>();
 
 <template>
   <header class="shrink-0 bg-white">
-    <div class="flex h-14 items-center gap-2 border-b border-[#e5e5e5] bg-[#f6f6f6] px-4">
+    <div class="flex h-14 items-center gap-2 border-b border-[#e5e5e5] bg-white px-4 lg:bg-[#f6f6f6]">
       <div class="min-w-0 flex-1">
         <h2 class="truncate text-[12px] font-bold">{{ title }}</h2>
         <p class="mt-0.5 truncate text-[11px] text-[#555555]">{{ subtitle }}</p>

@@ -118,12 +118,12 @@ const exploreRoute = computed(() => selectedResource.value
     </div>
 
     <h3 class="mb-3 text-[14px] font-bold">Quelques jeux de données pour commencer</h3>
-    <div class="grid gap-2">
+    <div class="grid min-w-0 max-w-full gap-2">
       <button
         v-for="resource in resources"
         :key="resource.id"
         :aria-pressed="selectedResource?.id === resource.id && !selectedDataset"
-        class="agent-focusable agent-pressable group flex w-full items-center gap-3 rounded-md border bg-white px-3 py-2.5 text-left"
+        class="agent-focusable agent-pressable group flex min-w-0 max-w-full items-center gap-3 overflow-hidden rounded-md border bg-white px-3 py-2.5 text-left"
         :class="selectedResource?.id === resource.id && !selectedDataset ? 'border-[#000091] bg-[#f5f5fe]' : 'border-[#e5e5e5] hover:border-[#777777]'"
         type="button"
         @click="chooseExample(resource)"
@@ -173,7 +173,7 @@ const exploreRoute = computed(() => selectedResource.value
     <p v-if="error" role="alert" class="mt-3 border-l-2 border-[#ce0500] bg-[#fef4f4] px-3 py-2 text-[12px] text-[#ce0500]">{{ error }}</p>
 
     <div v-if="results.length" class="mt-4 divide-y divide-[#e5e5e5] border-y border-[#e5e5e5]">
-      <button v-for="dataset in results" :key="dataset.id" class="agent-focusable flex w-full items-center justify-between gap-4 px-2 py-3 text-left hover:bg-[#f6f6f6]" type="button" @click="chooseDataset(dataset)">
+      <button v-for="dataset in results" :key="dataset.id" class="agent-focusable flex min-w-0 max-w-full items-center justify-between gap-4 overflow-hidden px-2 py-3 text-left hover:bg-[#f6f6f6]" type="button" @click="chooseDataset(dataset)">
         <span class="min-w-0">
           <strong class="block truncate text-[13px] font-semibold">{{ dataset.title }}</strong>
           <span class="block truncate text-[11px] text-[#555555]">{{ dataset.organization }} · {{ dataset.resources.length }} ressource{{ dataset.resources.length > 1 ? "s" : "" }} compatible{{ dataset.resources.length > 1 ? "s" : "" }}</span>

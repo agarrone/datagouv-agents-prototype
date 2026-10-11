@@ -169,6 +169,20 @@ function parquetFileName(url: string) {
   }
 }
 
+const historicalHydraHosts = new Set([
+  "hydra.s3.rbx.io.cloud.ovh.net",
+  "object.files.data.gouv.fr",
+]);
+
+function isHistoricalHydraUrl(url: string) {
+  try {
+    return historicalHydraHosts.has(new URL(url).hostname.toLowerCase());
+  }
+  catch {
+    return false;
+  }
+}
+
 /**
  * Vérifie qu'une ressource et son URL Parquet sont bien publiées par l'API
  * data.gouv.fr. La comparaison par nom de fichier couvre les deux domaines
@@ -186,7 +200,12 @@ export async function verifyDatagouvResource(
     && Boolean(item.parquetUrl)
     && (
       item.parquetUrl === parquetUrl
-      || Boolean(requestedFile && parquetFileName(item.parquetUrl!) === requestedFile)
+      || Boolean(
+        requestedFile
+        && isHistoricalHydraUrl(parquetUrl)
+        && isHistoricalHydraUrl(item.parquetUrl!)
+        && parquetFileName(item.parquetUrl!) === requestedFile,
+      )
     ),
   );
 
