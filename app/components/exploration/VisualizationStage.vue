@@ -29,7 +29,10 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="t-skel h-[28rem] w-full min-w-0 max-w-full" :class="revealed ? 'is-revealed' : ''">
+  <div
+    class="t-skel w-full min-w-0 max-w-full"
+    :class="revealed ? 'is-revealed' : 'h-[28rem]'"
+  >
     <div class="t-skel-skeleton is-pulsing">
       <ExplorationVisualizationLoading class="h-full" :kind="kind" />
     </div>
@@ -71,6 +74,8 @@ onBeforeUnmount(() => {
   filter: blur(var(--reveal-blur));
 }
 .t-skel.is-revealed .t-skel-content {
+  position: relative;
+  inset: auto;
   opacity: 1;
   filter: blur(0);
 }

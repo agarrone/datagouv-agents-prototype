@@ -33,7 +33,7 @@ useSeoMeta({
       </nav>
 
       <div class="min-w-0 max-w-[60rem]">
-        <header class="pb-10">
+        <header class="pb-6">
           <h1 class="text-3xl font-bold leading-tight tracking-[-0.02em] sm:text-[42px]">Comprendre l’assistant d’exploration</h1>
           <p class="mt-5 text-[18px] leading-7 text-[#555555]">Ce prototype permet de poser des questions en langage naturel sur une ressource publiée sur data.gouv.fr, puis de vérifier les opérations réalisées sur les données.</p>
           <NuxtLink class="mt-6 inline-flex h-9 items-center border border-[#000091] px-3 text-[12px] font-medium text-[#000091] hover:bg-[#ececfe]" to="/documentation/technique">Comprendre son fonctionnement technique</NuxtLink>

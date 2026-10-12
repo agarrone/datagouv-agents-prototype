@@ -2,6 +2,7 @@
 const props = defineProps<{
   messageCount: number;
   responding: boolean;
+  transparent?: boolean;
 }>();
 
 const container = ref<HTMLElement | null>(null);
@@ -64,10 +65,11 @@ onBeforeUnmount(() => resizeObserver?.disconnect());
 </script>
 
 <template>
-  <div class="relative min-h-0 flex-1 bg-white">
+  <div class="relative min-h-0 flex-1" :class="transparent ? 'bg-transparent' : 'bg-white'">
     <div
       ref="container"
-      class="agent-conversation-scroll h-full overflow-y-auto bg-white px-5 py-5 md:px-6"
+      class="agent-conversation-scroll h-full overflow-y-auto px-5 py-5 md:px-6"
+      :class="transparent ? 'bg-transparent' : 'bg-white'"
       @scroll.passive="updateScrollButton"
     >
       <div class="mx-auto w-full min-w-0 max-w-[42rem] space-y-6">
