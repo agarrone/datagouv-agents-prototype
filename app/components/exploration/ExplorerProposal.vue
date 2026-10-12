@@ -20,6 +20,17 @@ const previewResult = ref<ExplorerViewPreview | undefined>(props.preview);
 const previewLoading = ref(false);
 const previewError = ref("");
 const applying = ref(false);
+const removed = ref(false);
+
+const isCurrentView = computed(() =>
+  props.applied !== false
+  && dataset.activeView.value?.sql === props.sql,
+);
+const isInactiveView = computed(() =>
+  removed.value
+  || props.applied === false
+  || (props.applied === true && !isCurrentView.value),
+);
 
 const currentRowCount = computed(() =>
   props.currentRowCount
@@ -47,6 +58,11 @@ function apply() {
   if (applying.value) return;
   applying.value = true;
   emit("apply");
+}
+
+function removeView() {
+  dataset.resetExplorerView();
+  removed.value = true;
 }
 
 watch(() => props.state, (state) => {
@@ -95,10 +111,15 @@ watch(() => props.state, (state) => {
         {{ applying ? "Application…" : "Appliquer cette vue" }}
       </button>
     </div>
-    <p v-else-if="state === 'output-available'" class="flex items-center gap-2 border-t border-[#b8fec9] bg-[#e3fdeb] px-4 py-3 text-xs text-[#18753c]">
-      <i aria-hidden="true" :class="applied === false ? 'ri-arrow-go-back-line' : 'ri-check-line'" class="text-base leading-none" />
-      <span>{{ applied === false ? "Vue actuelle conservée" : `Vue appliquée · ${(resultRowCount ?? 0).toLocaleString('fr-FR')} lignes` }}</span>
-    </p>
+    <div v-else-if="state === 'output-available'" class="flex flex-wrap items-center justify-between gap-2 border-t px-4 py-3 text-xs" :class="isInactiveView ? 'border-[#e5e5e5] bg-[#f6f6f6] text-[#555555]' : 'border-[#b8fec9] bg-[#e3fdeb] text-[#18753c]'">
+      <p class="flex items-center gap-2">
+        <i aria-hidden="true" :class="isInactiveView ? 'ri-arrow-go-back-line' : 'ri-check-line'" class="text-base leading-none" />
+        <span>{{ removed ? "Vue retirée du tableau" : applied === false ? "Vue actuelle conservée" : !isCurrentView ? "Vue remplacée ou retirée du tableau" : `Vue appliquée · ${(resultRowCount ?? 0).toLocaleString('fr-FR')} lignes` }}</span>
+      </p>
+      <button v-if="isCurrentView && !removed" class="agent-focusable rounded-md px-2.5 py-1.5 text-[11px] font-medium text-[#000091] underline underline-offset-2 hover:bg-white/60" type="button" @click="removeView">
+        Retirer le filtre
+      </button>
+    </div>
     <p v-else-if="state === 'output-error' && recovering" class="flex items-center gap-2 border-t border-[#e5e5e5] bg-[#f6f6f6] px-4 py-3 text-xs text-[#555555]">
       <ExplorationUnicodeSpinner name="dna" class="w-5 text-[#777777]" />
       Une correction est en cours de préparation

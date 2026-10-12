@@ -21,7 +21,6 @@ onBeforeUnmount(() => document.removeEventListener("keydown", onKeydown));
       <section class="flex h-[calc(100dvh-24px)] w-full max-w-[720px] flex-col overflow-hidden rounded-md border border-[#e5e5e5] border-t-4 border-t-[#000091] bg-white shadow-[0_16px_48px_rgba(0,0,18,0.22)] sm:h-[min(760px,calc(100dvh-48px))]" role="dialog" aria-modal="true" aria-labelledby="embedded-form-title" aria-describedby="embedded-form-description">
         <header class="flex items-start justify-between gap-5 border-b border-[#e5e5e5] px-4 py-4 sm:px-6 sm:py-5">
           <div class="max-w-[580px]">
-            <p class="mb-1 text-[11px] font-medium uppercase tracking-[0.06em] text-[#000091]">Prototype data.gouv.fr</p>
             <h2 id="embedded-form-title" class="text-[18px] font-semibold leading-6">{{ title }}</h2>
             <p id="embedded-form-description" class="mt-1 text-[13px] leading-5 text-[#555555]">{{ description }}</p>
           </div>

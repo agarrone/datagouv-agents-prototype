@@ -36,7 +36,7 @@ useSeoMeta({
       </nav>
 
       <div class="min-w-0 max-w-[60rem]">
-        <header class="pb-10">
+        <header class="pb-6">
           <h1 class="max-w-3xl text-3xl font-bold leading-tight tracking-[-0.02em] sm:text-[42px]">Comment fonctionne l’assistant ?</h1>
           <p class="mt-5 max-w-3xl text-[18px] leading-7 text-[#555555]">Le prototype associe un modèle de langage à des outils contrôlés par l’application. Le modèle choisit les opérations ; l’application exécute les calculs et affiche leurs résultats.</p>
         </header>

@@ -8,13 +8,13 @@ defineProps<{
 </script>
 
 <template>
-  <section :id="id" class="scroll-mt-14 py-9 lg:py-10">
+  <section :id="id" class="scroll-mt-14 py-5 lg:py-6">
     <div class="max-w-3xl">
       <p v-if="eyebrow" class="text-[11px] font-medium uppercase tracking-[0.05em] text-[#555555]">{{ eyebrow }}</p>
       <h2 class="mt-1 text-2xl font-bold leading-8 text-[#161616]">{{ title }}</h2>
-      <p v-if="description" class="mt-3 text-[15px] leading-7 text-[#555555]">{{ description }}</p>
+      <p v-if="description" class="mt-2 text-[15px] leading-6 text-[#555555]">{{ description }}</p>
     </div>
-    <div class="documentation-content mt-4 space-y-2 text-[15px] leading-7 text-[#555555]">
+    <div class="documentation-content mt-3 space-y-1.5 text-[15px] leading-6 text-[#555555]">
       <slot />
     </div>
   </section>

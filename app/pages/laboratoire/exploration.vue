@@ -733,7 +733,7 @@ async function resolveClarification(toolCallId: string, choice: string) {
       <aside
         v-if="assistantOpen"
         :aria-modal="isMobileViewport ? 'true' : undefined"
-        class="chat-sidebar fixed inset-0 z-[110] flex h-dvh min-h-0 flex-col bg-white lg:relative lg:z-auto lg:h-auto lg:border-l lg:border-[#777777] lg:bg-[linear-gradient(to_bottom,rgb(249,249,255)_0%,rgb(255,255,255)_100%)] lg:shadow-[-4px_0_12px_rgba(0,0,0,0.05)]"
+        class="chat-sidebar fixed inset-0 z-[110] flex h-dvh min-h-0 flex-col bg-white lg:relative lg:z-auto lg:h-auto lg:border-l lg:border-[#777777] lg:bg-[linear-gradient(to_bottom,rgba(235,237,255,0.30)_0%,rgba(235,237,255,0.01)_100%)] lg:shadow-[-4px_0_12px_rgba(0,0,0,0.05)]"
         :role="isMobileViewport ? 'dialog' : undefined"
       >
         <button aria-label="Redimensionner le panneau assistant" class="group absolute inset-y-0 -left-1 z-30 hidden w-2 cursor-col-resize lg:block" title="Glisser pour redimensionner · Double-cliquer pour réinitialiser" type="button" @dblclick="assistantWidth = DEFAULT_ASSISTANT_WIDTH" @mousedown="startAssistantResize"><span class="mx-auto block h-full w-px bg-transparent group-hover:bg-[#000091]" /></button>
@@ -742,6 +742,7 @@ async function resolveClarification(toolCallId: string, choice: string) {
           v-show="panelMode === 'assistant'"
           :message-count="messages.length"
           :responding="isResponding"
+          transparent
         >
           <ExplorationAgentEmptyState
             v-if="messages.length === 0"
