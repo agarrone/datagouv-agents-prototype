@@ -8,6 +8,7 @@ const props = defineProps<{
 const copied = ref(false);
 const rating = ref<"useful" | "not-useful" | null>(null);
 const feedbackStatus = ref<"idle" | "sending" | "sent" | "error">("idle");
+const feedbackError = ref("");
 const detailsOpen = ref(false);
 let copiedTimer: ReturnType<typeof setTimeout> | undefined;
 
@@ -32,6 +33,7 @@ async function sendFeedback(nextRating: "useful" | "not-useful") {
 
   rating.value = nextRating;
   feedbackStatus.value = "sending";
+  feedbackError.value = "";
 
   try {
     await $fetch("/nuxt-api/feedback", {
@@ -51,8 +53,16 @@ async function sendFeedback(nextRating: "useful" | "not-useful") {
       },
     });
     feedbackStatus.value = "sent";
-  } catch {
+  } catch (error) {
     feedbackStatus.value = "error";
+    const statusCode = typeof error === "object" && error !== null && "statusCode" in error
+      ? Number(error.statusCode)
+      : undefined;
+    feedbackError.value = statusCode === 429
+      ? "Trop de retours envoyés. Réessayez dans un instant."
+      : statusCode === 400
+        ? "Le retour n’a pas pu être préparé."
+        : "Le service de feedback est momentanément indisponible.";
   }
 }
 
@@ -128,7 +138,7 @@ onBeforeUnmount(() => {
       class="agent-focusable ml-2 text-[11px] text-[#ce0500] underline underline-offset-2"
       type="button"
       @click="rating && sendFeedback(rating)"
-    >Échec de l’envoi · Réessayer</button>
+    >{{ feedbackError }} Réessayer</button>
     <span class="sr-only" aria-live="polite">
       {{ copied ? "Réponse copiée" : feedbackStatus === "sent" ? "Retour envoyé" : "" }}
     </span>
