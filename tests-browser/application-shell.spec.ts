@@ -8,13 +8,21 @@ test("affiche le statut de prototype et les métadonnées de partage", async ({ 
   });
   await expect(banner).toContainText("Prototype de démonstration");
   await expect(banner).toHaveCSS("position", "sticky");
+  await expect(banner.getByRole("link", { name: /Devenir bêta-testeur/ })).toHaveAttribute(
+    "href",
+    "https://grist.numerique.gouv.fr/o/datagouv/forms/hwUYRYmjXZnTD1eXAaMTEa/17",
+  );
+  await expect(banner.getByRole("link", { name: /Donner votre avis/ })).toHaveAttribute(
+    "href",
+    /\/forms\/rchxExoA1GEDLCVHNae7Y8\/25\?origin=Bandeau(?:\+|%20)(?:%C2%B7|·)(?:\+|%20)Accueil/,
+  );
   await expect(page.locator('meta[property="og:title"]')).toHaveAttribute(
     "content",
     "Posez vos questions directement aux données",
   );
   await expect(page.locator('meta[property="og:image"]')).toHaveAttribute(
     "content",
-    "https://datagouv-agent.agarrone.fr/link-preview.png",
+    "https://datagouv-agent.agarrone.fr/link-preview.png?v=2",
   );
   await expect(page.locator('meta[property="og:image:width"]')).toHaveAttribute("content", "1200");
   await expect(page.locator('meta[property="og:image:height"]')).toHaveAttribute("content", "675");

@@ -151,7 +151,7 @@ export const manualTestScenarios: ManualTestScenario[] = [
     criteria: [
       "Les tooltips restent visibles dans le panneau.",
       "Le formulaire complémentaire Grist est proposé.",
-      "Dataset_name, Dataset_url et Ressource_name sont renseignés lorsqu’ils sont disponibles.",
+      "dataset_name, dataset_url et resource_name sont renseignés lorsqu’ils sont disponibles.",
     ],
   },
 ];

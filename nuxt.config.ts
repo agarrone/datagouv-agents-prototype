@@ -15,7 +15,7 @@ export default defineNuxtConfig({
         { property: "og:title", content: "Posez vos questions directement aux données" },
         { property: "og:description", content: "Explorez des jeux de données de data.gouv.fr en langage naturel, avec des requêtes, graphiques et cartes vérifiables." },
         { property: "og:url", content: "https://datagouv-agent.agarrone.fr/" },
-        { property: "og:image", content: "https://datagouv-agent.agarrone.fr/link-preview.png" },
+        { property: "og:image", content: "https://datagouv-agent.agarrone.fr/link-preview.png?v=2" },
         { property: "og:image:type", content: "image/png" },
         { property: "og:image:width", content: "1200" },
         { property: "og:image:height", content: "675" },
@@ -23,7 +23,7 @@ export default defineNuxtConfig({
         { name: "twitter:card", content: "summary_large_image" },
         { name: "twitter:title", content: "Posez vos questions directement aux données" },
         { name: "twitter:description", content: "Explorez des jeux de données de data.gouv.fr en langage naturel." },
-        { name: "twitter:image", content: "https://datagouv-agent.agarrone.fr/link-preview.png" },
+        { name: "twitter:image", content: "https://datagouv-agent.agarrone.fr/link-preview.png?v=2" },
       ],
       link: [
         { rel: "icon", type: "image/png", href: "/icon.png" },

@@ -9,22 +9,21 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{ close: [] }>();
-const formBaseUrl = "https://grist.numerique.gouv.fr/o/datagouv/forms/iMKAxQa486jfLdQ5AJEyHj/8";
+const formBaseUrl = "https://grist.numerique.gouv.fr/o/datagouv/forms/kPDvWt6APKdJn6wpw2z7Nw/26";
 const formUrl = computed(() => {
   const url = new URL(formBaseUrl);
   const originLabel = props.origin === "after_six_questions"
     ? "Invitation après 6 questions"
     : "Feedback sur une réponse";
-  if (props.rating) url.searchParams.set("Rating", props.rating === "useful" ? "Utile" : "Inutile");
+  if (props.rating) url.searchParams.set("rating", props.rating === "useful" ? "Utile" : "Inutile");
   const questionPrefix = props.origin === "after_six_questions" ? `[${originLabel}]\n` : "";
-  url.searchParams.set("Question", `${questionPrefix}${props.context.question}`.slice(0, 2_000));
-  url.searchParams.set("Answer", props.answer.slice(0, 5_000));
-  url.searchParams.set("Resource", props.context.resource);
-  if (props.context.datasetName) url.searchParams.set("Dataset_name", props.context.datasetName);
-  if (props.context.datasetUrl) url.searchParams.set("Dataset_url", props.context.datasetUrl);
-  if (props.context.resourceName) url.searchParams.set("Ressource_name", props.context.resourceName);
-  url.searchParams.set("Model", props.context.model);
-  url.searchParams.set("CreatedAt", new Date().toISOString());
+  url.searchParams.set("question", `${questionPrefix}${props.context.question}`.slice(0, 2_000));
+  url.searchParams.set("answer", props.answer.slice(0, 5_000));
+  url.searchParams.set("resource_url", props.context.resource);
+  if (props.context.datasetName) url.searchParams.set("dataset_name", props.context.datasetName);
+  if (props.context.datasetUrl) url.searchParams.set("dataset_url", props.context.datasetUrl);
+  if (props.context.resourceName) url.searchParams.set("resource_name", props.context.resourceName);
+  url.searchParams.set("model_id", props.context.model);
   return url.toString();
 });
 
