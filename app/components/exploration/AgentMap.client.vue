@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import "maplibre-gl/dist/maplibre-gl.css";
+import maplibreWorkerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?url";
 
 import type {
   ExpressionSpecification,
@@ -318,6 +319,7 @@ async function renderMap() {
   if (!mapElement.value) return;
   mapError.value = null;
   maplibre ??= await import("maplibre-gl");
+  maplibre.setWorkerUrl(maplibreWorkerUrl);
   legendRange.value = null;
   const geojson = props.spec.type === "choropleth"
     ? await choroplethCollection()

@@ -16,12 +16,12 @@ describe("Grist feedback fields", () => {
     });
 
     expect(buildFeedbackFields(feedback)).toMatchObject({
-      Dataset_name: "Jeu de test",
-      Dataset_url: "https://www.data.gouv.fr/fr/datasets/jeu-de-test/",
-      Ressource_name: "Ressource Parquet",
-      Model: "gpt-oss-120b",
+      dataset_name: "Jeu de test",
+      dataset_url: "https://www.data.gouv.fr/fr/datasets/jeu-de-test/",
+      resource_name: "Ressource Parquet",
+      model_id: "gpt-oss-120b",
     });
-    expect(buildFeedbackFields(feedback)).not.toHaveProperty("Dataset");
+    expect(buildFeedbackFields(feedback)).not.toHaveProperty("dataset");
   });
 
   it("omits optional Grist fields when unavailable", () => {
@@ -31,8 +31,8 @@ describe("Grist feedback fields", () => {
     });
     const fields = buildFeedbackFields(feedback);
 
-    expect(fields).not.toHaveProperty("Dataset_name");
-    expect(fields).not.toHaveProperty("Dataset_url");
-    expect(fields).not.toHaveProperty("Ressource_name");
+    expect(fields).not.toHaveProperty("dataset_name");
+    expect(fields).not.toHaveProperty("dataset_url");
+    expect(fields).not.toHaveProperty("resource_name");
   });
 });

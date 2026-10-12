@@ -37,8 +37,7 @@ useSeoMeta({
 
       <div class="min-w-0 max-w-[60rem]">
         <header class="pb-10">
-          <p class="text-[13px] font-medium text-[#555555]">Documentation technique simplifiée</p>
-          <h1 class="mt-3 max-w-3xl text-3xl font-bold leading-tight tracking-[-0.02em] sm:text-[42px]">Comment fonctionne l’assistant ?</h1>
+          <h1 class="max-w-3xl text-3xl font-bold leading-tight tracking-[-0.02em] sm:text-[42px]">Comment fonctionne l’assistant ?</h1>
           <p class="mt-5 max-w-3xl text-[18px] leading-7 text-[#555555]">Le prototype associe un modèle de langage à des outils contrôlés par l’application. Le modèle choisit les opérations ; l’application exécute les calculs et affiche leurs résultats.</p>
         </header>
 
@@ -57,10 +56,10 @@ useSeoMeta({
         </DocumentationSection>
 
         <DocumentationSection id="tools" title="Quels outils peut utiliser l’assistant ?">
-          <dl class="space-y-1">
-            <div v-for="tool in tools" :key="tool[0]" class="grid gap-1 py-2 sm:grid-cols-[9rem_minmax(0,1fr)] sm:gap-4">
-              <dt class="text-[13px] font-semibold text-[#161616]">{{ tool[0] }}</dt>
-              <dd class="text-[13px] leading-6 text-[#555555]">{{ tool[1] }}</dd>
+          <dl class="grid gap-3 sm:grid-cols-2">
+            <div v-for="tool in tools" :key="tool[0]" class="border border-[#e5e5e5] bg-white p-4">
+              <dt class="text-[14px] font-semibold leading-5 text-[#161616]">{{ tool[0] }}</dt>
+              <dd class="mt-2 text-[13px] leading-6 text-[#555555]">{{ tool[1] }}</dd>
             </div>
           </dl>
           <p>Une requête doit réussir avant d’alimenter une vue, un graphique ou une carte. Chaque visualisation reste ainsi reliée à un résultat calculé et vérifiable.</p>

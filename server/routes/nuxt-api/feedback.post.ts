@@ -3,7 +3,7 @@ import { buildFeedbackFields } from "~~/server/services/feedback";
 import { enforceFeedbackRateLimit } from "~~/server/agents/rate-limit";
 
 const gristFeedbackEndpoint =
-  "https://grist.numerique.gouv.fr/o/datagouv/api/s/iMKAxQa486jfLdQ5AJEyHj/tables/Retours_assistant/records?utm_source=grist-forms";
+  "https://grist.numerique.gouv.fr/o/datagouv/api/s/kPDvWt6APKdJn6wpw2z7Nw/tables/Feedback_reponses/records?utm_source=grist-forms";
 
 export default defineEventHandler(async (event) => {
   const requestUrl = getRequestURL(event);

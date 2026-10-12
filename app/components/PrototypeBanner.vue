@@ -1,15 +1,9 @@
 <script setup lang="ts">
-const feedbackContext = useGenericFeedbackContext();
 const route = useRoute();
-const formBaseUrl = "https://grist.numerique.gouv.fr/o/datagouv/forms/gPEhuAgf3KHL2WJ5iW8zQa/16";
+const formBaseUrl = "https://grist.numerique.gouv.fr/o/datagouv/forms/rchxExoA1GEDLCVHNae7Y8/25";
 const betaTesterFormBaseUrl = "https://grist.numerique.gouv.fr/o/datagouv/forms/hwUYRYmjXZnTD1eXAaMTEa/17";
 
-const betaTesterUrl = computed(() => {
-  const url = new URL(betaTesterFormBaseUrl);
-  url.searchParams.set("Source", "Prototype data.gouv.fr");
-  url.searchParams.set("Created_at", new Date().toISOString());
-  return url.toString();
-});
+const betaTesterUrl = betaTesterFormBaseUrl;
 
 const pageType = computed(() => {
   if (route.path === "/") return "Accueil";
@@ -21,20 +15,7 @@ const pageType = computed(() => {
 
 const feedbackUrl = computed(() => {
   const url = new URL(formBaseUrl);
-  url.searchParams.set("Origin", "Bandeau");
-  url.searchParams.set("Page_type", pageType.value);
-  // Une URL d’exploration complète contient elle-même plusieurs URL encodées.
-  // Injectée dans l’URL du formulaire, elle déclenche la protection Imperva de
-  // Grist. Le chemin identifie la page ; le jeu et la ressource sont transmis
-  // séparément dans leurs champs dédiés.
-  url.searchParams.set("Page_url", route.path);
-  url.searchParams.set("CreatedAt", new Date().toISOString());
-  const context = feedbackContext.value;
-  if (context.datasetName) url.searchParams.set("Dataset_name", context.datasetName);
-  if (context.datasetUrl) url.searchParams.set("Dataset_url", context.datasetUrl);
-  if (context.resourceName) url.searchParams.set("Ressource_name", context.resourceName);
-  if (context.resourceUrl) url.searchParams.set("Resource", context.resourceUrl);
-  if (context.model) url.searchParams.set("Model", context.model);
+  url.searchParams.set("origin", `Bandeau · ${pageType.value}`);
   return url.toString();
 });
 </script>

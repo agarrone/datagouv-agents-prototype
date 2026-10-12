@@ -1,25 +1,17 @@
 import type { FeedbackPayload } from "~~/shared/schemas/feedback";
 
 export function buildFeedbackFields(feedback: FeedbackPayload) {
-  const originLabel = feedback.origin === "after_six_questions"
-    ? "Invitation après 6 questions"
-    : "Feedback sur une réponse";
-
   const fields: Record<string, string> = {
-    Rating: feedback.rating,
-    Question: feedback.question,
-    Answer: feedback.answer,
-    // La table Grist ne possède pas de colonne Feedback_origin. Le champ
-    // Details permet de conserver l’origine sans rendre l’envoi invalide.
-    Details: `Origine : ${originLabel}`,
-    Resource: feedback.resource,
-    Model: feedback.model,
-    CreatedAt: feedback.createdAt ?? new Date().toISOString(),
+    rating: feedback.rating,
+    question: feedback.question,
+    answer: feedback.answer,
+    resource_url: feedback.resource,
+    model_id: feedback.model,
   };
 
-  if (feedback.datasetName) fields.Dataset_name = feedback.datasetName;
-  if (feedback.datasetUrl) fields.Dataset_url = feedback.datasetUrl;
-  if (feedback.resourceName) fields.Ressource_name = feedback.resourceName;
+  if (feedback.datasetName) fields.dataset_name = feedback.datasetName;
+  if (feedback.datasetUrl) fields.dataset_url = feedback.datasetUrl;
+  if (feedback.resourceName) fields.resource_name = feedback.resourceName;
 
   return fields;
 }
