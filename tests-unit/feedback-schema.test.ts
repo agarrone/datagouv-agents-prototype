@@ -31,6 +31,13 @@ describe("feedbackSchema", () => {
     expect(result.origin).toBe("response_feedback");
   });
 
+  it("accepte une réponse longue contenant une visualisation", () => {
+    expect(feedbackSchema.safeParse({
+      rating: "Utile",
+      answer: "x".repeat(10_000),
+    }).success).toBe(true);
+  });
+
   it("refuse une évaluation inconnue", () => {
     expect(feedbackSchema.safeParse({
       rating: "Moyen",
