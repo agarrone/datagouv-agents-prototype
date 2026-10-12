@@ -9,6 +9,8 @@ export function buildFeedbackFields(feedback: FeedbackPayload) {
     model_id: feedback.model,
   };
 
+  if (feedback.comment) fields.comment = feedback.comment;
+
   if (feedback.datasetName) fields.dataset_name = feedback.datasetName;
   if (feedback.datasetUrl) fields.dataset_url = feedback.datasetUrl;
   if (feedback.resourceName) fields.resource_name = feedback.resourceName;

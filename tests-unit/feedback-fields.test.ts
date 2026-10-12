@@ -8,6 +8,7 @@ describe("Grist feedback fields", () => {
       rating: "Utile",
       question: "Question",
       answer: "Réponse",
+      comment: "Commentaire lié à la réponse",
       dataset: "jeu-de-test",
       datasetName: "Jeu de test",
       datasetUrl: "https://www.data.gouv.fr/fr/datasets/jeu-de-test/",
@@ -20,6 +21,7 @@ describe("Grist feedback fields", () => {
       dataset_url: "https://www.data.gouv.fr/fr/datasets/jeu-de-test/",
       resource_name: "Ressource Parquet",
       model_id: "gpt-oss-120b",
+      comment: "Commentaire lié à la réponse",
     });
     expect(buildFeedbackFields(feedback)).not.toHaveProperty("dataset");
   });
@@ -28,6 +30,7 @@ describe("Grist feedback fields", () => {
     const feedback = feedbackSchema.parse({
       rating: "Inutile",
       answer: "Réponse",
+      comment: "Commentaire lié à la réponse",
     });
     const fields = buildFeedbackFields(feedback);
 

@@ -8,13 +8,19 @@ test("affiche le statut de prototype et les métadonnées de partage", async ({ 
   });
   await expect(banner).toContainText("Prototype de démonstration");
   await expect(banner).toHaveCSS("position", "sticky");
-  await expect(banner.getByRole("link", { name: /Devenir bêta-testeur/ })).toHaveAttribute(
-    "href",
-    "https://grist.numerique.gouv.fr/o/datagouv/forms/hwUYRYmjXZnTD1eXAaMTEa/17",
-  );
-  await expect(banner.getByRole("link", { name: /Donner votre avis/ })).toHaveAttribute(
-    "href",
+  await banner.getByRole("button", { name: /Donner votre avis/ }).click();
+  await expect(page.getByRole("dialog", { name: "Donner votre avis" })).toBeVisible();
+  await expect(page.getByTitle("Donner votre avis")).toHaveAttribute(
+    "src",
     /\/forms\/rchxExoA1GEDLCVHNae7Y8\/25\?origin=Bandeau(?:\+|%20)(?:%C2%B7|·)(?:\+|%20)Accueil/,
+  );
+  await page.getByRole("button", { name: "Fermer le formulaire" }).click();
+
+  await banner.getByRole("button", { name: /Devenir bêta-testeur/ }).click();
+  await expect(page.getByRole("dialog", { name: "Devenir bêta-testeur" })).toBeVisible();
+  await expect(page.getByTitle("Devenir bêta-testeur")).toHaveAttribute(
+    "src",
+    "https://grist.numerique.gouv.fr/o/datagouv/forms/hwUYRYmjXZnTD1eXAaMTEa/17",
   );
   await expect(page.locator('meta[property="og:title"]')).toHaveAttribute(
     "content",

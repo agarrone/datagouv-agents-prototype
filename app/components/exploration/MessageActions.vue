@@ -7,8 +7,7 @@ const props = defineProps<{
 }>();
 const copied = ref(false);
 const rating = ref<"useful" | "not-useful" | null>(null);
-const feedbackStatus = ref<"idle" | "sending" | "sent" | "error">("idle");
-const feedbackError = ref("");
+const feedbackStatus = ref<"idle" | "sent">("idle");
 const detailsOpen = ref(false);
 let copiedTimer: ReturnType<typeof setTimeout> | undefined;
 
@@ -22,7 +21,7 @@ async function copyResponse() {
 }
 
 async function sendFeedback(nextRating: "useful" | "not-useful") {
-  if (feedbackStatus.value === "sending" || feedbackStatus.value === "sent") return;
+  if (feedbackStatus.value === "sent") return;
 
   // Les spécimens de la page design restent interactifs sans envoyer de donnée.
   if (!props.feedbackContext) {
@@ -32,38 +31,11 @@ async function sendFeedback(nextRating: "useful" | "not-useful") {
   }
 
   rating.value = nextRating;
-  feedbackStatus.value = "sending";
-  feedbackError.value = "";
+  detailsOpen.value = true;
+}
 
-  try {
-    await $fetch("/nuxt-api/feedback", {
-      method: "POST",
-      body: {
-        rating: nextRating === "useful" ? "Utile" : "Inutile",
-        question: props.feedbackContext.question,
-        answer: props.content,
-        resource: props.feedbackContext.resource,
-        dataset: props.feedbackContext.dataset,
-        datasetName: props.feedbackContext.datasetName,
-        datasetUrl: props.feedbackContext.datasetUrl,
-        resourceName: props.feedbackContext.resourceName,
-        model: props.feedbackContext.model,
-        origin: "response_feedback",
-        createdAt: new Date().toISOString(),
-      },
-    });
-    feedbackStatus.value = "sent";
-  } catch (error) {
-    feedbackStatus.value = "error";
-    const statusCode = typeof error === "object" && error !== null && "statusCode" in error
-      ? Number(error.statusCode)
-      : undefined;
-    feedbackError.value = statusCode === 429
-      ? "Trop de retours envoyés. Réessayez dans un instant."
-      : statusCode === 400
-        ? "Le retour n’a pas pu être préparé."
-        : "Le service de feedback est momentanément indisponible.";
-  }
+function markFeedbackSent() {
+  feedbackStatus.value = "sent";
 }
 
 onBeforeUnmount(() => {
@@ -95,7 +67,7 @@ onBeforeUnmount(() => {
     <button
       aria-label="Réponse utile"
       :aria-pressed="rating === 'useful'"
-      :disabled="feedbackStatus === 'sending'"
+      :disabled="feedbackStatus === 'sent'"
       class="agent-focusable agent-pressable flex h-6 w-6 items-center justify-center rounded-md hover:bg-[#f6f6f6] hover:text-[#000091]"
       :class="rating === 'useful' ? 'bg-[#e3fdeb] text-[#18753c]' : ''"
       type="button"
@@ -107,7 +79,7 @@ onBeforeUnmount(() => {
     <button
       aria-label="Réponse inutile"
       :aria-pressed="rating === 'not-useful'"
-      :disabled="feedbackStatus === 'sending'"
+      :disabled="feedbackStatus === 'sent'"
       class="agent-focusable agent-pressable flex h-6 w-6 items-center justify-center rounded-md hover:bg-[#f6f6f6] hover:text-[#000091]"
       :class="rating === 'not-useful' ? 'bg-[#fef4f4] text-[#ce0500]' : ''"
       type="button"
@@ -117,39 +89,20 @@ onBeforeUnmount(() => {
       <span role="tooltip" class="action-tooltip action-tooltip-start">Marquer comme inutile. La question, la réponse et la ressource seront envoyées.</span>
     </button>
     <span
-      v-if="feedbackStatus === 'sending'"
-      class="ml-2 text-[11px] text-[#555555]"
-    >Envoi…</span>
-    <span
-      v-else-if="feedbackStatus === 'sent'"
+      v-if="feedbackStatus === 'sent'"
       class="ml-2 text-[11px] text-[#18753c]"
     >Merci pour votre retour.</span>
-    <button
-      v-if="feedbackStatus === 'sent' && feedbackContext"
-      class="agent-focusable relative ml-1 text-[11px] font-medium text-[#000091] underline underline-offset-2"
-      type="button"
-      @click="detailsOpen = true"
-    >
-      Ajouter un commentaire
-      <span role="tooltip" class="action-tooltip action-tooltip-wide action-tooltip-end">Ouvrir le formulaire Grist prérempli avec le contexte de cette réponse.</span>
-    </button>
-    <button
-      v-else-if="feedbackStatus === 'error'"
-      class="agent-focusable ml-2 text-[11px] text-[#ce0500] underline underline-offset-2"
-      type="button"
-      @click="rating && sendFeedback(rating)"
-    >{{ feedbackError }} Réessayer</button>
     <span class="sr-only" aria-live="polite">
       {{ copied ? "Réponse copiée" : feedbackStatus === "sent" ? "Retour envoyé" : "" }}
     </span>
   </footer>
   <ExplorationFeedbackDetailsDialog
-    v-if="detailsOpen && feedbackContext"
+    v-if="detailsOpen && feedbackContext && rating"
     :answer="content"
     :context="feedbackContext"
-    origin="response_feedback"
     :rating="rating"
     @close="detailsOpen = false"
+    @sent="markFeedbackSent"
   />
 </template>
 
