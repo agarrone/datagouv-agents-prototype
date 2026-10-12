@@ -16,6 +16,7 @@ describe.runIf(runIntegration)("Grist feedback integration", () => {
         rating: "Utile",
         question: `[TEST D’INTÉGRATION] Feedback Grist ${createdAt}`,
         answer: "Enregistrement généré automatiquement pour vérifier le parcours de feedback.",
+        comment: "Commentaire associé au même retour par le test d’intégration.",
         resource: "https://object.files.data.gouv.fr/test-integration.parquet",
         dataset: "test-integration-feedback",
         datasetName: "Test d’intégration du prototype",
@@ -27,6 +28,10 @@ describe.runIf(runIntegration)("Grist feedback integration", () => {
       }),
     });
 
-    expect(response.status, await response.text()).toBe(200);
+    const responseText = await response.text();
+    expect(response.status, responseText).toBe(200);
+
+    const result = JSON.parse(responseText) as { feedbackId?: number };
+    expect(result.feedbackId).toBeTypeOf("number");
   });
 });

@@ -29,11 +29,15 @@ export default defineEventHandler(async (event) => {
   const fields = buildFeedbackFields(feedback.data);
 
   try {
-    await $fetch(gristFeedbackEndpoint, {
+    const response = await $fetch<{ records?: Array<{ id?: number }> }>(gristFeedbackEndpoint, {
       method: "POST",
       body: { records: [{ fields }] },
     });
-    return { sent: true };
+    const feedbackId = response.records?.[0]?.id;
+    if (!feedbackId) {
+      throw new Error("Grist n’a pas retourné l’identifiant du feedback.");
+    }
+    return { sent: true, feedbackId };
   } catch (error) {
     console.error("Feedback submission error", error);
     throw createError({

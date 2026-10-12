@@ -4,6 +4,7 @@ const formBaseUrl = "https://grist.numerique.gouv.fr/o/datagouv/forms/rchxExoA1G
 const betaTesterFormBaseUrl = "https://grist.numerique.gouv.fr/o/datagouv/forms/hwUYRYmjXZnTD1eXAaMTEa/17";
 
 const betaTesterUrl = betaTesterFormBaseUrl;
+const openedForm = ref<"feedback" | "beta" | null>(null);
 
 const pageType = computed(() => {
   if (route.path === "/") return "Accueil";
@@ -29,18 +30,30 @@ const feedbackUrl = computed(() => {
         Les réponses peuvent être incomplètes ou erronées et doivent être vérifiées avant réutilisation.
       </p>
       <div class="col-span-2 flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 pl-6 sm:ml-auto sm:shrink-0 sm:flex-nowrap sm:pl-0">
-        <a :href="betaTesterUrl" class="font-medium text-[#000091] underline underline-offset-2 hover:text-[#1212ff]" rel="noopener noreferrer" target="_blank">
+        <button class="font-medium text-[#000091] underline underline-offset-2 hover:text-[#1212ff]" type="button" @click="openedForm = 'beta'">
           Devenir bêta-testeur
-          <span class="sr-only"> (nouvel onglet)</span>
-        </a>
-        <a :href="feedbackUrl" class="font-medium text-[#000091] underline underline-offset-2 hover:text-[#1212ff]" rel="noopener noreferrer" target="_blank">
+        </button>
+        <button class="font-medium text-[#000091] underline underline-offset-2 hover:text-[#1212ff]" type="button" @click="openedForm = 'feedback'">
           Donner votre avis
-          <span class="sr-only"> (nouvel onglet)</span>
-        </a>
+        </button>
         <NuxtLink class="hidden font-medium text-[#000091] underline underline-offset-2 hover:text-[#1212ff] lg:inline" to="/documentation">
           En savoir plus
         </NuxtLink>
       </div>
     </div>
   </aside>
+  <EmbeddedFormDialog
+    v-if="openedForm === 'feedback'"
+    title="Donner votre avis"
+    description="Partagez votre impression générale sur le prototype. Aucune identité n’est demandée."
+    :form-url="feedbackUrl"
+    @close="openedForm = null"
+  />
+  <EmbeddedFormDialog
+    v-else-if="openedForm === 'beta'"
+    title="Devenir bêta-testeur"
+    description="Inscrivez-vous pour participer aux prochains tests du prototype."
+    :form-url="betaTesterUrl"
+    @close="openedForm = null"
+  />
 </template>
