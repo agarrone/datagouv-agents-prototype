@@ -18,6 +18,7 @@ import type {
 import type {
   ExplorationResource,
 } from "~~/shared/data/exploration-resources";
+import { normalizeColumnNames } from "~~/shared/data/column-names";
 import { validateReadOnlySql } from "~~/shared/sql/read-only";
 import { resolveMapFields } from "~~/shared/maps/map-field-resolution";
 
@@ -134,6 +135,25 @@ function tableToRows(
   });
 }
 
+async function createNormalizedDataView(
+  connection: AsyncDuckDBConnection,
+  reader: string,
+) {
+  const sourceAlias = "__raw_data";
+  const description = await connection.query(`DESCRIBE SELECT * FROM ${reader}`);
+  const sourceNames = tableToRows(description).map(row => String(row.column_name));
+  const normalizedNames = normalizeColumnNames(sourceNames);
+  const projection = normalizedNames.map((normalizedName, index) =>
+    `#${index + 1} AS ${quoteIdentifier(normalizedName)}`,
+  );
+
+  await connection.query(`
+    CREATE OR REPLACE VIEW data AS
+    SELECT ${projection.join(", ")}
+    FROM ${reader} AS ${quoteIdentifier(sourceAlias)}
+  `);
+}
+
 async function createDatabase(parquetUrl: string) {
   const [
     duckdb,
@@ -158,10 +178,7 @@ async function createDatabase(parquetUrl: string) {
   );
 
   const connection = await database.connect();
-  await connection.query(`
-    CREATE OR REPLACE VIEW data AS
-    SELECT * FROM read_parquet('resource.parquet')
-  `);
+  await createNormalizedDataView(connection, "read_parquet('resource.parquet')");
   connectionPromise = Promise.resolve(connection);
 
   return database;
@@ -192,7 +209,7 @@ async function createDatabaseFromFile(file: File) {
   const reader = extension === "parquet"
     ? `read_parquet('${registeredName}')`
     : `read_csv_auto('${registeredName}', header = true, sample_size = -1)`;
-  await connection.query(`CREATE OR REPLACE VIEW data AS SELECT * FROM ${reader}`);
+  await createNormalizedDataView(connection, reader);
   connectionPromise = Promise.resolve(connection);
   return database;
 }
