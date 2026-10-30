@@ -32,6 +32,10 @@ export interface DashboardChartAppearance {
   palette: string[];
   showLegend: boolean;
   showValues: boolean;
+  yMin?: number;
+  yMax?: number;
+  unit?: string;
+  unitPosition?: "prefix" | "suffix";
 }
 
 export interface DashboardMapAppearance {

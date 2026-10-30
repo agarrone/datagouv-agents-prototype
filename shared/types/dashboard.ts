@@ -22,6 +22,7 @@ export interface DashboardBlockPlacement {
 
 export interface DashboardVisualizationRecord {
   id: string;
+  sourceVisualizationId?: string;
   definition: DashboardVisualizationDefinition;
   resource: { id: string; title: string; organization: string };
   rows: DatasetRow[];
