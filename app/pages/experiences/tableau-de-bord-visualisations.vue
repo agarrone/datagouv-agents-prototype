@@ -33,6 +33,13 @@ import {
   type DashboardVisualizationSize,
 } from "~~/shared/types/dashboard-visualization";
 import type { DashboardDocument, DashboardVisualizationRecord } from "~~/shared/types/dashboard";
+import {
+  DASHBOARD_VISUALIZATION_HANDOFF_KEY,
+  readVisualizationLibrary,
+  writeVisualizationLibrary,
+  type DashboardVisualizationHandoff,
+  type SavedVisualization,
+} from "~~/shared/types/saved-visualization";
 
 type Aggregation = "count" | "countDistinct" | "sum" | "average";
 type CardSize = DashboardVisualizationSize;
@@ -44,6 +51,7 @@ interface DashboardSeriesConfig { id: string; aggregation: Aggregation; measure:
 
 interface DashboardChart {
   id: string;
+  visualizationId?: string;
   resource: ExplorationResource;
   type: ChartType;
   title: string;
@@ -145,6 +153,7 @@ function cloneSerializable<T>(value: T): T {
 }
 
 const dataset = useDatasetEngine();
+const router = useRouter();
 const charts = ref<DashboardChart[]>([]);
 const textBlocks = ref<DashboardTextBlock[]>([]);
 const maps = ref<DashboardMap[]>([]);
@@ -219,6 +228,9 @@ const suspendManualDefinitionSync = ref(false);
 const persistenceStatus = ref<"idle" | "saving" | "saved" | "error">("idle");
 const lastPersistedAt = ref<Date | null>(null);
 const persistenceHydrated = ref(false);
+const chartCreationOpen = ref(false);
+const chartCreationGroupId = ref<string>(defaultGroupId);
+const visualizationLibrary = ref<SavedVisualization[]>([]);
 
 function startPanelResize(side: "assistant" | "builder", event: MouseEvent) {
   const startX = event.clientX;
@@ -1281,6 +1293,11 @@ function resetBuilder() {
 }
 
 async function openBuilder(kind: "chart" | "map" | "indicator" = "chart", insertIndex: number | null = null, groupId = groups.value[0]!.id) {
+  if (kind === "chart") {
+    pendingInsertIndex.value = insertIndex;
+    openChartCreation(groupId);
+    return;
+  }
   resetBuilder();
   selectedBlockId.value = null;
   visualizationKind.value = kind;
@@ -1303,6 +1320,126 @@ function insertBlockReference(reference: DashboardBlockReference) {
     blockOrder.value.splice(globalIndex, 0, reference);
   }
   pendingInsertIndex.value = null;
+}
+
+function openChartCreation(groupId: string) {
+  groupAddMenuId.value = null;
+  chartCreationGroupId.value = groupId;
+  visualizationLibrary.value = readVisualizationLibrary(localStorage).filter(item => item.definition.kind === "chart");
+  chartCreationOpen.value = true;
+}
+
+async function openDataStudio(groupId: string, chart?: DashboardChart) {
+  chartCreationOpen.value = false;
+  const visualizationId = chart?.visualizationId ?? crypto.randomUUID();
+  await router.push({
+    path: "/experiences/creation-visualisation-assistee",
+    query: {
+      visualizationId,
+      dashboardId: dashboardId.value,
+      groupId,
+      ...(chart ? { blockId: chart.id } : {}),
+    },
+  });
+}
+
+async function editChartInDataStudio(chart: DashboardChart) {
+  if (!chart.visualizationId) {
+    chart.visualizationId = crypto.randomUUID();
+    const library = readVisualizationLibrary(localStorage);
+    const record: SavedVisualization = {
+      id: chart.visualizationId,
+      status: "draft",
+      definition: chartDefinition(chart),
+      resource: {
+        id: chart.resource.id,
+        datasetId: datasetIdForResource(chart.resource),
+        datasetReference: chart.resource.datasetReference,
+        title: chart.resource.title,
+        resourceName: resourceContextName(chart.resource),
+        organization: chart.resource.organization,
+        parquetUrl: chart.resource.parquetUrl,
+      },
+      rows: chart.rows,
+      revision: chart.revision ?? 1,
+      savedAt: chart.savedAt ?? new Date().toISOString(),
+    };
+    writeVisualizationLibrary(localStorage, [record, ...library.filter(item => item.id !== record.id)]);
+  }
+  const groupId = blockOrder.value.find(item => item.id === chart.id)?.groupId ?? groups.value[0]!.id;
+  await openDataStudio(groupId, chart);
+}
+
+function chartFromSavedVisualization(record: SavedVisualization, blockId: string = crypto.randomUUID(), existing?: DashboardChart): DashboardChart | null {
+  if (record.definition.kind !== "chart") return null;
+  const definition = cloneSerializable(record.definition);
+  definition.size = existing?.size ?? "medium";
+  const baseResource = explorationResources.find(item => item.id === record.resource.datasetId)
+    ?? explorationResources.find(item => item.datasetReference === record.resource.datasetReference)
+    ?? explorationResources[0]!;
+  const resource: ExplorationResource = {
+    ...baseResource,
+    id: record.resource.id,
+    title: record.resource.title,
+    organization: record.resource.organization,
+    datasetReference: record.resource.datasetReference ?? baseResource.datasetReference,
+    parquetUrl: record.resource.parquetUrl,
+    resourceName: record.resource.resourceName,
+  };
+  return {
+    id: blockId,
+    visualizationId: record.id,
+    resource,
+    type: definition.specification.type,
+    title: definition.title,
+    description: definition.description,
+    dimension: definition.specification.xField,
+    aggregation: "count",
+    limit: limitFromSql(definition.data.query) ?? Math.min(Math.max(record.rows.length, 5), 50),
+    size: definition.size,
+    rows: record.rows,
+    spec: definition.specification,
+    sql: definition.data.query,
+    filters: definition.filters,
+    appearance: definition.appearance,
+    definition,
+    revision: record.revision,
+    savedAt: record.savedAt,
+  };
+}
+
+function addSavedVisualization(record: SavedVisualization, groupId = chartCreationGroupId.value) {
+  const chart = chartFromSavedVisualization(record);
+  if (!chart) return;
+  charts.value.push(chart);
+  insertBlockReference({ id: chart.id, kind: "chart", groupId });
+  chartCreationOpen.value = false;
+}
+
+function consumeVisualizationHandoff() {
+  const serialized = localStorage.getItem(DASHBOARD_VISUALIZATION_HANDOFF_KEY);
+  if (!serialized) return;
+  localStorage.removeItem(DASHBOARD_VISUALIZATION_HANDOFF_KEY);
+  try {
+    const handoff = JSON.parse(serialized) as DashboardVisualizationHandoff;
+    if (handoff.dashboardId !== dashboardId.value) return;
+    const record = readVisualizationLibrary(localStorage).find(item => item.id === handoff.visualizationId);
+    if (!record) return;
+    const existing = handoff.blockId ? getChart(handoff.blockId) : undefined;
+    const chart = chartFromSavedVisualization(record, handoff.blockId ?? crypto.randomUUID(), existing);
+    if (!chart) return;
+    if (existing) {
+      const index = charts.value.findIndex(item => item.id === existing.id);
+      if (index >= 0) charts.value.splice(index, 1, chart);
+    }
+    else {
+      charts.value.push(chart);
+      insertBlockReference({ id: chart.id, kind: "chart", groupId: handoff.groupId });
+    }
+  }
+  catch {
+    // Un transfert incomplet ne doit pas empêcher l’ouverture du tableau de bord.
+  }
 }
 
 function addTextBlock(insertIndex: number | null = null, groupId = groups.value[0]!.id) {
@@ -1588,7 +1725,7 @@ function persistDashboard() {
   if (!import.meta.client) return;
   persistenceStatus.value = "saving";
   const visualizations: DashboardVisualizationRecord[] = [
-    ...charts.value.map(chart => ({ id: chart.id, definition: chartDefinition(chart), resource: { id: chart.resource.id, title: chart.resource.title, organization: chart.resource.organization }, rows: chart.rows, revision: chart.revision ?? 1, savedAt: chart.savedAt ?? new Date().toISOString() })),
+    ...charts.value.map(chart => ({ id: chart.id, sourceVisualizationId: chart.visualizationId, definition: chartDefinition(chart), resource: { id: chart.resource.id, title: chart.resource.title, organization: chart.resource.organization }, rows: chart.rows, revision: chart.revision ?? 1, savedAt: chart.savedAt ?? new Date().toISOString() })),
     ...maps.value.map(map => ({ id: map.id, definition: mapDefinition(map), resource: { id: map.resource.id, title: map.resource.title, organization: map.resource.organization }, rows: map.rows, revision: map.revision ?? 1, savedAt: map.savedAt ?? new Date().toISOString() })),
     ...indicators.value.map(indicator => ({ id: indicator.id, definition: indicatorDefinition(indicator), resource: { id: indicator.resource.id, title: indicator.resource.title, organization: indicator.resource.organization }, rows: [{ [indicatorDefinition(indicator).specification.valueField]: indicator.value }], revision: indicator.revision ?? 1, savedAt: indicator.savedAt ?? new Date().toISOString() })),
   ];
@@ -1640,7 +1777,7 @@ function restoreDashboardDocument(document: DashboardDocument) {
       resourceName: definition.data.resourceName,
     };
     if (definition.kind === "chart") {
-      charts.value.push({ id: record.id, resource, type: definition.specification.type, title: definition.title, description: definition.description, dimension: definition.specification.xField, aggregation: "count", limit: limitFromSql(definition.data.query) ?? Math.min(Math.max(record.rows.length, 5), 50), size: definition.size, rows: record.rows, spec: definition.specification, sql: definition.data.query, filters: definition.filters, appearance: definition.appearance, definition, revision: record.revision, savedAt: record.savedAt });
+      charts.value.push({ id: record.id, visualizationId: record.sourceVisualizationId, resource, type: definition.specification.type, title: definition.title, description: definition.description, dimension: definition.specification.xField, aggregation: "count", limit: limitFromSql(definition.data.query) ?? Math.min(Math.max(record.rows.length, 5), 50), size: definition.size, rows: record.rows, spec: definition.specification, sql: definition.data.query, filters: definition.filters, appearance: definition.appearance, definition, revision: record.revision, savedAt: record.savedAt });
     }
     else if (definition.kind === "map") {
       maps.value.push({ id: record.id, resource, title: definition.title, size: definition.size, rows: record.rows, spec: definition.specification, sql: definition.data.query, filters: definition.filters, appearance: definition.appearance, definition, revision: record.revision, savedAt: record.savedAt });
@@ -1669,6 +1806,7 @@ function resetLocalDashboard() {
 }
 
 onMounted(() => {
+  window.setTimeout(consumeVisualizationHandoff, 0);
   const serializedDocument = localStorage.getItem(DASHBOARD_STORAGE_KEY);
   if (serializedDocument) {
     try {
@@ -2384,7 +2522,7 @@ useSeoMeta({
               <div class="flex items-center gap-1">
                 <button v-if="block.kind === 'text'" :aria-label="editingTextBlockId === block.data.id ? 'Enregistrer et afficher l’aperçu' : 'Modifier le Markdown'" class="agent-focusable flex h-6 w-6 items-center justify-center rounded-md text-[#555555] hover:bg-white" :title="editingTextBlockId === block.data.id ? 'Enregistrer et afficher l’aperçu' : 'Modifier le Markdown'" type="button" @click.stop="toggleTextBlockEditing(block.data)"><i :class="editingTextBlockId === block.data.id ? 'ri-check-line' : 'ri-pencil-line'" class="text-[14px]" /></button>
                 <button v-if="block.kind === 'chart'" class="agent-focusable flex h-6 w-6 items-center justify-center rounded-md text-[#555555] hover:bg-white" title="Dupliquer" type="button" @click.stop="duplicateChart(block.data)"><i aria-hidden="true" class="ri-file-copy-line text-[14px]" /></button>
-                <button v-if="block.kind === 'chart'" class="agent-focusable flex h-6 w-6 items-center justify-center rounded-md text-[#555555] hover:bg-white" title="Modifier" type="button" @click.stop="editChart(block.data)"><i aria-hidden="true" class="ri-pencil-line text-[14px]" /></button>
+                <button v-if="block.kind === 'chart'" class="agent-focusable flex h-6 w-6 items-center justify-center rounded-md text-[#555555] hover:bg-white" title="Modifier dans le Data Studio" type="button" @click.stop="editChartInDataStudio(block.data)"><i aria-hidden="true" class="ri-external-link-line text-[14px]" /></button>
                 <button v-if="block.kind === 'map'" class="agent-focusable flex h-6 w-6 items-center justify-center rounded-md text-[#555555] hover:bg-white" title="Modifier" type="button" @click.stop="editMap(block.data)"><i aria-hidden="true" class="ri-pencil-line text-[14px]" /></button>
                 <button v-if="block.kind === 'indicator'" class="agent-focusable flex h-6 w-6 items-center justify-center rounded-md text-[#555555] hover:bg-white" title="Modifier" type="button" @click.stop="editIndicator(block.data)"><i aria-hidden="true" class="ri-pencil-line text-[14px]" /></button>
                 <button class="agent-focusable flex h-6 w-6 items-center justify-center rounded-md text-[#ce0500] hover:bg-white" title="Supprimer" type="button" @click.stop="block.kind === 'text' ? removeTextBlock(block.data.id) : block.kind === 'map' ? removeMap(block.data.id) : block.kind === 'indicator' ? removeIndicator(block.data.id) : removeChart(block.data.id)"><i aria-hidden="true" class="ri-delete-bin-line text-[14px]" /></button>
@@ -2722,6 +2860,29 @@ useSeoMeta({
             <button class="agent-focusable inline-flex h-8 items-center gap-2 rounded-md bg-[#000091] px-3 text-[12px] font-medium text-white disabled:opacity-40" :disabled="builderLoading || agentResponding || !canContinue()" type="button" @click="saveChart"><i aria-hidden="true" :class="isEditingVisualization ? 'ri-save-line' : 'ri-check-line'" class="text-[14px]" />{{ isEditingVisualization ? "Sauvegarder" : `Ajouter ${visualizationKind === "map" ? "la carte" : visualizationKind === "indicator" ? "l’indicateur" : "le graphique"}` }}</button>
           </footer>
       </aside>
+    </div>
+
+    <div v-if="chartCreationOpen" class="fixed inset-0 z-[80] grid place-items-center bg-black/40 p-4" role="presentation" @click.self="chartCreationOpen = false">
+      <section role="dialog" aria-modal="true" aria-labelledby="chart-creation-title" class="w-full max-w-2xl rounded-md bg-white shadow-xl">
+        <header class="flex items-start justify-between border-b border-[#e5e5e5] p-5">
+          <div><h2 id="chart-creation-title" class="text-[16px] font-semibold">Ajouter une visualisation</h2><p class="mt-1 text-[12px] text-[#666666]">Choisissez une visualisation enregistrée ou créez-en une dans le Data Studio.</p></div>
+          <button aria-label="Fermer" class="grid size-8 place-items-center rounded hover:bg-[#f6f6f6]" type="button" @click="chartCreationOpen = false"><i aria-hidden="true" class="ri-close-line text-lg" /></button>
+        </header>
+        <div class="grid gap-4 p-5 md:grid-cols-2">
+          <button class="rounded-md border border-[#000091] bg-[#f5f5fe] p-4 text-left hover:bg-[#ececfe]" type="button" @click="openDataStudio(chartCreationGroupId)">
+            <i aria-hidden="true" class="ri-magic-line text-xl text-[#000091]" /><strong class="mt-3 block text-[13px]">Créer une visualisation</strong><span class="mt-1 block text-[11px] leading-5 text-[#555555]">Ouvrir le Data Studio et utiliser l’assistant ou l’éditeur manuel.</span>
+          </button>
+          <div class="rounded-md border border-[#e5e5e5] p-4">
+            <div class="flex items-center gap-2"><i aria-hidden="true" class="ri-folder-chart-line text-xl text-[#000091]" /><strong class="text-[13px]">Visualisations enregistrées</strong></div>
+            <div v-if="visualizationLibrary.length" class="mt-3 max-h-64 space-y-2 overflow-y-auto">
+              <button v-for="record in visualizationLibrary" :key="record.id" class="w-full rounded-md border border-[#dddddd] p-3 text-left hover:border-[#000091] hover:bg-[#f5f5fe]" type="button" @click="addSavedVisualization(record)">
+                <span class="block truncate text-[12px] font-medium">{{ record.definition.title }}</span><span class="mt-1 block truncate text-[10px] text-[#666666]">{{ record.resource.resourceName }} · {{ record.status === 'published' ? 'Publiée' : 'Brouillon' }}</span>
+              </button>
+            </div>
+            <p v-else class="mt-3 text-[11px] leading-5 text-[#666666]">Aucune visualisation enregistrée pour le moment.</p>
+          </div>
+        </div>
+      </section>
     </div>
   </main>
 </template>

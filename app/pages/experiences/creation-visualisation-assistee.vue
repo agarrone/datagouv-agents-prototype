@@ -16,6 +16,14 @@ import {
   type ExplorationResource,
 } from "~~/shared/data/exploration-resources";
 import type { ChartSpec, DatasetRow, ExplorationMessage } from "~~/shared/types/exploration";
+import type { DashboardVisualizationDefinition } from "~~/shared/types/dashboard-visualization";
+import {
+  DASHBOARD_VISUALIZATION_HANDOFF_KEY,
+  readVisualizationLibrary,
+  writeVisualizationLibrary,
+  type DashboardVisualizationHandoff,
+  type SavedVisualization,
+} from "~~/shared/types/saved-visualization";
 import { classifyExplorationError } from "~~/shared/errors/exploration";
 
 type ChartKind = "bar" | "line" | "area" | "pie" | "scatter";
@@ -43,6 +51,12 @@ useSeoMeta({
 });
 
 const dataset = useDatasetEngine();
+const route = useRoute();
+const router = useRouter();
+const visualizationId = ref(typeof route.query.visualizationId === "string" ? route.query.visualizationId : crypto.randomUUID());
+const savedRevision = ref(0);
+const saveStatus = ref<"idle" | "saved" | "published" | "error">("idle");
+const loadingSavedVisualization = ref(false);
 const selectedDatasetId = ref("");
 const selectedResourceId = ref("");
 const datasetResources = ref<DatagouvDatasetResource[]>([]);
@@ -556,7 +570,12 @@ watch([
   showValues, showLegend, paletteChoice, customColors,
 ], syncManualPresentation, { deep: true });
 
+watch([sql, specJson], () => {
+  if (!syncingConfiguration.value && (saveStatus.value === "saved" || saveStatus.value === "published")) saveStatus.value = "idle";
+});
+
 watch(selectedDatasetId, () => {
+  if (loadingSavedVisualization.value) return;
   hasChart.value = false;
   rows.value = [];
   agentChartSpec.value = null;
@@ -567,6 +586,7 @@ watch(selectedDatasetId, () => {
 });
 
 watch(selectedResourceId, () => {
+  if (loadingSavedVisualization.value) return;
   hasChart.value = false;
   rows.value = [];
   agentChartSpec.value = null;
@@ -581,6 +601,118 @@ function startManualChart() {
   hasChart.value = true;
   void refreshPreview();
 }
+
+function savedDefinition(): DashboardVisualizationDefinition | null {
+  const resource = selectedResource.value;
+  if (!resource || !hasChart.value || !rows.value.length) return null;
+  return {
+    version: 1,
+    kind: "chart",
+    title: activeChartSpec.value.title || title.value,
+    description: activeChartSpec.value.description || description.value,
+    size: "large",
+    data: {
+      resourceId: resource.id,
+      datasetReference: resource.datasetReference,
+      resourceName: visualizationResourceName(resource),
+      resourceUrl: resource.parquetUrl,
+      engine: "duckdb-sql",
+      query: sql.value,
+    },
+    filters: [],
+    specification: activeChartSpec.value,
+    appearance: appearance.value,
+  };
+}
+
+async function saveVisualization(status: SavedVisualization["status"]) {
+  const resource = selectedResource.value;
+  const definition = savedDefinition();
+  if (!resource || !definition) {
+    error.value = "Créez un graphique valide avant de l’enregistrer.";
+    return;
+  }
+  try {
+    const library = readVisualizationLibrary(localStorage);
+    const previous = library.find(item => item.id === visualizationId.value);
+    const record: SavedVisualization = {
+      id: visualizationId.value,
+      status,
+      definition,
+      resource: {
+        id: resource.id,
+        datasetId: selectedDatasetId.value,
+        datasetReference: resource.datasetReference,
+        title: resource.title,
+        resourceName: visualizationResourceName(resource),
+        organization: resource.organization,
+        parquetUrl: resource.parquetUrl,
+      },
+      rows: rows.value,
+      revision: (previous?.revision ?? savedRevision.value) + 1,
+      savedAt: new Date().toISOString(),
+    };
+    writeVisualizationLibrary(localStorage, [record, ...library.filter(item => item.id !== record.id)]);
+    savedRevision.value = record.revision;
+    saveStatus.value = status === "published" ? "published" : "saved";
+
+    const dashboardId = typeof route.query.dashboardId === "string" ? route.query.dashboardId : "";
+    const groupId = typeof route.query.groupId === "string" ? route.query.groupId : "";
+    if (dashboardId && groupId) {
+      const handoff: DashboardVisualizationHandoff = {
+        visualizationId: record.id,
+        dashboardId,
+        groupId,
+        blockId: typeof route.query.blockId === "string" ? route.query.blockId : undefined,
+        requestedAt: new Date().toISOString(),
+      };
+      localStorage.setItem(DASHBOARD_VISUALIZATION_HANDOFF_KEY, JSON.stringify(handoff));
+      await router.push("/experiences/tableau-de-bord-visualisations");
+    }
+  }
+  catch {
+    saveStatus.value = "error";
+    error.value = "La visualisation n’a pas pu être enregistrée localement.";
+  }
+}
+
+async function loadSavedVisualization() {
+  const requestedId = typeof route.query.visualizationId === "string" ? route.query.visualizationId : "";
+  if (!requestedId) return;
+  const record = readVisualizationLibrary(localStorage).find(item => item.id === requestedId);
+  if (!record || record.definition.kind !== "chart") return;
+  loadingSavedVisualization.value = true;
+  visualizationId.value = record.id;
+  savedRevision.value = record.revision;
+  selectedDatasetId.value = record.resource.datasetId;
+  await loadDatasetResources();
+  if (datasetResources.value.some(item => item.id === record.resource.id)) selectedResourceId.value = record.resource.id;
+  await loadResource();
+  syncingConfiguration.value = true;
+  hasChart.value = true;
+  rows.value = record.rows;
+  sql.value = record.definition.data.query;
+  agentChartSpec.value = record.definition.specification;
+  title.value = record.definition.title;
+  description.value = record.definition.description;
+  if (isChartKind(record.definition.specification.type)) chartType.value = record.definition.specification.type;
+  xLabel.value = record.definition.specification.xLabel ?? record.definition.specification.xField;
+  yLabel.value = record.definition.specification.series[0]?.label ?? yLabel.value;
+  applyPaletteColors(record.definition.appearance.palette);
+  showLegend.value = record.definition.appearance.showLegend;
+  showValues.value = record.definition.appearance.showValues;
+  yMin.value = record.definition.appearance.yMin === undefined ? "" : String(record.definition.appearance.yMin);
+  yMax.value = record.definition.appearance.yMax === undefined ? "" : String(record.definition.appearance.yMax);
+  unit.value = record.definition.appearance.unit ?? "";
+  unitPosition.value = record.definition.appearance.unitPosition ?? "suffix";
+  specJson.value = JSON.stringify({ ...record.definition.specification, appearance: record.definition.appearance }, null, 2);
+  saveStatus.value = record.status === "published" ? "published" : "saved";
+  await nextTick();
+  syncingConfiguration.value = false;
+  loadingSavedVisualization.value = false;
+}
+
+onMounted(() => void loadSavedVisualization());
 </script>
 
 <template>
@@ -591,6 +723,11 @@ function startManualChart() {
         <div class="min-w-0">
           <NuxtLink class="inline-flex items-center gap-1 text-[11px] text-[#000091] underline underline-offset-4" to="/experiences"><i aria-hidden="true" class="ri-arrow-left-line" />Expérimentations</NuxtLink>
           <h1 class="mt-1 truncate text-[18px] font-bold leading-6">Création de visualisation assistée</h1>
+        </div>
+        <div class="flex shrink-0 items-center gap-2">
+          <span class="hidden text-[11px] text-[#666666] sm:inline">{{ saveStatus === 'published' ? 'Publiée' : saveStatus === 'saved' ? 'Brouillon enregistré' : saveStatus === 'error' ? 'Échec de l’enregistrement' : 'Modifications non enregistrées' }}</span>
+          <button class="h-9 rounded-md border border-[#000091] bg-white px-3 text-[12px] font-medium text-[#000091] disabled:opacity-50" type="button" :disabled="!hasChart || !rows.length" @click="saveVisualization('draft')">Enregistrer le brouillon</button>
+          <button class="h-9 rounded-md bg-[#000091] px-3 text-[12px] font-medium text-white disabled:opacity-50" type="button" :disabled="!hasChart || !rows.length" @click="saveVisualization('published')">{{ route.query.dashboardId ? 'Enregistrer et ajouter' : 'Publier' }}</button>
         </div>
       </div>
     </header>
