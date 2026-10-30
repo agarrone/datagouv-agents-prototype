@@ -46,13 +46,13 @@ useSeoMeta({
             <div class="bg-white p-4"><h3 class="text-[13px] font-semibold">Dans le navigateur</h3><p class="mt-2 text-[13px] leading-6 text-[#555555]">Chargement du fichier, moteur DuckDB, requêtes SQL, tableau, graphiques et cartes.</p></div>
             <div class="bg-white p-4"><h3 class="text-[13px] font-semibold">Sur le serveur</h3><p class="mt-2 text-[13px] leading-6 text-[#555555]">Préparation du contexte, appel au modèle, accès aux métadonnées et enregistrement des feedbacks.</p></div>
           </div>
-          <p>Le fichier complet n’est pas envoyé au modèle. L’assistant demande à l’application d’exécuter les opérations nécessaires, puis utilise les résultats obtenus pour répondre.</p>
+          <p>Le fichier complet n’est pas joint à chaque demande au modèle. L’assistant demande à l’application d’exécuter les opérations nécessaires, puis utilise les résultats obtenus pour répondre.</p>
         </DocumentationSection>
 
         <DocumentationSection id="circulation" title="Quelles données sont échangées ?">
-          <p>Le modèle reçoit la question, l’historique de la conversation, le nom de la ressource, son schéma et les résultats utiles des outils. Ces résultats sont limités afin d’éviter l’envoi de volumes inutiles.</p>
-          <p>La ressource publique reste traitée localement dans le navigateur. Les secrets nécessaires pour appeler Albert API restent côté serveur.</p>
-          <p>Un feedback transmet la question, la réponse, l’évaluation et le contexte de la ressource. Le formulaire complémentaire est facultatif.</p>
+          <p>Le modèle reçoit la question, une fenêtre récente de la conversation, le nom de la ressource, son schéma et les résultats utiles des outils. Ces résultats sont limités afin d’éviter l’envoi de volumes inutiles.</p>
+          <p>Le calcul sur la ressource publique s’effectue dans le navigateur, mais les échantillons et résultats nécessaires à la réponse peuvent être transmis au modèle. Les secrets nécessaires pour appeler Albert API restent côté serveur.</p>
+          <p>Après confirmation dans le dialogue, un feedback transmet à Grist la question, la réponse, l’évaluation, le modèle, le contexte de la ressource et le commentaire éventuel. Fermer le dialogue sans envoyer ne transmet pas cette évaluation. Une invitation distincte à donner un avis général apparaît après six questions.</p>
         </DocumentationSection>
 
         <DocumentationSection id="tools" title="Quels outils peut utiliser l’assistant ?">
@@ -75,7 +75,7 @@ useSeoMeta({
             <li>Les requêtes SQL sont limitées à la lecture.</li>
             <li>Le nombre d’étapes et d’opérations est borné pour éviter les boucles.</li>
             <li>Un changement de ressource invalide les résultats calculés précédemment.</li>
-            <li>Les métadonnées et valeurs sont traitées comme des données, jamais comme des instructions.</li>
+            <li>Les instructions demandent au modèle de traiter les métadonnées et valeurs comme des données et d’ignorer les consignes qu’elles pourraient contenir ; cela ne garantit pas l’absence d’erreur du modèle.</li>
             <li>Les demandes trop nombreuses sont limitées par session et par empreinte IP quotidienne, sans conserver l’adresse IP brute.</li>
             <li>Deux réponses peuvent être produites simultanément par session et les compteurs expirent sous 48 heures.</li>
             <li>Les erreurs distinguent autant que possible le fournisseur IA, la connexion, le SQL, DuckDB et la visualisation.</li>
@@ -85,7 +85,10 @@ useSeoMeta({
         <DocumentationSection id="limites" title="Limites techniques actuelles">
           <ul>
             <li>Seules les ressources disposant d’une version Parquet compatible peuvent être explorées.</li>
-            <li>Les conversations ne sont pas persistées.</li>
+            <li>Les exemples sont prédéfinis, mais la recherche et le collage d’URL découvrent également les ressources Parquet du catalogue.</li>
+            <li>Les conversations ne sont pas persistées ; seuls les messages récents sont transmis au modèle.</li>
+            <li>Les quotas et la file d’attente sont propres à chaque processus serveur et repartent à zéro au redémarrage.</li>
+            <li>La lecture des fichiers dépend du réseau, des autorisations d’accès du navigateur et de la mémoire disponible.</li>
             <li>Les réponses des modèles restent variables et doivent être évaluées sur des cas réels.</li>
             <li>Le suivi agrégé des usages, des erreurs, des performances et des coûts reste à compléter.</li>
             <li>Ce prototype n’est pas encore intégré à cdata ou udata.</li>

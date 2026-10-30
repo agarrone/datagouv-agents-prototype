@@ -70,7 +70,7 @@ useSeoMeta({
         <DocumentationSection id="donnees" title="Données et confidentialité">
           <p>La ressource Parquet est téléchargée et interrogée dans votre navigateur. Les requêtes sont limitées à la lecture et ne modifient jamais les données d’origine.</p>
           <p>Le modèle reçoit votre question, l’historique courant, la description de la ressource et les résultats nécessaires à la réponse. Les clés d’accès au fournisseur restent sur le serveur.</p>
-          <p>Si vous évaluez une réponse, la question, la réponse et le contexte de la ressource sont transmis à l’équipe pour améliorer le prototype. N’y saisissez pas d’informations personnelles ou sensibles.</p>
+          <p>Si vous confirmez l’envoi d’une évaluation dans le dialogue, la question, la réponse, le modèle, le contexte de la ressource et votre commentaire éventuel sont enregistrés dans Grist pour améliorer le prototype. N’y saisissez pas d’informations personnelles ou sensibles.</p>
         </DocumentationSection>
 
         <DocumentationSection id="limites" title="Limites à connaître">

@@ -36,6 +36,10 @@ const props = defineProps<{
     palette?: string[];
     showLegend?: boolean;
     showValues?: boolean;
+    yMin?: number;
+    yMax?: number;
+    unit?: string;
+    unitPosition?: "prefix" | "suffix";
   };
 }>();
 
@@ -158,8 +162,14 @@ function chartOption(): EChartsCoreOption {
     yAxis: {
       name: isHorizontal ? props.spec.xLabel : undefined,
       type: isHorizontal ? "category" : "value",
+      min: isHorizontal ? undefined : props.appearance?.yMin,
+      max: isHorizontal ? undefined : props.appearance?.yMax,
       axisLabel: {
         hideOverlap: true,
+        formatter: isHorizontal ? undefined : (value: number | string) => {
+          const unit = props.appearance?.unit ?? "";
+          return props.appearance?.unitPosition === "prefix" ? `${unit}${value}` : `${value}${unit}`;
+        },
       },
     },
     series: props.spec.series.map((series, index) => {
@@ -194,9 +204,11 @@ function chartOption(): EChartsCoreOption {
           position: isHorizontal ? "right" : "top",
           formatter: (parameters: { data?: DatasetRow }) => {
             const value = parameters.data?.[series.field];
-            return typeof value === "number"
+            const formatted = typeof value === "number"
               ? value.toLocaleString("fr-FR")
               : String(value ?? "");
+            const unit = props.appearance?.unit ?? "";
+            return props.appearance?.unitPosition === "prefix" ? `${unit}${formatted}` : `${formatted}${unit}`;
           },
         },
       };

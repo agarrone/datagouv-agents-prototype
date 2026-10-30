@@ -4,6 +4,29 @@ import {
   dataTools,
   datasetRowSchema,
 } from "./data-tools";
+import { chartColorPalettes } from "./chart-appearance";
+
+const hexColorSchema = z.string().regex(/^#[0-9A-F]{6}$/i, "Couleur hexadécimale attendue, par exemple #000091.");
+
+export const updateChartInputSchema = z.object({
+  title: z.string().min(1).optional(),
+  description: z.string().min(1).optional(),
+  type: z.enum(["bar", "line", "area", "pie", "scatter"]).optional(),
+  xLabel: z.string().min(1).optional(),
+  yLabel: z.string().min(1).optional(),
+  appearance: z.object({
+    palettePreset: z.enum(Object.keys(chartColorPalettes) as [keyof typeof chartColorPalettes, ...(keyof typeof chartColorPalettes)[]]).optional(),
+    customColors: z.array(hexColorSchema).min(1).max(8).optional(),
+    showLegend: z.boolean().optional(),
+    showValues: z.boolean().optional(),
+    yMin: z.number().nullable().optional(),
+    yMax: z.number().nullable().optional(),
+    unit: z.string().max(20).optional(),
+    unitPosition: z.enum(["prefix", "suffix"]).optional(),
+  }).optional(),
+}).refine(value => Object.keys(value).length > 0, "Au moins une modification est requise.");
+
+export type UpdateChartInput = z.infer<typeof updateChartInputSchema>;
 
 export const mapSpecSchema = z.discriminatedUnion("type", [
   z.object({
@@ -132,6 +155,15 @@ export const explorationTools = {
       rowCount: z.number(),
       truncated: z.boolean(),
       elapsedMs: z.number(),
+    }),
+  }),
+  update_chart: tool({
+    description:
+      "Modifie le graphique brouillon existant sans recalculer les données. Utiliser pour changer le titre, la description, le type de rendu, les libellés, la légende, les valeurs, les bornes, l’unité ou les couleurs. Pour les couleurs, choisir une palette prédéfinie ou fournir customColors. Ne pas utiliser pour changer les colonnes, filtres ou agrégations : dans ce cas exécuter une nouvelle requête puis appeler create_chart.",
+    inputSchema: updateChartInputSchema,
+    outputSchema: z.object({
+      updated: z.literal(true),
+      fields: z.array(z.string()),
     }),
   }),
   create_map: tool({

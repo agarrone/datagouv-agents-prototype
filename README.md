@@ -31,8 +31,8 @@ donnée sur data.gouv.fr.
 - raisonnement observable en français, distinct des traces techniques repliables des outils utilisés ;
 - progression continue entre planification, tools, interprétation et rédaction, sans doublon entre deux reprises automatiques ;
 - erreurs intermédiaires masquées lorsqu’une tentative ultérieure du même tool réussit ;
-- évaluation utile ou inutile envoyée vers Grist, formulaire détaillé prérempli et sollicitation unique après six questions ;
-- galerie exhaustive des composants et états visuels du prototype.
+- évaluation utile ou inutile confirmée dans un dialogue, envoyée vers Grist avec un commentaire facultatif, et invitation distincte à donner un avis général après six questions ;
+- galerie de référence des principaux composants et états visuels du prototype.
 
 ## Pages
 
@@ -52,8 +52,8 @@ Le calcul sur le fichier reste autant que possible dans le navigateur :
 2. le serveur Nitro transmet la conversation et les instructions au modèle ;
 3. le modèle appelle des outils aux contrats Zod explicites ;
 4. les outils de données sont exécutés côté navigateur sur la table `data` ;
-5. leurs sorties bornées sont réinjectées dans la conversation ;
-6. le modèle poursuit son travail, dans une limite globale de cinq étapes ;
+5. leurs sorties bornées alimentent la conversation ; un graphique ou une carte finalise directement la réponse sans reprise automatique supplémentaire ;
+6. le modèle peut reprendre après les outils exécutés dans le navigateur ; chaque appel serveur est limité à cinq étapes, avec des budgets supplémentaires par question ;
 7. Vue affiche la réponse, le raisonnement observable, les traces des outils et les éventuelles
    visualisations.
 
@@ -88,18 +88,20 @@ reçoit le contexte courant, le schéma et les résultats nécessaires à la ré
 
 ## Installation locale
 
-Pré-requis : Node.js 22 ou plus récent et pnpm 10.
+Pré-requis : Node.js **22.19.0 minimum** et pnpm **10.12.1** (version déclarée dans `package.json`). `.nvmrc` sélectionne la branche Node 22.
 
 ```bash
-pnpm install
+pnpm install --frozen-lockfile
 cp .env.example .env
 pnpm dev
 ```
 
 Le site est alors disponible sur <http://localhost:3000>.
 
-La page et les données peuvent être consultées sans fournisseur IA. Une
-configuration de modèle est nécessaire pour obtenir une réponse de l’assistant.
+Le tableau et la console SQL peuvent être utilisés sans fournisseur IA, avec un accès réseau aux ressources. Une configuration Albert est nécessaire pour les réponses générées.
+
+Pour la configuration complète, le lancement du serveur de production, le proxy,
+les vérifications et le dépannage : [démarrage et déploiement](docs/demarrage-deploiement.md).
 
 ## Configuration du modèle
 
@@ -108,7 +110,9 @@ configuration de modèle est nécessaire pour obtenir une réponse de l’assist
 ```dotenv
 ALBERT_API_URL=
 ALBERT_API_KEY=
-ALBERT_MODEL=
+ALBERT_MODEL=gpt-oss-120b
+ALBERT_TEMPERATURE=0
+ALBERT_PRESENCE_PENALTY=0
 RATE_LIMIT_SECRET=
 ALBERT_DAILY_REQUEST_LIMIT=
 ```
@@ -120,9 +124,11 @@ pour les appels sans choix explicite. Les secrets restent exclusivement côté
 serveur. Le prototype ne configure pas Vercel AI Gateway.
 
 `RATE_LIMIT_SECRET` signe les sessions anonymes et produit une empreinte IP
-quotidienne non réversible. `ALBERT_DAILY_REQUEST_LIMIT` permet au prototype de
-s'arrêter à 80 % du quota quotidien du compte. Sans cette dernière valeur, le
-plafond global n'est pas appliqué ; les limites par session et IP restent actives.
+quotidienne par HMAC, sans conserver l’adresse brute dans les compteurs. `ALBERT_DAILY_REQUEST_LIMIT` permet au prototype de
+appliquer un plafond local égal à 80 % du quota quotidien déclaré. Sans cette dernière valeur, le
+plafond n'est pas appliqué ; les limites par session et IP restent actives.
+Ces compteurs et la file d’attente sont en mémoire, propres à chaque processus et
+réinitialisés au redémarrage : ils ne constituent pas un quota partagé entre instances.
 
 ## Sécurité et données
 
@@ -133,8 +139,9 @@ plafond global n'est pas appliqué ; les limites par session et IP restent activ
 - les clés de fournisseur ne sont jamais envoyées au navigateur ;
 - les protections anti-abus ne conservent pas les adresses IP brutes et leurs
   compteurs expirent sous 48 heures ;
-- les questions et réponses évaluées sont envoyées à Grist avec le contexte de
-  la ressource, sans identité utilisateur demandée.
+- les questions et réponses évaluées sont envoyées à Grist après confirmation
+  dans le dialogue, avec le modèle, le contexte de la ressource et le commentaire
+  éventuel, sans identité utilisateur demandée.
 
 ## Structure du dépôt
 
@@ -182,15 +189,33 @@ RUN_GRIST_INTEGRATION_TEST=1 FEEDBACK_TEST_BASE_URL=http://localhost:3000 pnpm t
 
 ## Limites actuelles
 
-- la liste des ressources compatibles est définie dans le code ;
+- les exemples de départ sont définis dans le code ; la recherche et le collage
+  d’URL découvrent aussi les ressources Parquet publiées dans les métadonnées
+  du catalogue (conversion `analysis:parsing:parquet_url` ou ressource Parquet native) ;
+- la lecture dépend de l’accessibilité du fichier depuis le navigateur, de CORS
+  et des capacités du poste ;
 - les conversations et résultats ne sont pas persistés ;
-- la boucle de l’agent est limitée à cinq étapes ;
+- chaque appel serveur est limité à cinq étapes ; les garde-fous par question
+  limitent les requêtes SQL distinctes à trois et les opérations à huit, avec
+  un délai modèle de 120 secondes et un budget temporel de tour de 240 secondes ;
+  ces garde-fous s’appuient en partie sur l’historique transmis par le client ;
 - les erreurs sont structurées et attribuées au fournisseur IA, au prototype,
   à DuckDB ou aux services externes ; leur mesure agrégée en production reste à
   mettre en place ;
 - il n’existe pas encore de protocole d’évaluation automatique des réponses ;
-- l’assistant de publication reste une expérience distincte et non référencée
-  depuis l’accueil.
+- les routes de publication et de dashboard restent présentes dans le serveur
+  construit, même si ces expériences ne sont pas référencées depuis l’accueil.
 
 Pour le détail du comportement et des choix techniques, consulter directement
 les pages `/documentation` et `/documentation/technique` du prototype.
+
+## Documentation de reprise
+
+- [Démarrage, configuration et déploiement](docs/demarrage-deploiement.md)
+- [Architecture et invariants](docs/architecture-exploration.md)
+- [Préparation de la passation cdata / udata](docs/passage-udata-cdata.md)
+
+Les pages `/documentation` et `/documentation/technique` expliquent le produit.
+La page `/design` présente des spécimens ; elle ne remplace pas une recette de
+la conversation ni un audit d’accessibilité. Ses formulaires de feedback peuvent
+envoyer de vrais retours et ses cartes utilisent des services réseau.

@@ -78,6 +78,7 @@ const toolParts = computed(() => props.message.parts.filter(part =>
   || part.type === "tool-execute_sql"
   || part.type === "tool-propose_explorer_view"
   || part.type === "tool-create_chart"
+  || part.type === "tool-update_chart"
   || part.type === "tool-create_map",
 ));
 const displayedToolParts = computed(() => toolParts.value.filter((part, index, parts) => {
@@ -101,6 +102,7 @@ const toolLabel = (type: string) => ({
   "tool-execute_sql": "Exécution de la requête SQL",
   "tool-propose_explorer_view": "Préparation de la vue",
   "tool-create_chart": "Création du graphique",
+  "tool-update_chart": "Modification du graphique",
   "tool-create_map": "Création de la carte",
 }[type] ?? "Opération");
 const activeToolLabel = (type: string) => ({
@@ -109,6 +111,7 @@ const activeToolLabel = (type: string) => ({
   "tool-execute_sql": "Je calcule la réponse à partir des données",
   "tool-propose_explorer_view": "Je prépare la vue à afficher dans le tableau",
   "tool-create_chart": "Je prépare le graphique à partir des résultats",
+  "tool-update_chart": "J’applique les modifications au graphique",
   "tool-create_map": "Je prépare la carte à partir des résultats",
 }[type] ?? "Je poursuis l’analyse");
 const completedReasoningLabel = (type: string) => ({
@@ -117,6 +120,7 @@ const completedReasoningLabel = (type: string) => ({
   "tool-execute_sql": "Calcul effectué sur les données",
   "tool-propose_explorer_view": "Vue du tableau préparée",
   "tool-create_chart": "Graphique préparé",
+  "tool-update_chart": "Graphique modifié",
   "tool-create_map": "Carte préparée",
 }[type] ?? "Étape terminée");
 const chartTypeLabel = (type: string | undefined) => ({
@@ -341,6 +345,18 @@ const toolTraceEntries = computed<ToolTraceEntry[]>(() => displayedToolParts.val
       details: chartToolDetails("input" in part ? part.input : undefined),
     };
   }
+  if (part.type === "tool-update_chart") {
+    return {
+      ...base,
+      description: "Mise à jour du brouillon courant sans recalcul des données",
+      summary: part.state === "output-available"
+        ? `${part.output.fields.length.toLocaleString("fr-FR")} modification${part.output.fields.length > 1 ? "s" : ""} appliquée${part.output.fields.length > 1 ? "s" : ""}`
+        : "Modification en cours",
+      details: part.state === "output-available"
+        ? [{ label: "Propriétés", value: part.output.fields.join(", ") }]
+        : undefined,
+    };
+  }
   return {
     ...base,
     description: "input" in part ? part.input?.description : undefined,
@@ -379,6 +395,9 @@ const observableReasoning = computed(() => {
   const chart = displayedToolParts.value.find(part =>
     part.type === "tool-create_chart" && part.state === "output-available",
   );
+  const chartUpdate = displayedToolParts.value.find(part =>
+    part.type === "tool-update_chart" && part.state === "output-available",
+  );
   const map = displayedToolParts.value.find(part =>
     part.type === "tool-create_map" && part.state === "output-available",
   );
@@ -401,7 +420,7 @@ const observableReasoning = computed(() => {
       ? "modifier la vue du tableau"
       : map || /\b(carte|cartograph|geograph|localis)/.test(normalizedQuestion)
         ? "analyser les données et les représenter sur une carte"
-        : chart || /\b(graph|diagramme|courbe|histogramme)/.test(normalizedQuestion)
+        : chart || chartUpdate || /\b(graph|diagramme|courbe|histogramme)/.test(normalizedQuestion)
           ? "analyser les données et les représenter dans un graphique"
           : /\b(filtr|tri(?:e|er|ez)|garde uniquement|tableau|explorateur)/.test(normalizedQuestion)
             ? "modifier la vue du tableau"
@@ -433,6 +452,9 @@ const observableReasoning = computed(() => {
   }
   if (chart?.type === "tool-create_chart") {
     sentences.push(`J’ai choisi ${chartTypeLabel(chart.input?.type)} pour rendre ces résultats plus faciles à comparer.`);
+  }
+  if (chartUpdate?.type === "tool-update_chart") {
+    sentences.push("J’ai appliqué les modifications demandées au graphique existant sans recalculer ses données.");
   }
   if (map?.type === "tool-create_map") {
     sentences.push(`J’ai représenté les résultats sous forme de ${map.input?.type === "choropleth" ? "carte par territoires" : "carte de points"} pour montrer leur répartition géographique.`);

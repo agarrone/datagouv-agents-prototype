@@ -193,8 +193,9 @@ export default defineEventHandler(async (event) => {
 
   const capacity = await acquireAgentCapacity(event);
 
+  const { update_chart: _updateChart, ...mainExplorationTools } = explorationTools;
   const tools = {
-    ...explorationTools,
+    ...mainExplorationTools,
     get_dataset_metadata: {
       ...explorationTools.get_dataset_metadata,
       execute: async () => fetchDatasetMetadata(resource.data.datasetId),
