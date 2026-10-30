@@ -287,7 +287,7 @@ const designDecisions = [
   {
     group: "Assistant",
     title: "Espace conversationnel",
-    detail: "Le dégradé bleu très léger distingue uniquement le panneau assistant ; les cartes et le compositeur restent blancs.",
+    detail: "Sur grand écran, le dégradé bleu très léger distingue le panneau assistant. Sur mobile, l’assistant occupe tout l’écran sur fond blanc ; les cartes et le compositeur restent blancs.",
     rule: "#EBEDFF à 30 % en haut vers 1 % en bas",
   },
   {
@@ -305,7 +305,7 @@ const designDecisions = [
   {
     group: "Assistant",
     title: "Compositeur",
-    detail: "La ressource utilisée est rappelée dans un accordéon compact intégré au-dessus du champ. Le modèle et sa consommation restent consultables par tooltip.",
+    detail: "La ressource utilisée est rappelée dans un accordéon compact intégré au-dessus du champ. Le modèle se choisit dans un menu et sa consommation se consulte dans un volet de détail.",
     rule: "Le message d’avertissement reste hors de la surface du compositeur",
   },
   {
@@ -376,8 +376,8 @@ const designRisks = [
   },
   {
     level: "Moyen",
-    title: "Sprites cartographiques incomplets",
-    detail: "Certains pictogrammes demandés par les fonds vectoriels ne sont pas encore fournis localement. MapLibre masque ces images et signale leur absence dans la console.",
+    title: "Dépendances cartographiques externes",
+    detail: "Les styles, tuiles, sprites et contours dépendent de services externes. Vérifier leur disponibilité et le rendu dans l’environnement de déploiement ; cette galerie ne garantit pas leur chargement hors ligne.",
   },
   {
     level: "Moyen",
@@ -386,8 +386,8 @@ const designRisks = [
   },
   {
     level: "Moyen",
-    title: "Expérience mobile différée",
-    detail: "La densité et les dimensions actuelles ciblent d’abord le panneau desktop. Une composition mobile dédiée reste à définir et à documenter.",
+    title: "Recette mobile à compléter",
+    detail: "L’assistant possède déjà une présentation mobile en plein écran sur fond blanc et l’explorateur affiche des fiches adaptées. Le test navigateur couvre l’ouverture du panneau ; le clavier virtuel, les réponses longues et les visualisations restent à vérifier sur appareils réels.",
   },
   {
     level: "Faible",
@@ -409,7 +409,12 @@ const designRisks = [
         <h1 class="mt-2 text-balance text-3xl font-bold md:text-5xl">Composants des agents</h1>
         <p class="mt-4 max-w-2xl text-pretty text-sm leading-6 text-[#555555]">
           Inventaire vivant des composants utilisés dans l’explorateur. Cette page permet
-          de comparer leur hiérarchie, leurs états et leur cohérence.
+          de comparer leur hiérarchie, leurs états et leur cohérence. Elle ne couvre pas toutes les combinaisons d’états ni le parcours complet de l’agent.
+        </p>
+        <p class="mt-3 max-w-2xl text-sm leading-6 text-[#555555]">
+          Les données des spécimens sont fictives. Les cartes chargent des services externes ;
+          les formulaires de feedback sont réels et peuvent enregistrer un retour dans Grist
+          si vous confirmez leur envoi. Cette page n’est pas le design system de cdata.
         </p>
       </div>
     </header>
@@ -1100,7 +1105,7 @@ const designRisks = [
               <button class="agent-focusable agent-pressable h-7 rounded-md border border-[#000091] px-2.5 text-[11px] font-medium text-[#000091]" type="button" @click="visualizationDemo++">Rejouer</button>
             </div>
             <ExplorationVisualizationStage :key="visualizationDemo" kind="graphique" ready>
-              <AgentChart :play-completion-sound="false" :rows="chartRows" source="Catalogue des données de data.gouv.fr · data.gouv.fr" :spec="chartSpecs[0]!" :truncated="false" />
+              <AgentChart :play-completion-sound="false" :rows="chartRows" source="Données fictives de démonstration" :spec="chartSpecs[0]!" :truncated="false" />
             </ExplorationVisualizationStage>
           </div>
           <div class="mt-5 grid gap-5 xl:grid-cols-2">
@@ -1109,7 +1114,7 @@ const designRisks = [
               :key="spec.type"
               :play-completion-sound="false"
               :rows="chartRows"
-              source="Catalogue des données de data.gouv.fr · data.gouv.fr"
+              source="Données fictives de démonstration"
               :spec="spec"
               :truncated="false"
             />
@@ -1135,7 +1140,7 @@ const designRisks = [
                   :basemap="basemap.id"
                   :play-completion-sound="false"
                   :rows="mapRows"
-                  source="Liste des festivals en France · Ministère de la Culture"
+                  source="Données fictives de démonstration"
                   :spec="mapSpec"
                   :truncated="false"
                 />
@@ -1231,7 +1236,7 @@ const designRisks = [
             <p class="text-[11px] font-medium uppercase tracking-[0.06em] text-[#ce0500]">Audit de cohérence</p>
             <h2 class="mt-1 text-2xl font-bold">Éléments susceptibles de poser problème</h2>
             <p class="mt-2 max-w-3xl text-[13px] leading-6 text-[#555555]">
-              Cette liste décrit les écarts observables dans l’implémentation actuelle. Elle sert de backlog de design system : elle ne signifie pas que chaque différence doit être supprimée.
+              Cette liste distingue les limites connues et les vérifications encore nécessaires. Elle sert de backlog de design system : elle ne signifie pas que chaque différence doit être supprimée.
             </p>
           </header>
           <ol class="overflow-hidden rounded-md border border-[#e5e5e5] bg-white">

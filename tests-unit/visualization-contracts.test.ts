@@ -3,6 +3,7 @@ import {
   chartRequiredFields,
   mapRequiredFields,
 } from "../shared/agents/visualization-fields";
+import { updateChartInputSchema } from "../shared/agents/exploration-tools";
 import {
   normalizeTerritoryCode,
   normalizeTerritoryName,
@@ -29,6 +30,12 @@ describe("visualization field contracts", () => {
       longitudeField: "longitude",
       labelField: "name",
     })).toEqual(["name", "latitude", "longitude"]);
+  });
+
+  it("accepts a predefined palette or custom hexadecimal colors", () => {
+    expect(updateChartInputSchema.safeParse({ appearance: { palettePreset: "illustration" } }).success).toBe(true);
+    expect(updateChartInputSchema.safeParse({ appearance: { customColors: ["#000091", "#E1000F"] } }).success).toBe(true);
+    expect(updateChartInputSchema.safeParse({ appearance: { customColors: ["blue"] } }).success).toBe(false);
   });
 
   it("requires territory and measure for a choropleth", () => {

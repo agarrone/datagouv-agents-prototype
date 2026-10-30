@@ -5,6 +5,7 @@ import type {
 import {
   chartRequiredFields,
 } from "~~/shared/agents/visualization-fields";
+import type { UpdateChartInput } from "~~/shared/agents/exploration-tools";
 import type {
   ChartSpec,
   MapDatasetResult,
@@ -16,6 +17,7 @@ import type {
 
 interface ExplorationToolRuntimeHooks {
   onChartReady?: (spec: ChartSpec, result: DatasetQueryResult) => void;
+  onChartUpdate?: (update: UpdateChartInput) => { updated: true; fields: string[] };
   onMapReady?: (spec: MapSpec, result: MapDatasetResult) => void;
   onSqlReady?: (sql: string, result: DatasetQueryResult) => void;
 }
@@ -147,6 +149,17 @@ export function useExplorationToolRuntime(
         hooks.onChartReady?.(toolCall.input, output);
         publishToolOutput({
           tool: "create_chart",
+          toolCallId: toolCall.toolCallId,
+          output,
+        });
+        return;
+      }
+
+      if (toolCall.toolName === "update_chart") {
+        const output = hooks.onChartUpdate?.(toolCall.input);
+        if (!output) throw new Error("Aucun graphique brouillon n’est disponible à la modification.");
+        publishToolOutput({
+          tool: "update_chart",
           toolCallId: toolCall.toolCallId,
           output,
         });

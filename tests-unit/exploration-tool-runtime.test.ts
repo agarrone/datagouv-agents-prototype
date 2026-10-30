@@ -140,6 +140,34 @@ describe("exploration tool runtime", () => {
     }]);
   });
 
+  it("applies a chart update through the dedicated hook", async () => {
+    const dataset = datasetStub();
+    const recorder = toolOutputRecorder();
+    const onChartUpdate = vi.fn().mockReturnValue({
+      updated: true as const,
+      fields: ["appearance.customColors"],
+    });
+    const runtime = useExplorationToolRuntime(dataset, recorder.addToolOutput, { onChartUpdate });
+    const input = { appearance: { customColors: ["#000091", "#E1000F"] } };
+
+    await runtime.handleToolCall({
+      toolCall: {
+        dynamic: false,
+        toolName: "update_chart",
+        toolCallId: "chart-update-1",
+        input,
+      },
+    } as ExplorationToolCallOptions);
+
+    expect(onChartUpdate).toHaveBeenCalledWith(input);
+    expect(dataset.executeSql).not.toHaveBeenCalled();
+    expect(recorder.outputs).toEqual([{
+      tool: "update_chart",
+      toolCallId: "chart-update-1",
+      output: { updated: true, fields: ["appearance.customColors"] },
+    }]);
+  });
+
   it("reuses an identical successful tool execution", async () => {
     const dataset = datasetStub();
     const recorder = toolOutputRecorder();

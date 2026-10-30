@@ -1,5 +1,5 @@
 <script setup lang="ts">
-const mode = defineModel<"assistant" | "sql">({ default: "assistant" });
+const mode = defineModel<"assistant" | "sql" | "manual">({ default: "assistant" });
 withDefaults(defineProps<{
   closable?: boolean;
   title?: string;
@@ -7,6 +7,7 @@ withDefaults(defineProps<{
   showSql?: boolean;
   secondaryLabel?: string;
   secondaryIcon?: string;
+  secondaryValue?: "sql" | "manual";
 }>(), {
   closable: false,
   showSql: true,
@@ -14,6 +15,7 @@ withDefaults(defineProps<{
   title: "Interroger ces données",
   secondaryLabel: "Console SQL",
   secondaryIcon: "ri-terminal-line",
+  secondaryValue: "sql",
 });
 const emit = defineEmits<{ close: [] }>();
 </script>
@@ -49,16 +51,16 @@ const emit = defineEmits<{ close: [] }>();
       </button>
       <button
         v-if="showSql"
-        :aria-selected="mode === 'sql'"
+        :aria-selected="mode === secondaryValue"
         class="relative flex items-center gap-1.5 border-b-2 px-0.5 text-[12px] font-normal"
-        :class="mode === 'sql'
+        :class="mode === secondaryValue
           ? 'border-[#000091] text-[#000091]'
           : 'border-transparent text-[#555555] hover:text-[#161616]'"
         role="tab"
         type="button"
-        @click="mode = 'sql'"
+        @click="mode = secondaryValue"
       >
-        <i aria-hidden="true" :class="[secondaryIcon, mode === 'sql' ? 'text-[#000091]' : 'text-[#555555]']" class="text-base leading-none" />
+        <i aria-hidden="true" :class="[secondaryIcon, mode === secondaryValue ? 'text-[#000091]' : 'text-[#555555]']" class="text-base leading-none" />
         {{ secondaryLabel }}
       </button>
     </nav>
