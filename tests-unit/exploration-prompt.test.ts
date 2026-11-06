@@ -42,6 +42,9 @@ describe("exploration prompt", () => {
     expect(instructions).toContain("au maximum 10 lignes");
     expect(instructions).toContain("au-delà de 20 lignes");
     expect(instructions).toContain("nombre entier");
+    expect(instructions).toContain("quelle que soit leur langue");
+    expect(instructions).toContain("toujours et");
+    expect(instructions).toContain("intégralement en français");
   });
 
   it("keeps unrelated requests outside the agent scope", () => {

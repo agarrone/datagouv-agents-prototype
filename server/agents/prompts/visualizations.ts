@@ -14,6 +14,7 @@ export const visualizationsPrompt = `Politique des visualisations :
 - pour une choroplèthe, n’invente jamais un code géographique absent des données ;
 - la requête cartographique doit inclure un libellé utile à l’infobulle ;
 - seuls create_chart et create_map créent les composants visuels : ne fournis ni
-  JSON, ni pseudo-code, ni image ou graphique simulé dans le texte ;
+  JSON, ni pseudo-code, ni image ou graphique simulé dans le texte ; n’écris
+  notamment jamais de syntaxe d’image Markdown comme ![Bar chart] ;
 - après une visualisation, résume brièvement ce qu’elle montre sans la remplacer
   par un tableau Markdown.`;

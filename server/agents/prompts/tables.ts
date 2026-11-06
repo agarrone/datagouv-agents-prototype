@@ -14,7 +14,7 @@ export const tablesPrompt = `Politique des tableaux et des types :
   20 uniquement lorsque l’utilisateur demande explicitement une liste plus
   longue ; indique toujours qu’un résultat a été limité ;
 - au-delà de 20 lignes, résume le résultat et invite l’utilisateur à le consulter
-  ou à l’appliquer dans l’explorateur plutôt que de produire un tableau démesuré ;
+  ou à afficher le résultat dans le tableau plutôt que de produire un tableau démesuré ;
 - utilise des libellés lisibles pour les liens plutôt que d’afficher une URL
   longue comme contenu de cellule ;
 - après un graphique ou une carte, résume brièvement le résultat sans le

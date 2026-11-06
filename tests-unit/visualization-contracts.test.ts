@@ -38,6 +38,36 @@ describe("visualization field contracts", () => {
     expect(updateChartInputSchema.safeParse({ appearance: { customColors: ["blue"] } }).success).toBe(false);
   });
 
+  it("accepts the product-level appearance options shared with the form", () => {
+    expect(updateChartInputSchema.safeParse({
+      appearance: {
+        legendPosition: "top",
+        valueFormat: "percent",
+        valuePrecision: 1,
+        valueMin: 0,
+        valueMax: 100,
+        orientation: "horizontal",
+        barWidth: "large",
+        roundedBars: true,
+        lineSmooth: false,
+        showPoints: true,
+        lineWidth: "small",
+        areaOpacity: "medium",
+        pieShape: "donut",
+        pieLabelContent: "category_percent",
+        pieLabelPosition: "outside",
+        pointSize: "large",
+        pointOpacity: "light",
+      },
+    }).success).toBe(true);
+  });
+
+  it("rejects inconsistent value-axis bounds", () => {
+    expect(updateChartInputSchema.safeParse({
+      appearance: { valueMin: 100, valueMax: 0 },
+    }).success).toBe(false);
+  });
+
   it("requires territory and measure for a choropleth", () => {
     expect(mapRequiredFields({
       type: "choropleth",

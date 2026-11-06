@@ -60,7 +60,7 @@ async function applyToExplorer() {
   } catch (reason) {
     error.value = reason instanceof Error
       ? reason.message
-      : "La requête n’a pas pu être appliquée à l’explorateur.";
+      : "Le résultat n’a pas pu être affiché dans le tableau.";
     playUiSound("error");
   }
 }
@@ -141,7 +141,7 @@ async function applyToExplorer() {
             type="button"
             @click="applyToExplorer"
           >
-            {{ applied ? "Appliquée" : "Appliquer à l’explorateur" }}
+            {{ applied ? "Affiché dans le tableau" : "Afficher ce résultat dans le tableau" }}
           </button>
         </div>
       </header>

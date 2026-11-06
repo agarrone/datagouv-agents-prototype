@@ -22,6 +22,26 @@ markdown.renderer.rules.link_open = (tokens, index, options, environment, render
 markdown.renderer.rules.table_open = () => '<div class="agent-markdown-table"><table>';
 markdown.renderer.rules.table_close = () => "</table></div>";
 
+const safeBreakToken = "DATAGOUV_ASSISTANT_SAFE_BREAK";
+
+function normalizeModelMarkdown(content: string) {
+  let insideFence = false;
+  return content
+    .replace(/\r\n?/g, "\n")
+    .split("\n")
+    .map((line) => {
+      if (/^\s*(```|~~~)/.test(line)) {
+        insideFence = !insideFence;
+        return line;
+      }
+      if (insideFence) return line;
+
+      const withoutDanglingImage = /^\s*!\[[^\]\n]+\]\s*$/.test(line) ? "" : line;
+      return withoutDanglingImage.replace(/<br\s*\/?>/gi, safeBreakToken);
+    })
+    .join("\n");
+}
+
 function completeStreamingMarkdown(content: string) {
   let completed = content;
   const fences = completed.match(/^```/gm)?.length ?? 0;
@@ -46,6 +66,8 @@ function completeStreamingMarkdown(content: string) {
 }
 
 export function renderAssistantMarkdown(content: string, streaming = false) {
-  const normalized = content.replace(/\r\n?/g, "\n").trim();
-  return markdown.render(streaming ? completeStreamingMarkdown(normalized) : normalized);
+  const normalized = normalizeModelMarkdown(content).trim();
+  return markdown
+    .render(streaming ? completeStreamingMarkdown(normalized) : normalized)
+    .replaceAll(safeBreakToken, "<br>");
 }
