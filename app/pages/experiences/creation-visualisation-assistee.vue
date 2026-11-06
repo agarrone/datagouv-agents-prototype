@@ -71,6 +71,7 @@ const sql = ref("");
 const specJson = ref("");
 const panelMode = ref<"assistant" | "manual">("assistant");
 const centerMode = ref<"preview" | "data">("preview");
+const dataMode = ref<"chart" | "source">("chart");
 const assistantPrompt = ref("");
 const selectedModelId = ref<AgentModelId>(DEFAULT_AGENT_MODEL_ID);
 const hasChart = ref(false);
@@ -95,6 +96,21 @@ const unit = ref("");
 const unitPosition = ref<"suffix" | "prefix">("suffix");
 const showValues = ref(true);
 const showLegend = ref(false);
+const legendPosition = ref<"top" | "bottom" | "left" | "right">("bottom");
+const valueFormat = ref<"number" | "percent" | "currency">("number");
+const valuePrecision = ref(0);
+const orientation = ref<"horizontal" | "vertical">("vertical");
+const barWidth = ref<"small" | "medium" | "large">("medium");
+const roundedBars = ref(false);
+const lineSmooth = ref(true);
+const showPoints = ref(false);
+const lineWidth = ref<"small" | "medium" | "large">("medium");
+const areaOpacity = ref<"light" | "medium" | "strong">("light");
+const pieShape = ref<"pie" | "donut">("donut");
+const pieLabelContent = ref<"value" | "percent" | "category_percent">("percent");
+const pieLabelPosition = ref<"inside" | "outside">("outside");
+const pointSize = ref<"small" | "medium" | "large">("medium");
+const pointOpacity = ref<"light" | "medium" | "strong">("strong");
 const paletteChoice = ref<ChartPaletteChoice>("france");
 const customColors = ref(["#000091", "#E1000F", "#18753C", "#A558A0"]);
 const filterGroups = ref<FilterGroup[]>([]);
@@ -115,6 +131,18 @@ const selectedResource = computed<ExplorationResource | undefined>(() => {
 const columns = computed(() => dataset.schema.value?.columns ?? []);
 const numericColumns = computed(() => columns.value.filter(column => /INT|DECIMAL|DOUBLE|FLOAT|REAL|NUMERIC/i.test(column.type)));
 const dimensionColumns = computed(() => columns.value.filter(column => column.name !== measure.value));
+const chartDataColumns = computed(() => {
+  const names = new Set<string>();
+  rows.value.forEach(row => Object.keys(row).forEach(name => names.add(name)));
+  return [...names];
+});
+
+function displayChartDataValue(value: DatasetRow[string] | undefined) {
+  if (value === null || value === undefined || value === "") return "Valeur manquante";
+  if (typeof value === "number") return value.toLocaleString("fr-FR");
+  if (typeof value === "boolean") return value ? "Oui" : "Non";
+  return String(value);
+}
 
 const paletteOptions = Object.entries(chartColorPalettes).map(([value, definition]) => ({
   value: value as keyof typeof chartColorPalettes,
@@ -128,7 +156,7 @@ const chartTypeOptions: { value: ChartKind; label: string; icon: string }[] = [
   { value: "bar", label: "Histogramme", icon: "ri-bar-chart-line" },
   { value: "line", label: "Courbe", icon: "ri-line-chart-line" },
   { value: "area", label: "Aires", icon: "ri-area-chart-line" },
-  { value: "pie", label: "Donut", icon: "ri-donut-chart-line" },
+  { value: "pie", label: "Camembert / donut", icon: "ri-donut-chart-line" },
   { value: "scatter", label: "Nuage de points", icon: "ri-bubble-chart-line" },
 ];
 
@@ -165,14 +193,28 @@ const previewAppearance = computed(() => (
 ));
 
 const appearance = computed(() => ({
-  orientation: "vertical" as const,
+  orientation: orientation.value,
   palette: activePaletteColors.value,
   showLegend: showLegend.value,
+  legendPosition: legendPosition.value,
   showValues: showValues.value,
-  yMin: finiteNumber(yMin.value),
-  yMax: finiteNumber(yMax.value),
+  valueFormat: valueFormat.value,
+  valuePrecision: valuePrecision.value,
+  valueMin: finiteNumber(yMin.value),
+  valueMax: finiteNumber(yMax.value),
   unit: unit.value,
   unitPosition: unitPosition.value,
+  barWidth: barWidth.value,
+  roundedBars: roundedBars.value,
+  lineSmooth: lineSmooth.value,
+  showPoints: showPoints.value,
+  lineWidth: lineWidth.value,
+  areaOpacity: areaOpacity.value,
+  pieShape: pieShape.value,
+  pieLabelContent: pieLabelContent.value,
+  pieLabelPosition: pieLabelPosition.value,
+  pointSize: pointSize.value,
+  pointOpacity: pointOpacity.value,
 }));
 
 const activeFiltersCount = computed(() => filterGroups.value.reduce((count, group) => (
@@ -370,8 +412,26 @@ function applySpecification() {
     if (parsed.appearance) {
       applyPaletteColors(parsed.appearance.palette);
       showLegend.value = parsed.appearance.showLegend ?? showLegend.value;
+      legendPosition.value = parsed.appearance.legendPosition ?? legendPosition.value;
       showValues.value = parsed.appearance.showValues ?? showValues.value;
+      valueFormat.value = parsed.appearance.valueFormat ?? valueFormat.value;
+      valuePrecision.value = parsed.appearance.valuePrecision ?? valuePrecision.value;
+      yMin.value = String(parsed.appearance.valueMin ?? yMin.value);
+      yMax.value = String(parsed.appearance.valueMax ?? yMax.value);
       unit.value = parsed.appearance.unit ?? unit.value;
+      unitPosition.value = parsed.appearance.unitPosition ?? unitPosition.value;
+      orientation.value = parsed.appearance.orientation ?? orientation.value;
+      barWidth.value = parsed.appearance.barWidth ?? barWidth.value;
+      roundedBars.value = parsed.appearance.roundedBars ?? roundedBars.value;
+      lineSmooth.value = parsed.appearance.lineSmooth ?? lineSmooth.value;
+      showPoints.value = parsed.appearance.showPoints ?? showPoints.value;
+      lineWidth.value = parsed.appearance.lineWidth ?? lineWidth.value;
+      areaOpacity.value = parsed.appearance.areaOpacity ?? areaOpacity.value;
+      pieShape.value = parsed.appearance.pieShape ?? pieShape.value;
+      pieLabelContent.value = parsed.appearance.pieLabelContent ?? pieLabelContent.value;
+      pieLabelPosition.value = parsed.appearance.pieLabelPosition ?? pieLabelPosition.value;
+      pointSize.value = parsed.appearance.pointSize ?? pointSize.value;
+      pointOpacity.value = parsed.appearance.pointOpacity ?? pointOpacity.value;
     }
     void refreshPreview(true);
     void nextTick(() => { syncingConfiguration.value = false; });
@@ -418,11 +478,26 @@ const toolRuntime = useExplorationToolRuntime(dataset, (output) => {
     if (patch?.palettePreset !== undefined) { paletteChoice.value = patch.palettePreset; fields.push("appearance.palettePreset"); }
     if (patch?.customColors !== undefined) { paletteChoice.value = "custom"; customColors.value = [...patch.customColors]; fields.push("appearance.customColors"); }
     if (patch?.showLegend !== undefined) { showLegend.value = patch.showLegend; fields.push("appearance.showLegend"); }
+    if (patch?.legendPosition !== undefined) { legendPosition.value = patch.legendPosition; fields.push("appearance.legendPosition"); }
     if (patch?.showValues !== undefined) { showValues.value = patch.showValues; fields.push("appearance.showValues"); }
-    if (patch?.yMin !== undefined) { yMin.value = patch.yMin === null ? "" : String(patch.yMin); fields.push("appearance.yMin"); }
-    if (patch?.yMax !== undefined) { yMax.value = patch.yMax === null ? "" : String(patch.yMax); fields.push("appearance.yMax"); }
+    if (patch?.valueFormat !== undefined) { valueFormat.value = patch.valueFormat; fields.push("appearance.valueFormat"); }
+    if (patch?.valuePrecision !== undefined) { valuePrecision.value = patch.valuePrecision; fields.push("appearance.valuePrecision"); }
+    if (patch?.valueMin !== undefined) { yMin.value = patch.valueMin === null ? "" : String(patch.valueMin); fields.push("appearance.valueMin"); }
+    if (patch?.valueMax !== undefined) { yMax.value = patch.valueMax === null ? "" : String(patch.valueMax); fields.push("appearance.valueMax"); }
     if (patch?.unit !== undefined) { unit.value = patch.unit; fields.push("appearance.unit"); }
     if (patch?.unitPosition !== undefined) { unitPosition.value = patch.unitPosition; fields.push("appearance.unitPosition"); }
+    if (patch?.orientation !== undefined) { orientation.value = patch.orientation; fields.push("appearance.orientation"); }
+    if (patch?.barWidth !== undefined) { barWidth.value = patch.barWidth; fields.push("appearance.barWidth"); }
+    if (patch?.roundedBars !== undefined) { roundedBars.value = patch.roundedBars; fields.push("appearance.roundedBars"); }
+    if (patch?.lineSmooth !== undefined) { lineSmooth.value = patch.lineSmooth; fields.push("appearance.lineSmooth"); }
+    if (patch?.showPoints !== undefined) { showPoints.value = patch.showPoints; fields.push("appearance.showPoints"); }
+    if (patch?.lineWidth !== undefined) { lineWidth.value = patch.lineWidth; fields.push("appearance.lineWidth"); }
+    if (patch?.areaOpacity !== undefined) { areaOpacity.value = patch.areaOpacity; fields.push("appearance.areaOpacity"); }
+    if (patch?.pieShape !== undefined) { pieShape.value = patch.pieShape; fields.push("appearance.pieShape"); }
+    if (patch?.pieLabelContent !== undefined) { pieLabelContent.value = patch.pieLabelContent; fields.push("appearance.pieLabelContent"); }
+    if (patch?.pieLabelPosition !== undefined) { pieLabelPosition.value = patch.pieLabelPosition; fields.push("appearance.pieLabelPosition"); }
+    if (patch?.pointSize !== undefined) { pointSize.value = patch.pointSize; fields.push("appearance.pointSize"); }
+    if (patch?.pointOpacity !== undefined) { pointOpacity.value = patch.pointOpacity; fields.push("appearance.pointOpacity"); }
 
     const current = activeChartSpec.value;
     agentChartSpec.value = {
@@ -567,7 +642,10 @@ watch([
 
 watch([
   chartType, title, description, xLabel, yLabel, yMin, yMax, unit, unitPosition,
-  showValues, showLegend, paletteChoice, customColors,
+  showValues, showLegend, legendPosition, valueFormat, valuePrecision, orientation,
+  barWidth, roundedBars, lineSmooth, showPoints, lineWidth, areaOpacity,
+  pieShape, pieLabelContent, pieLabelPosition, pointSize, pointOpacity,
+  paletteChoice, customColors,
 ], syncManualPresentation, { deep: true });
 
 watch([sql, specJson], () => {
@@ -700,11 +778,26 @@ async function loadSavedVisualization() {
   yLabel.value = record.definition.specification.series[0]?.label ?? yLabel.value;
   applyPaletteColors(record.definition.appearance.palette);
   showLegend.value = record.definition.appearance.showLegend;
+  legendPosition.value = record.definition.appearance.legendPosition ?? "bottom";
   showValues.value = record.definition.appearance.showValues;
-  yMin.value = record.definition.appearance.yMin === undefined ? "" : String(record.definition.appearance.yMin);
-  yMax.value = record.definition.appearance.yMax === undefined ? "" : String(record.definition.appearance.yMax);
+  valueFormat.value = record.definition.appearance.valueFormat ?? "number";
+  valuePrecision.value = record.definition.appearance.valuePrecision ?? 0;
+  yMin.value = record.definition.appearance.valueMin === undefined ? (record.definition.appearance.yMin === undefined ? "" : String(record.definition.appearance.yMin)) : String(record.definition.appearance.valueMin);
+  yMax.value = record.definition.appearance.valueMax === undefined ? (record.definition.appearance.yMax === undefined ? "" : String(record.definition.appearance.yMax)) : String(record.definition.appearance.valueMax);
   unit.value = record.definition.appearance.unit ?? "";
   unitPosition.value = record.definition.appearance.unitPosition ?? "suffix";
+  orientation.value = record.definition.appearance.orientation ?? "vertical";
+  barWidth.value = record.definition.appearance.barWidth ?? "medium";
+  roundedBars.value = record.definition.appearance.roundedBars ?? false;
+  lineSmooth.value = record.definition.appearance.lineSmooth ?? true;
+  showPoints.value = record.definition.appearance.showPoints ?? false;
+  lineWidth.value = record.definition.appearance.lineWidth ?? "medium";
+  areaOpacity.value = record.definition.appearance.areaOpacity ?? "light";
+  pieShape.value = record.definition.appearance.pieShape ?? "donut";
+  pieLabelContent.value = record.definition.appearance.pieLabelContent ?? "percent";
+  pieLabelPosition.value = record.definition.appearance.pieLabelPosition ?? "outside";
+  pointSize.value = record.definition.appearance.pointSize ?? "medium";
+  pointOpacity.value = record.definition.appearance.pointOpacity ?? "strong";
   specJson.value = JSON.stringify({ ...record.definition.specification, appearance: record.definition.appearance }, null, 2);
   saveStatus.value = record.status === "published" ? "published" : "saved";
   await nextTick();
@@ -781,10 +874,31 @@ onMounted(() => void loadSavedVisualization());
             </div>
           </div>
 
-          <div v-else class="min-h-0 flex-1 overflow-hidden">
-            <ExplorationDatasetTableSkeleton v-if="loading" />
-            <ExplorationDatasetExplorer v-else-if="dataset.schema.value" :columns="columns" :row-count="dataset.schema.value.rowCount" />
-            <div v-else class="grid h-full min-h-[420px] place-items-center bg-[#fafafa] p-8 text-center"><div class="max-w-sm"><i aria-hidden="true" class="ri-table-line text-2xl text-[#777777]" /><h2 class="mt-3 text-[14px] font-bold">Aucune donnée à afficher</h2><p class="mt-1 text-[11px] leading-5 text-[#555555]">Sélectionnez une ressource dans le bandeau supérieur pour examiner son contenu.</p></div></div>
+          <div v-else class="flex min-h-0 flex-1 flex-col overflow-hidden">
+            <nav class="data-tabs" aria-label="Type de données affichées">
+              <button class="data-tab" :class="dataMode === 'chart' ? 'data-tab--active' : ''" type="button" @click="dataMode = 'chart'"><i aria-hidden="true" class="ri-bar-chart-box-line" />Données du graphique<span v-if="hasChart && rows.length" class="data-tab__count">{{ rows.length.toLocaleString('fr-FR') }}</span></button>
+              <button class="data-tab" :class="dataMode === 'source' ? 'data-tab--active' : ''" type="button" @click="dataMode = 'source'"><i aria-hidden="true" class="ri-database-2-line" />Ressource source<span v-if="dataset.schema.value" class="data-tab__count">{{ dataset.schema.value.rowCount.toLocaleString('fr-FR') }}</span></button>
+            </nav>
+
+            <template v-if="dataMode === 'chart'">
+              <ExplorationDatasetTableSkeleton v-if="previewLoading" />
+              <div v-else-if="hasChart && rows.length" class="flex min-h-0 flex-1 flex-col overflow-hidden bg-white">
+                <div class="flex min-h-10 shrink-0 items-center justify-between gap-3 border-b border-[#e5e5e5] bg-[#f6f6f6] px-3 text-[11px] text-[#555555]"><span>Résultat de la requête transmis au graphique</span><span class="tabular-nums">{{ rows.length.toLocaleString('fr-FR') }} ligne{{ rows.length > 1 ? 's' : '' }} · {{ chartDataColumns.length }} colonne{{ chartDataColumns.length > 1 ? 's' : '' }}</span></div>
+                <div class="min-h-0 flex-1 overflow-auto">
+                  <table class="min-w-full border-collapse text-left text-[12px]">
+                    <thead><tr><th v-for="column in chartDataColumns" :key="column" class="sticky top-0 z-10 min-w-40 border-b border-r border-[#e5e5e5] bg-[#f6f6f6] px-3 py-2.5 font-semibold">{{ column }}</th></tr></thead>
+                    <tbody><tr v-for="(row, rowIndex) in rows" :key="rowIndex" class="hover:bg-[#f8f8f8]"><td v-for="column in chartDataColumns" :key="column" class="max-w-80 truncate border-b border-r border-[#e5e5e5] px-3 py-2" :class="row[column] === null || row[column] === '' ? 'italic text-[#929292]' : ''" :title="String(row[column] ?? '')">{{ displayChartDataValue(row[column]) }}</td></tr></tbody>
+                  </table>
+                </div>
+              </div>
+              <div v-else class="grid min-h-0 flex-1 place-items-center bg-[#fafafa] p-8 text-center"><div class="max-w-sm"><i aria-hidden="true" class="ri-bar-chart-box-line text-2xl text-[#777777]" /><h2 class="mt-3 text-[14px] font-bold">Aucune donnée de graphique</h2><p class="mt-1 text-[11px] leading-5 text-[#555555]">Créez un graphique avec l’assistant ou l’éditeur manuel pour consulter ici les données réellement utilisées.</p><button v-if="dataset.schema.value" class="mt-3 text-[11px] font-medium text-[#000091] underline underline-offset-2" type="button" @click="dataMode = 'source'">Consulter la ressource source</button></div></div>
+            </template>
+
+            <template v-else>
+              <ExplorationDatasetTableSkeleton v-if="loading" />
+              <ExplorationDatasetExplorer v-else-if="dataset.schema.value" :columns="columns" :row-count="dataset.schema.value.rowCount" />
+              <div v-else class="grid min-h-0 flex-1 place-items-center bg-[#fafafa] p-8 text-center"><div class="max-w-sm"><i aria-hidden="true" class="ri-table-line text-2xl text-[#777777]" /><h2 class="mt-3 text-[14px] font-bold">Aucune donnée à afficher</h2><p class="mt-1 text-[11px] leading-5 text-[#555555]">Sélectionnez une ressource dans le bandeau supérieur pour examiner son contenu.</p></div></div>
+            </template>
           </div>
         </section>
 
@@ -850,8 +964,29 @@ onMounted(() => void loadSavedVisualization());
             <summary class="cursor-pointer text-[12px] font-bold">Styles</summary>
             <label class="mt-3 block text-[11px] font-medium">Label de l’axe X</label><input v-model="xLabel" class="form-control mt-1">
             <label class="mt-3 block text-[11px] font-medium">Label de l’axe Y</label><input v-model="yLabel" class="form-control mt-1">
-            <div class="mt-3 grid grid-cols-2 gap-2"><label class="block text-[11px] font-medium">Minimum<input v-model="yMin" inputmode="decimal" class="form-control mt-1"></label><label class="block text-[11px] font-medium">Maximum<input v-model="yMax" inputmode="decimal" class="form-control mt-1"></label></div>
-            <div class="mt-3 grid grid-cols-2 gap-2"><label class="block text-[11px] font-medium">Unité<input v-model="unit" class="form-control mt-1" placeholder="€, %, kg"></label><label class="block text-[11px] font-medium">Position<select v-model="unitPosition" class="form-select mt-1"><option value="suffix">Suffixe</option><option value="prefix">Préfixe</option></select></label></div>
+            <div class="mt-3 grid grid-cols-2 gap-2"><label class="block text-[11px] font-medium">Minimum de l’axe de valeurs<input v-model="yMin" inputmode="decimal" class="form-control mt-1"></label><label class="block text-[11px] font-medium">Maximum<input v-model="yMax" inputmode="decimal" class="form-control mt-1"></label></div>
+            <div class="mt-3 grid grid-cols-2 gap-2"><label class="block text-[11px] font-medium">Format des valeurs<select v-model="valueFormat" class="form-select mt-1"><option value="number">Nombre</option><option value="percent">Pourcentage</option><option value="currency">Monnaie</option></select></label><label class="block text-[11px] font-medium">Décimales<input v-model.number="valuePrecision" min="0" max="4" type="number" class="form-control mt-1"></label></div>
+            <div class="mt-3 grid grid-cols-2 gap-2"><label class="block text-[11px] font-medium">Unité<input v-model="unit" class="form-control mt-1" placeholder="€, %, kg"></label><label class="block text-[11px] font-medium">Position de l’unité<select v-model="unitPosition" class="form-select mt-1"><option value="suffix">Après la valeur</option><option value="prefix">Avant la valeur</option></select></label></div>
+
+            <div class="mt-4 rounded-md border border-[#dddddd] bg-[#fafafa] p-3">
+              <h4 class="text-[11px] font-semibold">Options du {{ chartType === 'bar' ? 'graphique en barres' : chartType === 'line' ? 'graphique en courbes' : chartType === 'area' ? 'graphique en aires' : chartType === 'pie' ? 'graphique en secteurs' : 'nuage de points' }}</h4>
+              <template v-if="chartType === 'bar'">
+                <div class="mt-3 grid grid-cols-2 gap-2"><label class="block text-[11px] font-medium">Orientation<select v-model="orientation" class="form-select mt-1"><option value="vertical">Verticale</option><option value="horizontal">Horizontale</option></select></label><label class="block text-[11px] font-medium">Largeur des barres<select v-model="barWidth" class="form-select mt-1"><option value="small">Fine</option><option value="medium">Normale</option><option value="large">Large</option></select></label></div>
+                <label class="mt-3 inline-flex items-center gap-2 text-[11px]"><input v-model="roundedBars" type="checkbox">Arrondir les barres</label>
+              </template>
+              <template v-else-if="chartType === 'line' || chartType === 'area'">
+                <label class="mt-3 block text-[11px] font-medium">Épaisseur<select v-model="lineWidth" class="form-select mt-1"><option value="small">Fine</option><option value="medium">Normale</option><option value="large">Épaisse</option></select></label>
+                <div class="mt-3 flex flex-wrap gap-4"><label class="inline-flex items-center gap-2 text-[11px]"><input v-model="lineSmooth" type="checkbox">Lisser la courbe</label><label class="inline-flex items-center gap-2 text-[11px]"><input v-model="showPoints" type="checkbox">Afficher les points</label></div>
+                <label v-if="chartType === 'area'" class="mt-3 block text-[11px] font-medium">Opacité du remplissage<select v-model="areaOpacity" class="form-select mt-1"><option value="light">Légère</option><option value="medium">Moyenne</option><option value="strong">Forte</option></select></label>
+              </template>
+              <template v-else-if="chartType === 'pie'">
+                <div class="mt-3 grid grid-cols-2 gap-2"><label class="block text-[11px] font-medium">Forme<select v-model="pieShape" class="form-select mt-1"><option value="pie">Camembert</option><option value="donut">Donut</option></select></label><label class="block text-[11px] font-medium">Position des valeurs<select v-model="pieLabelPosition" class="form-select mt-1"><option value="outside">À l’extérieur</option><option value="inside">À l’intérieur</option></select></label></div>
+                <label class="mt-3 block text-[11px] font-medium">Contenu des valeurs<select v-model="pieLabelContent" class="form-select mt-1"><option value="value">Valeur</option><option value="percent">Pourcentage</option><option value="category_percent">Catégorie et pourcentage</option></select></label>
+              </template>
+              <template v-else>
+                <div class="mt-3 grid grid-cols-2 gap-2"><label class="block text-[11px] font-medium">Taille des points<select v-model="pointSize" class="form-select mt-1"><option value="small">Petite</option><option value="medium">Moyenne</option><option value="large">Grande</option></select></label><label class="block text-[11px] font-medium">Opacité<select v-model="pointOpacity" class="form-select mt-1"><option value="light">Légère</option><option value="medium">Moyenne</option><option value="strong">Forte</option></select></label></div>
+              </template>
+            </div>
             <fieldset class="mt-4">
               <legend class="text-[11px] font-medium">Couleurs</legend>
               <div class="mt-2 space-y-1.5">
@@ -876,6 +1011,7 @@ onMounted(() => void loadSavedVisualization());
               </div>
             </fieldset>
             <div class="mt-3 flex flex-wrap gap-4"><label class="inline-flex items-center gap-2 text-[11px]"><input v-model="showValues" type="checkbox">Afficher les valeurs</label><label class="inline-flex items-center gap-2 text-[11px]"><input v-model="showLegend" type="checkbox">Afficher la légende</label></div>
+            <label v-if="showLegend" class="mt-3 block text-[11px] font-medium">Position de la légende<select v-model="legendPosition" class="form-select mt-1"><option value="bottom">En bas</option><option value="top">En haut</option><option value="left">À gauche</option><option value="right">À droite</option></select></label>
           </details>
 
           <details class="code-disclosure">
@@ -971,6 +1107,12 @@ onMounted(() => void loadSavedVisualization());
 .center-tab { position: relative; display: inline-flex; align-items: center; gap: 6px; border-bottom: 2px solid transparent; padding: 0 2px; color: #555555; font-size: 12px; font-weight: 400; }
 .center-tab:hover { color: #000091; }
 .center-tab--active { border-bottom-color: #000091; color: #000091; }
+.data-tabs { display: flex; min-height: 42px; flex-shrink: 0; align-items: stretch; gap: 4px; border-bottom: 1px solid #e5e5e5; background: #f6f6f6; padding: 5px 8px 0; }
+.data-tab { display: inline-flex; align-items: center; gap: 6px; border: 1px solid transparent; border-bottom: 0; border-radius: 5px 5px 0 0; padding: 0 12px; color: #555555; font-size: 11px; font-weight: 500; }
+.data-tab:hover { color: #000091; }
+.data-tab--active { border-color: #e5e5e5; background: #fff; color: #000091; }
+.data-tab__count { border-radius: 999px; background: #e5e5e5; padding: 1px 6px; color: #555555; font-size: 9px; font-variant-numeric: tabular-nums; }
+.data-tab--active .data-tab__count { background: #ebedff; color: #000091; }
 .form-control, .form-select { display: block; min-height: 36px; width: 100%; min-width: 0; border: 1px solid #e5e5e5; border-radius: 6px; background-color: #fff; padding: 7px 10px; color: #161616; font-size: 11px; outline: none; transition: border-color 120ms ease, box-shadow 120ms ease; }
 .form-control:focus, .form-select:focus { border-color: #000091; box-shadow: 0 0 0 2px #ececfe; }
 .form-control:disabled, .form-select:disabled { cursor: not-allowed; background-color: #f6f6f6; color: #777777; }

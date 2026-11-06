@@ -100,7 +100,7 @@ const toolLabel = (type: string) => ({
   "tool-inspect_schema": "Inspection du schéma",
   "tool-get_dataset_metadata": "Lecture des métadonnées",
   "tool-execute_sql": "Exécution de la requête SQL",
-  "tool-propose_explorer_view": "Préparation de la vue",
+  "tool-propose_explorer_view": "Préparation du tableau",
   "tool-create_chart": "Création du graphique",
   "tool-update_chart": "Modification du graphique",
   "tool-create_map": "Création de la carte",
@@ -118,7 +118,7 @@ const completedReasoningLabel = (type: string) => ({
   "tool-inspect_schema": "Structure des données vérifiée",
   "tool-get_dataset_metadata": "Contexte du jeu de données vérifié",
   "tool-execute_sql": "Calcul effectué sur les données",
-  "tool-propose_explorer_view": "Vue du tableau préparée",
+  "tool-propose_explorer_view": "Résultats prêts pour le tableau",
   "tool-create_chart": "Graphique préparé",
   "tool-update_chart": "Graphique modifié",
   "tool-create_map": "Carte préparée",
@@ -417,13 +417,13 @@ const observableReasoning = computed(() => {
       question,
     );
     const understoodAction = proposal
-      ? "modifier la vue du tableau"
+      ? "modifier les résultats affichés dans le tableau"
       : map || /\b(carte|cartograph|geograph|localis)/.test(normalizedQuestion)
         ? "analyser les données et les représenter sur une carte"
         : chart || chartUpdate || /\b(graph|diagramme|courbe|histogramme)/.test(normalizedQuestion)
           ? "analyser les données et les représenter dans un graphique"
           : /\b(filtr|tri(?:e|er|ez)|garde uniquement|tableau|explorateur)/.test(normalizedQuestion)
-            ? "modifier la vue du tableau"
+            ? "modifier les résultats affichés dans le tableau"
           : sqlQueries.length
             ? "analyser les valeurs de la ressource"
             : metadata || /\b(producteur|licence|description|mise a jour|metadonnee|organisation)/.test(normalizedQuestion)
@@ -460,7 +460,7 @@ const observableReasoning = computed(() => {
     sentences.push(`J’ai représenté les résultats sous forme de ${map.input?.type === "choropleth" ? "carte par territoires" : "carte de points"} pour montrer leur répartition géographique.`);
   }
   if (proposal) {
-    sentences.push("J’ai préparé une vue du tableau correspondant à la demande ; elle ne sera appliquée qu’après votre confirmation.");
+    sentences.push("J’ai préparé les résultats à afficher dans le tableau ; celui-ci ne changera qu’après votre confirmation.");
   }
   return sentences;
 });

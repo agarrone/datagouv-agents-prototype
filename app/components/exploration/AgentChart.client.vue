@@ -23,6 +23,7 @@ import type {
   ChartSpec,
   DatasetRow,
 } from "~~/shared/types/exploration";
+import type { ChartAppearance } from "~~/shared/agents/chart-appearance";
 
 const props = defineProps<{
   spec: ChartSpec;
@@ -31,16 +32,7 @@ const props = defineProps<{
   source?: string;
   playCompletionSound?: boolean;
   renderer?: "canvas" | "svg";
-  appearance?: {
-    orientation?: "horizontal" | "vertical";
-    palette?: string[];
-    showLegend?: boolean;
-    showValues?: boolean;
-    yMin?: number;
-    yMax?: number;
-    unit?: string;
-    unitPosition?: "prefix" | "suffix";
-  };
+  appearance?: ChartAppearance;
 }>();
 
 use([
@@ -79,6 +71,50 @@ function numericValue(value: unknown) {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
+const sizeValues = {
+  small: 6,
+  medium: 10,
+  large: 15,
+} as const;
+const lineWidthValues = {
+  small: 1,
+  medium: 2,
+  large: 4,
+} as const;
+const opacityValues = {
+  light: 0.15,
+  medium: 0.35,
+  strong: 0.6,
+} as const;
+
+function valueBounds() {
+  return {
+    min: props.appearance?.valueMin ?? props.appearance?.yMin,
+    max: props.appearance?.valueMax ?? props.appearance?.yMax,
+  };
+}
+
+function formatValue(value: unknown) {
+  const numeric = numericValue(value);
+  if (numeric === null) return String(value ?? "");
+  const precision = props.appearance?.valuePrecision;
+  const formatted = numeric.toLocaleString("fr-FR", {
+    minimumFractionDigits: precision,
+    maximumFractionDigits: precision ?? 3,
+  });
+  const format = props.appearance?.valueFormat ?? "number";
+  const unit = format === "percent" ? "%" : (props.appearance?.unit ?? (format === "currency" ? "€" : ""));
+  return props.appearance?.unitPosition === "prefix" ? `${unit}${formatted}` : `${formatted}${unit}`;
+}
+
+function legendLayout() {
+  const position = props.appearance?.legendPosition ?? "bottom";
+  if (position === "top") return { top: 0, left: "center", orient: "horizontal" };
+  if (position === "left") return { left: 0, top: "middle", orient: "vertical" };
+  if (position === "right") return { right: 0, top: "middle", orient: "vertical" };
+  return { bottom: 0, left: "center", orient: "horizontal" };
+}
+
 function chartOption(): EChartsCoreOption {
   const common = {
     animationDuration: 450,
@@ -111,21 +147,28 @@ function chartOption(): EChartsCoreOption {
     return {
       ...common,
       legend: {
-        bottom: 0,
+        ...legendLayout(),
         show: props.appearance?.showLegend ?? true,
         type: "scroll",
       },
       series: [{
         name: valueSeries?.label ?? "Valeur",
         type: "pie",
-        radius: ["42%", "70%"],
+        radius: props.appearance?.pieShape === "pie" ? ["0%", "70%"] : ["42%", "70%"],
         center: ["50%", "44%"],
         data: props.rows.map(row => ({
           name: String(row[props.spec.xField] ?? ""),
           value: numericValue(row[valueSeries?.field ?? ""]),
         })),
         label: {
+          show: props.appearance?.showValues ?? true,
+          position: props.appearance?.pieLabelPosition === "inside" ? "inside" : "outside",
           overflow: "truncate",
+          formatter: props.appearance?.pieLabelContent ? (parameters: { name?: string; value?: unknown; percent?: number }) => {
+            if (props.appearance?.pieLabelContent === "percent") return `${parameters.percent ?? 0}%`;
+            if (props.appearance?.pieLabelContent === "category_percent") return `${parameters.name ?? ""} · ${parameters.percent ?? 0}%`;
+            return formatValue(parameters.value);
+          } : undefined,
         },
       }],
     };
@@ -141,35 +184,35 @@ function chartOption(): EChartsCoreOption {
     },
     grid: {
       top: 20,
-      right: 20,
+      right: props.appearance?.legendPosition === "right" ? 110 : 20,
       bottom: 55,
-      left: 60,
+      left: props.appearance?.legendPosition === "left" ? 110 : 60,
       containLabel: true,
     },
     legend: {
       show: props.appearance?.showLegend ?? props.spec.series.length > 1,
-      bottom: 0,
+      ...legendLayout(),
     },
     xAxis: {
-      name: isHorizontal ? undefined : props.spec.xLabel,
+      name: isHorizontal ? props.spec.series[0]?.label : props.spec.xLabel,
       nameLocation: "middle",
       nameGap: 36,
       type: isScatter || isHorizontal ? "value" : "category",
+      min: isHorizontal ? valueBounds().min : undefined,
+      max: isHorizontal ? valueBounds().max : undefined,
       axisLabel: {
         hideOverlap: true,
+        formatter: isHorizontal ? formatValue : undefined,
       },
     },
     yAxis: {
-      name: isHorizontal ? props.spec.xLabel : undefined,
+      name: isHorizontal ? props.spec.xLabel : props.spec.series[0]?.label,
       type: isHorizontal ? "category" : "value",
-      min: isHorizontal ? undefined : props.appearance?.yMin,
-      max: isHorizontal ? undefined : props.appearance?.yMax,
+      min: isHorizontal ? undefined : valueBounds().min,
+      max: isHorizontal ? undefined : valueBounds().max,
       axisLabel: {
         hideOverlap: true,
-        formatter: isHorizontal ? undefined : (value: number | string) => {
-          const unit = props.appearance?.unit ?? "";
-          return props.appearance?.unitPosition === "prefix" ? `${unit}${value}` : `${value}${unit}`;
-        },
+        formatter: isHorizontal ? undefined : formatValue,
       },
     },
     series: props.spec.series.map((series, index) => {
@@ -177,7 +220,10 @@ function chartOption(): EChartsCoreOption {
         return {
           name: series.label,
           type: "scatter",
-          symbolSize: 9,
+          symbolSize: props.appearance?.pointSize ? sizeValues[props.appearance.pointSize] : 9,
+          itemStyle: {
+            opacity: props.appearance?.pointOpacity ? opacityValues[props.appearance.pointOpacity] : 1,
+          },
           data: props.rows.map(row => [
             numericValue(row[props.spec.xField]),
             numericValue(row[series.field]),
@@ -194,21 +240,24 @@ function chartOption(): EChartsCoreOption {
           y: isHorizontal ? props.spec.xField : series.field,
           tooltip: [props.spec.xField, series.field],
         },
-        areaStyle: isArea ? { opacity: 0.18 } : undefined,
-        smooth: props.spec.type === "line" || isArea,
+        smooth: props.appearance?.lineSmooth ?? (props.spec.type === "line" || isArea),
+        showSymbol: props.appearance?.showPoints,
+        symbolSize: sizeValues.small,
+        lineStyle: {
+          width: props.appearance?.lineWidth ? lineWidthValues[props.appearance.lineWidth] : undefined,
+        },
+        barWidth: props.spec.type === "bar" && props.appearance?.barWidth ? ({ small: "30%", medium: "55%", large: "75%" } as const)[props.appearance.barWidth] : undefined,
         itemStyle: {
           color: colors.value[index % colors.value.length],
+          borderRadius: props.spec.type === "bar" && props.appearance?.roundedBars ? 4 : 0,
         },
+        areaStyle: isArea ? { opacity: props.appearance?.areaOpacity ? opacityValues[props.appearance.areaOpacity] : 0.18 } : undefined,
         label: {
           show: props.appearance?.showValues ?? false,
           position: isHorizontal ? "right" : "top",
           formatter: (parameters: { data?: DatasetRow }) => {
             const value = parameters.data?.[series.field];
-            const formatted = typeof value === "number"
-              ? value.toLocaleString("fr-FR")
-              : String(value ?? "");
-            const unit = props.appearance?.unit ?? "";
-            return props.appearance?.unitPosition === "prefix" ? `${unit}${formatted}` : `${formatted}${unit}`;
+            return formatValue(value);
           },
         },
       };

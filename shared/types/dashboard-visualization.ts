@@ -1,4 +1,5 @@
 import type { ChartSpec, DatasetRow, MapBasemap, MapSpec } from "./exploration";
+import type { ChartAppearance } from "../agents/chart-appearance";
 
 export type DashboardVisualizationKind = "chart" | "map" | "indicator";
 export type DashboardVisualizationSize = "small" | "medium" | "large";
@@ -27,15 +28,11 @@ export interface DashboardVisualizationFilter {
   caseSensitive?: boolean;
 }
 
-export interface DashboardChartAppearance {
+export interface DashboardChartAppearance extends ChartAppearance {
   orientation: "horizontal" | "vertical";
   palette: string[];
   showLegend: boolean;
   showValues: boolean;
-  yMin?: number;
-  yMax?: number;
-  unit?: string;
-  unitPosition?: "prefix" | "suffix";
 }
 
 export interface DashboardMapAppearance {

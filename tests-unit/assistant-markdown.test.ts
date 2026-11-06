@@ -25,6 +25,35 @@ describe("renderAssistantMarkdown", () => {
     expect(html).toContain("<table>");
   });
 
+  it("rend les balises br du modèle comme des sauts sûrs, y compris dans un tableau", () => {
+    const html = renderAssistantMarkdown(`| Nom | Détail |
+| --- | --- |
+| Festival | Première ligne<br>Deuxième ligne |`);
+
+    expect(html).toContain("Première ligne<br>Deuxième ligne");
+    expect(html).not.toContain("&lt;br&gt;");
+  });
+
+  it("retire une image Markdown sans destination mais conserve une vraie image", () => {
+    const html = renderAssistantMarkdown(`Voici le graphique.
+
+![Bar chart]
+
+![Aperçu](https://example.test/chart.png)`);
+
+    expect(html).not.toContain("![Bar chart]");
+    expect(html).toContain('<img src="https://example.test/chart.png" alt="Aperçu">');
+  });
+
+  it("ne normalise pas les exemples placés dans un bloc de code", () => {
+    const html = renderAssistantMarkdown("```html\n<br>\n![Bar chart]\n```");
+
+    expect(html).toContain("&lt;");
+    expect(html).toContain("br");
+    expect(html).toContain("&gt;");
+    expect(html).toContain("![Bar chart]");
+  });
+
   it("ferme temporairement un marqueur gras pendant le streaming", () => {
     const html = renderAssistantMarkdown("Voici un **résultat", true);
 

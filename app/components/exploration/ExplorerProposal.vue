@@ -76,11 +76,11 @@ watch(() => props.state, (state) => {
     <div class="flex items-start gap-3 px-4 py-3.5">
       <i aria-hidden="true" class="ri-filter-line mt-0.5 shrink-0 text-xl leading-none text-[#000091]" />
       <div class="min-w-0 flex-1">
-        <p class="text-[11px] font-medium uppercase tracking-[0.05em] text-[#555555]">Vue proposée</p>
+        <p class="text-[11px] font-medium uppercase tracking-[0.05em] text-[#555555]">Modification du tableau proposée</p>
         <h3 class="mt-1 font-semibold leading-5">{{ title }}</h3>
         <p class="mt-1 text-xs leading-5 text-[#555555]">{{ reason }}</p>
         <div v-if="state === 'input-available'" class="mt-3 rounded-[6px] border border-[#e5e5e5] bg-[#f6f6f6] px-3 py-2.5 text-[11px] leading-4">
-          <p class="font-semibold text-[#3a3a3a]">Effet sur l’explorateur</p>
+          <p class="font-semibold text-[#3a3a3a]">Effet sur le tableau</p>
           <p v-if="previewLoading" class="mt-1 flex items-center gap-1.5 text-[#666666]">
             <i aria-hidden="true" class="ri-loader-4-line animate-spin text-[14px]" />
             Calcul de l’aperçu…
@@ -108,16 +108,16 @@ watch(() => props.state, (state) => {
       </button>
       <button class="agent-focusable agent-pressable inline-flex items-center gap-1.5 rounded-md bg-[#000091] px-3 py-1.5 text-[11px] font-medium text-white hover:bg-[#1212ff] disabled:cursor-not-allowed disabled:opacity-60" :disabled="applying || previewLoading || !previewResult" type="button" @click="apply">
         <i v-if="applying" aria-hidden="true" class="ri-loader-4-line animate-spin text-[14px]" />
-        {{ applying ? "Application…" : "Appliquer cette vue" }}
+        {{ applying ? "Affichage…" : "Afficher ces résultats dans le tableau" }}
       </button>
     </div>
     <div v-else-if="state === 'output-available'" class="flex flex-wrap items-center justify-between gap-2 border-t px-4 py-3 text-xs" :class="isInactiveView ? 'border-[#e5e5e5] bg-[#f6f6f6] text-[#555555]' : 'border-[#b8fec9] bg-[#e3fdeb] text-[#18753c]'">
       <p class="flex items-center gap-2">
         <i aria-hidden="true" :class="isInactiveView ? 'ri-arrow-go-back-line' : 'ri-check-line'" class="text-base leading-none" />
-        <span>{{ removed ? "Vue retirée du tableau" : applied === false ? "Vue actuelle conservée" : !isCurrentView ? "Vue remplacée ou retirée du tableau" : `Vue appliquée · ${(resultRowCount ?? 0).toLocaleString('fr-FR')} lignes` }}</span>
+        <span>{{ removed ? "Données initiales rétablies" : applied === false ? "Tableau actuel conservé" : !isCurrentView ? "Résultats remplacés ou retirés du tableau" : `Résultats affichés dans le tableau · ${(resultRowCount ?? 0).toLocaleString('fr-FR')} lignes` }}</span>
       </p>
       <button v-if="isCurrentView && !removed" class="agent-focusable rounded-md px-2.5 py-1.5 text-[11px] font-medium text-[#000091] underline underline-offset-2 hover:bg-white/60" type="button" @click="removeView">
-        Retirer le filtre
+        Revenir aux données initiales
       </button>
     </div>
     <p v-else-if="state === 'output-error' && recovering" class="flex items-center gap-2 border-t border-[#e5e5e5] bg-[#f6f6f6] px-4 py-3 text-xs text-[#555555]">

@@ -52,13 +52,45 @@ const visibleDefinitions = computed(() => visibleColumns.value
 const filteredDefinitions = computed(() => props.columns.filter(column => column.name.toLocaleLowerCase("fr").includes(columnSearch.value.toLocaleLowerCase("fr"))));
 const hasMore = computed(() => rows.value.length < totalRows.value);
 const activeFilters = computed(() => {
-  const items: { key: string; label: string }[] = [];
-  if (search.value) items.push({ key: "search", label: `« ${search.value} »` });
-  for (const [column, values] of Object.entries(categoryFilters.value)) if (values.length) items.push({ key: `category:${column}`, label: `${column} : ${values.join(", ")}` });
-  for (const [column, range] of Object.entries(numberRanges.value)) if (range.min || range.max) items.push({ key: `number:${column}`, label: `${column} : ${range.min || "−∞"} à ${range.max || "+∞"}` });
-  for (const [column, filter] of Object.entries(dateFilters.value)) if (filter.value) items.push({ key: `date:${column}`, label: `${column} : ${filter.mode === "before" ? "avant" : filter.mode === "after" ? "après" : "entre"} ${filter.value}` });
-  if (sort.value) items.push({ key: "sort", label: `${sort.value.column} : ${sort.value.direction === "asc" ? "croissant" : "décroissant"}` });
+  const items: { key: string; label: string; kind: "filter" | "sort" }[] = [];
+  if (search.value) items.push({ key: "search", label: `Recherche : « ${search.value} »`, kind: "filter" });
+  for (const [column, values] of Object.entries(categoryFilters.value)) if (values.length) items.push({ key: `category:${column}`, label: `${column} : ${values.join(", ")}`, kind: "filter" });
+  for (const [column, range] of Object.entries(numberRanges.value)) if (range.min || range.max) items.push({ key: `number:${column}`, label: `${column} : ${range.min || "−∞"} à ${range.max || "+∞"}`, kind: "filter" });
+  for (const [column, filter] of Object.entries(dateFilters.value)) if (filter.value) items.push({ key: `date:${column}`, label: `${column} : ${filter.mode === "before" ? "avant" : filter.mode === "after" ? "après" : "entre"} ${filter.value}`, kind: "filter" });
+  if (sort.value) items.push({ key: "sort", label: `${sort.value.column} · ${sort.value.direction === "asc" ? "croissant" : "décroissant"}`, kind: "sort" });
   return items;
+});
+
+function readableSqlExpression(value: string) {
+  return value
+    .replace(/\s+/g, " ")
+    .replace(/"([^"]+)"/g, "$1")
+    .replace(/\bILIKE\s+'%([^']+)%'/gi, "contient « $1 »")
+    .replace(/\bLIKE\s+'%([^']+)%'/gi, "contient « $1 »")
+    .replace(/<>|!=/g, " ≠ ")
+    .replace(/\s*=\s*'([^']*)'/g, " = « $1 »")
+    .replace(/\bAND\b/gi, "et")
+    .replace(/\bOR\b/gi, "ou")
+    .trim();
+}
+
+const assistantViewOperations = computed(() => {
+  const sql = props.baseSql?.trim();
+  if (!sql) return [];
+  const operations: Array<{ kind: "filter" | "sort" | "limit"; label: string; detail: string }> = [];
+  const where = /\bWHERE\s+([\s\S]*?)(?=\bGROUP\s+BY\b|\bORDER\s+BY\b|\bLIMIT\b|$)/i.exec(sql)?.[1];
+  const order = /\bORDER\s+BY\s+([\s\S]*?)(?=\bLIMIT\b|$)/i.exec(sql)?.[1];
+  const limit = /\bLIMIT\s+(\d+)/i.exec(sql)?.[1];
+  if (where) operations.push({ kind: "filter", label: "Filtre", detail: readableSqlExpression(where) });
+  if (order) {
+    const detail = readableSqlExpression(order)
+      .replace(/\bASC\b/gi, "croissant")
+      .replace(/\bDESC\b/gi, "décroissant")
+      .replace(/\s+NULLS\s+(FIRST|LAST)/gi, "");
+    operations.push({ kind: "sort", label: "Tri", detail });
+  }
+  if (limit) operations.push({ kind: "limit", label: "Limite", detail: `${Number(limit).toLocaleString("fr-FR")} lignes` });
+  return operations;
 });
 
 function defaultColumnNames() {
@@ -197,6 +229,11 @@ function resetFilters() {
   void refresh();
 }
 
+function resetAllTableOperations() {
+  resetFilters();
+  if (assistantViewOperations.value.length) emit("resetView");
+}
+
 function startResize(name: string, event: MouseEvent) {
   event.preventDefault();
   const startX = event.clientX;
@@ -257,7 +294,8 @@ onBeforeUnmount(() => { if (searchTimer) clearTimeout(searchTimer); });
   <div class="flex h-full min-w-0 flex-col overflow-hidden bg-white">
     <div v-if="viewTitle" class="flex min-h-10 shrink-0 flex-wrap items-center gap-2 border-b border-[#cacafb] bg-[#ebedff] px-3 py-2 text-[11px]">
       <i class="ri-filter-line text-sm text-[#000091]" />
-      <span class="min-w-0 flex-1 truncate"><strong>Vue de l’assistant :</strong> {{ viewTitle }}</span>
+      <span class="min-w-0 truncate"><strong>Vue active :</strong> {{ viewTitle }}</span>
+      <span class="min-w-0 flex-1" />
       <button
         class="agent-focusable ml-auto inline-flex h-7 shrink-0 items-center gap-1 rounded-[6px] px-2 text-[#000091] hover:bg-white/60 disabled:cursor-wait disabled:opacity-60"
         :disabled="exporting"
@@ -285,10 +323,22 @@ onBeforeUnmount(() => { if (searchTimer) clearTimeout(searchTimer); });
         <span class="hidden items-center gap-1 whitespace-nowrap text-[11px] text-[#3a3a3a] lg:inline-flex"><i class="ri-layout-horizontal-line text-sm" />{{ totalRows.toLocaleString('fr-FR') }} lignes</span>
       </div>
 
-      <div v-if="activeFilters.length" class="flex min-h-9 shrink-0 flex-wrap items-center gap-1.5 border-b border-[#e5e5e5] px-2 py-1.5 text-[10px]">
-        <span class="font-medium text-[#555555]">Filtres actifs</span>
-        <button v-for="filter in activeFilters" :key="filter.key" class="inline-flex h-6 max-w-64 items-center gap-1 rounded border border-[#cacafb] bg-[#ebedff] px-2 text-[#000091]" type="button" @click="removeFilter(filter.key)"><span class="truncate">{{ filter.label }}</span><i class="ri-close-line text-xs" /></button>
-        <button class="ml-auto text-[#000091] underline" type="button" @click="resetFilters">Tout effacer</button>
+      <div v-if="assistantViewOperations.length || activeFilters.length" class="flex min-h-9 shrink-0 flex-wrap items-center gap-1.5 border-b border-[#e5e5e5] px-2 py-1.5 text-[10px]">
+        <span class="font-medium text-[#555555]">Filtres et tri actifs</span>
+        <button
+          v-for="operation in assistantViewOperations"
+          :key="`assistant:${operation.kind}:${operation.detail}`"
+          class="inline-flex h-6 max-w-72 items-center gap-1 rounded border border-[#cacafb] bg-[#ebedff] px-2 text-[#000091]"
+          :title="`${operation.label} appliqué par l’assistant : ${operation.detail}. Cliquer pour revenir aux données initiales.`"
+          type="button"
+          @click="emit('resetView')"
+        >
+          <strong>{{ operation.label }}</strong>
+          <span class="truncate">{{ operation.detail }}</span>
+          <i class="ri-close-line text-xs" />
+        </button>
+        <button v-for="filter in activeFilters" :key="filter.key" class="inline-flex h-6 max-w-64 items-center gap-1 rounded border border-[#cacafb] bg-[#ebedff] px-2 text-[#000091]" type="button" @click="removeFilter(filter.key)"><strong>{{ filter.kind === 'sort' ? 'Tri' : 'Filtre' }}</strong><span class="truncate">{{ filter.label }}</span><i class="ri-close-line text-xs" /></button>
+        <button class="ml-auto text-[#000091] underline" type="button" @click="resetAllTableOperations">Tout effacer</button>
       </div>
 
       <div v-if="errorPresentation" class="grid min-h-0 flex-1 place-items-center bg-[#fef4f4] p-6">

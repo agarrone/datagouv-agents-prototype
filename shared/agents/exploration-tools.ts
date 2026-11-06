@@ -18,12 +18,33 @@ export const updateChartInputSchema = z.object({
     palettePreset: z.enum(Object.keys(chartColorPalettes) as [keyof typeof chartColorPalettes, ...(keyof typeof chartColorPalettes)[]]).optional(),
     customColors: z.array(hexColorSchema).min(1).max(8).optional(),
     showLegend: z.boolean().optional(),
+    legendPosition: z.enum(["top", "bottom", "left", "right"]).optional(),
     showValues: z.boolean().optional(),
-    yMin: z.number().nullable().optional(),
-    yMax: z.number().nullable().optional(),
+    valueFormat: z.enum(["number", "percent", "currency"]).optional(),
+    valuePrecision: z.number().int().min(0).max(4).optional(),
+    valueMin: z.number().nullable().optional(),
+    valueMax: z.number().nullable().optional(),
     unit: z.string().max(20).optional(),
     unitPosition: z.enum(["prefix", "suffix"]).optional(),
-  }).optional(),
+    orientation: z.enum(["horizontal", "vertical"]).optional(),
+    barWidth: z.enum(["small", "medium", "large"]).optional(),
+    roundedBars: z.boolean().optional(),
+    lineSmooth: z.boolean().optional(),
+    showPoints: z.boolean().optional(),
+    lineWidth: z.enum(["small", "medium", "large"]).optional(),
+    areaOpacity: z.enum(["light", "medium", "strong"]).optional(),
+    pieShape: z.enum(["pie", "donut"]).optional(),
+    pieLabelContent: z.enum(["value", "percent", "category_percent"]).optional(),
+    pieLabelPosition: z.enum(["inside", "outside"]).optional(),
+    pointSize: z.enum(["small", "medium", "large"]).optional(),
+    pointOpacity: z.enum(["light", "medium", "strong"]).optional(),
+  }).refine(value => (
+    value.valueMin === null
+    || value.valueMax === null
+    || value.valueMin === undefined
+    || value.valueMax === undefined
+    || value.valueMin <= value.valueMax
+  ), { message: "Le minimum doit être inférieur ou égal au maximum." }).optional(),
 }).refine(value => Object.keys(value).length > 0, "Au moins une modification est requise.");
 
 export type UpdateChartInput = z.infer<typeof updateChartInputSchema>;
@@ -159,7 +180,7 @@ export const explorationTools = {
   }),
   update_chart: tool({
     description:
-      "Modifie le graphique brouillon existant sans recalculer les données. Utiliser pour changer le titre, la description, le type de rendu, les libellés, la légende, les valeurs, les bornes, l’unité ou les couleurs. Pour les couleurs, choisir une palette prédéfinie ou fournir customColors. Ne pas utiliser pour changer les colonnes, filtres ou agrégations : dans ce cas exécuter une nouvelle requête puis appeler create_chart.",
+      "Modifie uniquement la présentation du graphique brouillon existant, sans recalculer les données. Les mêmes réglages existent dans le formulaire manuel : contenu, palette, légende, valeurs, axe de valeurs et styles simples propres au type de graphique. Pour les couleurs, choisir une palette prédéfinie ou fournir customColors. Ne pas utiliser pour changer les colonnes, filtres, tris ou agrégations : dans ce cas exécuter une nouvelle requête puis appeler create_chart.",
     inputSchema: updateChartInputSchema,
     outputSchema: z.object({
       updated: z.literal(true),
