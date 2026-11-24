@@ -81,6 +81,21 @@ export const mapSpecSchema = z.discriminatedUnion("type", [
   }),
 ]);
 
+export const indicatorSpecSchema = z.object({
+  type: z.literal("number").default("number"),
+  title: z.string().min(1).describe("Titre court de l’indicateur, en français."),
+  description: z.string().min(1).describe("Ce que mesure précisément la valeur, en français."),
+  valueField: z.string().min(1).describe("Champ numérique du résultat SQL contenant la valeur principale."),
+  unit: z.string().max(20).optional().describe("Unité affichée après la valeur, par exemple %, €, km ou dossiers."),
+  period: z.string().max(80).optional().describe("Période explicitement couverte par le calcul, par exemple « En 2024 »."),
+  sourceDescription: z.string().max(300).optional().describe("Courte explication de la méthode de calcul, sans inventer de source."),
+  comparison: z.object({
+    field: z.string().min(1).describe("Champ du même résultat SQL contenant la comparaison déjà calculée."),
+    label: z.string().min(1).max(100).describe("Contexte de la comparaison, par exemple « par rapport à 2023 »."),
+    tone: z.enum(["positive", "negative", "neutral"]).default("neutral"),
+  }).optional(),
+});
+
 export const explorationTools = {
   ...dataTools,
   request_clarification: tool({
@@ -175,6 +190,20 @@ export const explorationTools = {
       rows: z.array(datasetRowSchema),
       rowCount: z.number(),
       truncated: z.boolean(),
+      elapsedMs: z.number(),
+    }),
+  }),
+  create_indicator: tool({
+    description:
+      "Affiche un indicateur éditorial HTML à partir du résultat de la dernière requête execute_sql réussie. La requête doit retourner exactement une ligne et un champ numérique pour la valeur principale. Utiliser pour un chiffre clé, un total, une moyenne, un taux ou une part ; ne pas utiliser pour une série ou plusieurs catégories. Appeler immédiatement après execute_sql et ne jamais inventer une valeur ou une comparaison.",
+    inputSchema: indicatorSpecSchema,
+    outputSchema: z.object({
+      executionId: z.string(),
+      sourceExecutionId: z.string(),
+      columns: z.array(z.string()),
+      rows: z.array(datasetRowSchema).length(1),
+      rowCount: z.literal(1),
+      truncated: z.literal(false),
       elapsedMs: z.number(),
     }),
   }),

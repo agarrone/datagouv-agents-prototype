@@ -117,6 +117,21 @@ export interface ChartSpec {
   series: ChartSeriesSpec[];
 }
 
+export interface IndicatorSpec {
+  type: "number";
+  title: string;
+  description: string;
+  valueField: string;
+  unit?: string;
+  period?: string;
+  sourceDescription?: string;
+  comparison?: {
+    field: string;
+    label: string;
+    tone: "positive" | "negative" | "neutral";
+  };
+}
+
 export type MapSpec =
   | {
       type: "points";

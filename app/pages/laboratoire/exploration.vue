@@ -115,10 +115,10 @@ function shouldContinueAfterTools(options: { messages: ExplorationMessage[] }) {
   const lastMessage = options.messages.at(-1);
   if (lastMessage?.role === "assistant") {
     const visualizationReady = lastMessage.parts.some(part =>
-      (part.type === "tool-create_chart" || part.type === "tool-create_map")
+      (part.type === "tool-create_chart" || part.type === "tool-create_indicator" || part.type === "tool-create_map")
       && part.state === "output-available",
     );
-    // La carte ou le graphique constitue le résultat final. Ne pas renvoyer
+    // La carte, le graphique ou l’indicateur constitue le résultat final. Ne pas renvoyer
     // ses centaines de lignes au modèle uniquement pour obtenir une phrase de
     // conclusion déjà portée par le titre, la description et le raisonnement.
     if (visualizationReady) return false;

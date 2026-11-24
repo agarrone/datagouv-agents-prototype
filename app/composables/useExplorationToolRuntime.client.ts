@@ -8,6 +8,7 @@ import {
 import type { UpdateChartInput } from "~~/shared/agents/exploration-tools";
 import type {
   ChartSpec,
+  IndicatorSpec,
   MapDatasetResult,
   MapSpec,
   DatasetQueryResult,
@@ -17,6 +18,7 @@ import type {
 
 interface ExplorationToolRuntimeHooks {
   onChartReady?: (spec: ChartSpec, result: DatasetQueryResult) => void;
+  onIndicatorReady?: (spec: IndicatorSpec, result: DatasetQueryResult) => void;
   onChartUpdate?: (update: UpdateChartInput) => { updated: true; fields: string[] };
   onMapReady?: (spec: MapSpec, result: MapDatasetResult) => void;
   onSqlReady?: (sql: string, result: DatasetQueryResult) => void;
@@ -37,6 +39,15 @@ export type ExplorationAddToolOutput = ChatAddToolOutputFunction<
   ExplorationMessage
 >;
 
+function isNumericIndicatorValue(value: unknown) {
+  if (typeof value === "number") return Number.isFinite(value);
+  if (typeof value !== "string") return false;
+  const normalized = value.trim();
+  if (!normalized) return false;
+  return /^[-+]?\d+$/.test(normalized)
+    || (/^[-+]?(?:\d+\.\d*|\d*\.\d+)(?:[eE][-+]?\d+)?$/.test(normalized) && Number.isFinite(Number(normalized)));
+}
+
 export function useExplorationToolRuntime(
   dataset: ExplorationToolDataset,
   addToolOutput: ExplorationAddToolOutput,
@@ -55,7 +66,7 @@ export function useExplorationToolRuntime(
     ) {
       return `${toolName}:${input.sql.trim().replace(/;+\s*$/, "")}`;
     }
-    if (toolName === "create_chart" || toolName === "create_map") {
+    if (toolName === "create_chart" || toolName === "create_indicator" || toolName === "create_map") {
       return `${toolName}:${cacheContext ?? "no-source"}:${JSON.stringify(input)}`;
     }
     return `${toolName}:${JSON.stringify(input)}`;
@@ -149,6 +160,37 @@ export function useExplorationToolRuntime(
         hooks.onChartReady?.(toolCall.input, output);
         publishToolOutput({
           tool: "create_chart",
+          toolCallId: toolCall.toolCallId,
+          output,
+        });
+        return;
+      }
+
+      if (toolCall.toolName === "create_indicator") {
+        const sourceExecutionId = dataset.visualizationSourceKey();
+        const requiredFields = [
+          toolCall.input.valueField,
+          toolCall.input.comparison?.field,
+        ].filter((field): field is string => Boolean(field));
+        const output = await executeOnce(
+          toolCall.toolName,
+          toolCall.input,
+          async () => {
+            const result = await dataset.createChartData(requiredFields, sourceExecutionId);
+            if (result.rows.length !== 1 || result.rowCount !== 1 || result.truncated) {
+              throw new Error("Un indicateur nécessite une requête SQL qui retourne exactement une ligne.");
+            }
+            const value = result.rows[0]?.[toolCall.input.valueField];
+            if (!isNumericIndicatorValue(value)) {
+              throw new Error(`Le champ « ${toolCall.input.valueField} » doit contenir une valeur numérique.`);
+            }
+            return { ...result, rowCount: 1 as const, truncated: false as const };
+          },
+          sourceExecutionId,
+        );
+        hooks.onIndicatorReady?.(toolCall.input, output);
+        publishToolOutput({
+          tool: "create_indicator",
           toolCallId: toolCall.toolCallId,
           output,
         });

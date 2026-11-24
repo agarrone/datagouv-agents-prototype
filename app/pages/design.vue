@@ -356,6 +356,12 @@ const designDecisions = [
     detail: "Marianne dans les graphiques, boîtes avec header et footer, source complète et actions de copie ou plein écran.",
     rule: "Graphiques : padding 20 px · Cartes en français : Bright par défaut, Positron pour les choroplèthes",
   },
+  {
+    group: "Données",
+    title: "Indicateurs",
+    detail: "La valeur clé est rendue en HTML accessible, avec un libellé, une période et une méthode repliable. Une comparaison ou un objectif peuvent la compléter sous forme de texte, sans introduire de mini-graphique.",
+    rule: "Valeur neutre · 1 mesure principale · Couleur sémantique uniquement · Source repliable",
+  },
 ];
 
 const designRisks = [
@@ -1092,6 +1098,46 @@ const designRisks = [
 
         <section id="visualisations">
           <header class="mb-6"><p class="text-[11px] font-medium uppercase tracking-[0.06em] text-[#555555]">10</p><h2 class="mt-1 text-2xl font-bold">Visualisations et chargements</h2></header>
+          <div class="mb-10">
+            <h3 class="text-[18px] font-bold">Indicateurs</h3>
+            <p class="mt-1 max-w-3xl text-[12px] leading-5 text-[#555555]">
+              Une valeur clé combine la hiérarchie éditoriale des cartes Justice, la documentation repliable de la Databox et la densité des StatBox de cdata. Elle reste un indicateur éditorial, sans graphique miniature.
+            </p>
+            <div class="mt-5 grid items-start gap-5 xl:grid-cols-3">
+              <ExplorationIndicatorCard
+                title="Affaires traitées"
+                :value="4219463"
+                period="En 2024"
+                description="Total des affaires pénales traitées par les parquets."
+                source="Ministère de la Justice · statistiques pénales 2024"
+                source-description="Somme des affaires traitées sur l’année civile, toutes orientations confondues."
+              />
+              <ExplorationIndicatorCard
+                compact
+                title="Consultations des jeux de données"
+                :value="128400"
+                comparison="+ 12 %"
+                comparison-label="par rapport à 2025"
+                comparison-tone="positive"
+                source="Statistiques data.gouv.fr"
+              />
+              <ExplorationIndicatorCard
+                title="Taux de complétude"
+                :value="72"
+                unit="%"
+                period="Mesure actuelle"
+                description="Part des jeux de données respectant les critères de qualité retenus."
+                comparison="Objectif : 80 %"
+                comparison-tone="neutral"
+                source="Catalogue data.gouv.fr"
+                source-description="L’objectif est éditorial : il doit être documenté et ne peut pas être inventé par l’assistant."
+              />
+            </div>
+            <div class="mt-4 rounded-md border border-[#e5e5e5] bg-white px-4 py-3 text-[11px] leading-5 text-[#555555]">
+              <strong class="font-semibold text-[#161616]">Règle d’usage.</strong>
+              Un indicateur répond à une question par une seule valeur. La couleur ne porte que du sens, jamais la décoration. La comparaison et l’objectif restent textuels et facultatifs ; une série complète doit basculer vers un graphique.
+            </div>
+          </div>
           <div class="grid gap-5 xl:grid-cols-2">
             <ExplorationVisualizationLoading kind="graphique" />
             <ExplorationVisualizationLoading kind="carte" />

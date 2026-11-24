@@ -78,6 +78,7 @@ const toolParts = computed(() => props.message.parts.filter(part =>
   || part.type === "tool-execute_sql"
   || part.type === "tool-propose_explorer_view"
   || part.type === "tool-create_chart"
+  || part.type === "tool-create_indicator"
   || part.type === "tool-update_chart"
   || part.type === "tool-create_map",
 ));
@@ -102,6 +103,7 @@ const toolLabel = (type: string) => ({
   "tool-execute_sql": "Exécution de la requête SQL",
   "tool-propose_explorer_view": "Préparation du tableau",
   "tool-create_chart": "Création du graphique",
+  "tool-create_indicator": "Création de l’indicateur",
   "tool-update_chart": "Modification du graphique",
   "tool-create_map": "Création de la carte",
 }[type] ?? "Opération");
@@ -111,6 +113,7 @@ const activeToolLabel = (type: string) => ({
   "tool-execute_sql": "Je calcule la réponse à partir des données",
   "tool-propose_explorer_view": "Je prépare la vue à afficher dans le tableau",
   "tool-create_chart": "Je prépare le graphique à partir des résultats",
+  "tool-create_indicator": "Je prépare l’indicateur à partir du calcul",
   "tool-update_chart": "J’applique les modifications au graphique",
   "tool-create_map": "Je prépare la carte à partir des résultats",
 }[type] ?? "Je poursuis l’analyse");
@@ -120,6 +123,7 @@ const completedReasoningLabel = (type: string) => ({
   "tool-execute_sql": "Calcul effectué sur les données",
   "tool-propose_explorer_view": "Résultats prêts pour le tableau",
   "tool-create_chart": "Graphique préparé",
+  "tool-create_indicator": "Indicateur préparé",
   "tool-update_chart": "Graphique modifié",
   "tool-create_map": "Carte préparée",
 }[type] ?? "Étape terminée");
@@ -171,14 +175,16 @@ const assistantText = computed(() => props.message.parts
   .join("\n\n")
   .trim());
 const completedVisualization = computed(() => displayedToolParts.value.findLast(part =>
-  (part.type === "tool-create_chart" || part.type === "tool-create_map")
+  (part.type === "tool-create_chart" || part.type === "tool-create_indicator" || part.type === "tool-create_map")
   && part.state === "output-available",
 ));
 const feedbackContent = computed(() => {
   if (assistantText.value) return assistantText.value;
   const visualization = completedVisualization.value;
   if (!visualization || !("input" in visualization) || !visualization.input) return "";
-  const kind = visualization.type === "tool-create_chart" ? "Graphique" : "Carte";
+  const kind = visualization.type === "tool-create_chart" ? "Graphique"
+    : visualization.type === "tool-create_indicator" ? "Indicateur"
+      : "Carte";
   const title = visualization.type === "tool-create_map"
     ? visualization.output.resolvedSpec.title
     : visualization.input.title;
@@ -206,6 +212,10 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function stringValue(value: unknown, fallback = "Non renseigné") {
   return typeof value === "string" && value.trim() ? value : fallback;
+}
+
+function indicatorValue(value: unknown): string | number {
+  return typeof value === "number" || typeof value === "string" ? value : String(value ?? "");
 }
 
 function normalizedText(value: string) {
@@ -279,10 +289,10 @@ const toolTraceEntries = computed<ToolTraceEntry[]>(() => displayedToolParts.val
     label: toolLabel(part.type),
     code: part.type === "tool-execute_sql" || part.type === "tool-propose_explorer_view"
       ? "input" in part ? part.input?.sql : undefined
-      : part.type === "tool-create_chart" || part.type === "tool-create_map"
+      : part.type === "tool-create_chart" || part.type === "tool-create_indicator" || part.type === "tool-create_map"
         ? effectiveInput ? JSON.stringify(effectiveInput, null, 2) : undefined
         : undefined,
-    codeLanguage: part.type === "tool-create_chart" || part.type === "tool-create_map"
+    codeLanguage: part.type === "tool-create_chart" || part.type === "tool-create_indicator" || part.type === "tool-create_map"
       ? "JSON" as const
       : "SQL" as const,
   };
@@ -345,6 +355,19 @@ const toolTraceEntries = computed<ToolTraceEntry[]>(() => displayedToolParts.val
       details: chartToolDetails("input" in part ? part.input : undefined),
     };
   }
+  if (part.type === "tool-create_indicator") {
+    return {
+      ...base,
+      description: "input" in part ? part.input?.description : undefined,
+      summary: part.state === "output-available" ? "1 valeur représentée" : "Création en cours",
+      details: "input" in part
+        ? [
+            { label: "Valeur", value: stringValue(part.input?.valueField) },
+            { label: "Unité", value: stringValue(part.input?.unit, "Sans unité") },
+          ]
+        : undefined,
+    };
+  }
   if (part.type === "tool-update_chart") {
     return {
       ...base,
@@ -395,6 +418,9 @@ const observableReasoning = computed(() => {
   const chart = displayedToolParts.value.find(part =>
     part.type === "tool-create_chart" && part.state === "output-available",
   );
+  const indicator = displayedToolParts.value.find(part =>
+    part.type === "tool-create_indicator" && part.state === "output-available",
+  );
   const chartUpdate = displayedToolParts.value.find(part =>
     part.type === "tool-update_chart" && part.state === "output-available",
   );
@@ -420,6 +446,8 @@ const observableReasoning = computed(() => {
       ? "modifier les résultats affichés dans le tableau"
       : map || /\b(carte|cartograph|geograph|localis)/.test(normalizedQuestion)
         ? "analyser les données et les représenter sur une carte"
+        : indicator || /\b(indicateur|chiffre cle|total|taux|part|moyenne)/.test(normalizedQuestion)
+          ? "calculer et présenter un indicateur"
         : chart || chartUpdate || /\b(graph|diagramme|courbe|histogramme)/.test(normalizedQuestion)
           ? "analyser les données et les représenter dans un graphique"
           : /\b(filtr|tri(?:e|er|ez)|garde uniquement|tableau|explorateur)/.test(normalizedQuestion)
@@ -453,6 +481,9 @@ const observableReasoning = computed(() => {
   if (chart?.type === "tool-create_chart") {
     sentences.push(`J’ai choisi ${chartTypeLabel(chart.input?.type)} pour rendre ces résultats plus faciles à comparer.`);
   }
+  if (indicator?.type === "tool-create_indicator") {
+    sentences.push("J’ai présenté le résultat sous forme d’indicateur afin de mettre en avant une valeur unique.");
+  }
   if (chartUpdate?.type === "tool-update_chart") {
     sentences.push("J’ai appliqué les modifications demandées au graphique existant sans recalculer ses données.");
   }
@@ -475,6 +506,7 @@ function errorPresentation(
 const terminalDataErrors = computed(() => displayedToolParts.value.filter(part =>
   part.state === "output-error"
   && part.type !== "tool-create_chart"
+  && part.type !== "tool-create_indicator"
   && part.type !== "tool-create_map"
   && part.type !== "tool-propose_explorer_view",
 ));
@@ -693,6 +725,43 @@ function toolErrorContext(type: string) {
           :title="errorPresentation(part.errorText, 'visualization').title"
           tone="error"
           @action="errorPresentation(part.errorText, 'visualization').action && emit('recover', errorPresentation(part.errorText, 'visualization').action!, message.id)"
+        />
+      </div>
+
+      <div
+        v-for="part in displayedToolParts.filter(item => item.type === 'tool-create_indicator')"
+        v-show="part.state !== 'output-error' || !responding"
+        :key="part.toolCallId"
+        class="mt-3 min-w-0 max-w-full"
+      >
+        <ExplorationVisualizationStage
+          v-if="part.state !== 'output-error'"
+          kind="indicateur"
+          :ready="part.state === 'output-available'"
+        >
+          <ExplorationIndicatorCard
+            v-if="part.state === 'output-available' && 'input' in part && part.input"
+            :title="part.input.title"
+            :value="indicatorValue(part.output.rows[0]?.[part.input.valueField])"
+            :unit="part.input.unit"
+            :period="part.input.period"
+            :description="part.input.description"
+            :comparison="part.input.comparison ? String(part.output.rows[0]?.[part.input.comparison.field] ?? '') : undefined"
+            :comparison-label="part.input.comparison?.label"
+            :comparison-tone="part.input.comparison?.tone"
+            :source="source"
+            :source-description="part.input.sourceDescription"
+          />
+        </ExplorationVisualizationStage>
+        <ExplorationStatusMessage
+          v-else
+          :action-label="errorPresentation(part.errorText, 'visualization').actionLabel"
+          :code="errorPresentation(part.errorText, 'visualization').code"
+          :details="errorPresentation(part.errorText, 'visualization').technicalDetails"
+          :message="errorPresentation(part.errorText, 'visualization').message"
+          :source-label="errorPresentation(part.errorText, 'visualization').sourceLabel"
+          :title="errorPresentation(part.errorText, 'visualization').title"
+          tone="error"
         />
       </div>
 

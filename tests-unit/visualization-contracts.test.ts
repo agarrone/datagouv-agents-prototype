@@ -3,7 +3,7 @@ import {
   chartRequiredFields,
   mapRequiredFields,
 } from "../shared/agents/visualization-fields";
-import { updateChartInputSchema } from "../shared/agents/exploration-tools";
+import { indicatorSpecSchema, updateChartInputSchema } from "../shared/agents/exploration-tools";
 import {
   normalizeTerritoryCode,
   normalizeTerritoryName,
@@ -66,6 +66,17 @@ describe("visualization field contracts", () => {
     expect(updateChartInputSchema.safeParse({
       appearance: { valueMin: 100, valueMax: 0 },
     }).success).toBe(false);
+  });
+
+  it("accepts an indicator bound to a calculated numeric field", () => {
+    expect(indicatorSpecSchema.safeParse({
+      title: "Affaires traitées",
+      description: "Total des affaires traitées en 2024.",
+      valueField: "total",
+      unit: "dossiers",
+      period: "En 2024",
+      comparison: { field: "evolution", label: "par rapport à 2023", tone: "positive" },
+    }).success).toBe(true);
   });
 
   it("requires territory and measure for a choropleth", () => {
