@@ -56,6 +56,7 @@ export default defineEventHandler(async (event) => {
 
   const tools = {
     ...visualizationTools,
+    create_indicator: explorationTools.create_indicator,
     update_chart: explorationTools.update_chart,
     get_dataset_metadata: {
       ...visualizationTools.get_dataset_metadata,

@@ -218,6 +218,7 @@ export default defineEventHandler(async (event) => {
   );
   const unavailableTools = new Set<keyof typeof tools>();
   if (completedToolTypes.has("tool-create_chart")) unavailableTools.add("create_chart");
+  if (completedToolTypes.has("tool-create_indicator")) unavailableTools.add("create_indicator");
   if (completedToolTypes.has("tool-create_map")) unavailableTools.add("create_map");
   if (repeatedToolTypes.has("tool-execute_sql")) unavailableTools.add("execute_sql");
   if (previousToolOperations.size >= MAX_TOOL_OPERATIONS_PER_QUESTION) {

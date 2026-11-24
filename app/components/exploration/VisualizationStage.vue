@@ -1,6 +1,6 @@
 <script setup lang="ts">
 const props = defineProps<{
-  kind: "graphique" | "carte";
+  kind: "graphique" | "carte" | "indicateur";
   ready: boolean;
 }>();
 
@@ -31,7 +31,7 @@ onBeforeUnmount(() => {
 <template>
   <div
     class="t-skel w-full min-w-0 max-w-full"
-    :class="revealed ? 'is-revealed' : 'h-[28rem]'"
+    :class="revealed ? 'is-revealed' : kind === 'indicateur' ? 'h-64' : 'h-[28rem]'"
   >
     <div class="t-skel-skeleton is-pulsing">
       <ExplorationVisualizationLoading class="h-full" :kind="kind" />

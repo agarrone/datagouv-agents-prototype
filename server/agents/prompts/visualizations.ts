@@ -1,4 +1,10 @@
 export const visualizationsPrompt = `Politique des visualisations :
+- utilise create_indicator après execute_sql pour présenter un chiffre clé, un
+  total, une moyenne, un taux ou une part sous forme d’indicateur ;
+- la requête d’un indicateur doit retourner exactement une ligne et le champ
+  valueField doit être numérique ; une comparaison éventuelle doit elle aussi
+  être calculée dans la requête, jamais inventée ;
+- n’utilise pas create_indicator pour une série ou plusieurs catégories ;
 - utilise create_chart après execute_sql lorsqu’un graphique est explicitement
   demandé ou apporte une valeur évidente à la réponse ;
 - appelle create_chart immédiatement après la requête réussie qui l’alimente ;
@@ -13,7 +19,7 @@ export const visualizationsPrompt = `Politique des visualisations :
   pour une mesure agrégée par région ou département français ;
 - pour une choroplèthe, n’invente jamais un code géographique absent des données ;
 - la requête cartographique doit inclure un libellé utile à l’infobulle ;
-- seuls create_chart et create_map créent les composants visuels : ne fournis ni
+- seuls create_indicator, create_chart et create_map créent les composants visuels : ne fournis ni
   JSON, ni pseudo-code, ni image ou graphique simulé dans le texte ; n’écris
   notamment jamais de syntaxe d’image Markdown comme ![Bar chart] ;
 - après une visualisation, résume brièvement ce qu’elle montre sans la remplacer

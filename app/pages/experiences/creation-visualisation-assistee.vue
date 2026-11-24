@@ -15,7 +15,7 @@ import {
   type DatagouvDatasetResource,
   type ExplorationResource,
 } from "~~/shared/data/exploration-resources";
-import type { ChartSpec, DatasetRow, ExplorationMessage } from "~~/shared/types/exploration";
+import type { ChartSpec, DatasetRow, ExplorationMessage, IndicatorSpec } from "~~/shared/types/exploration";
 import type { DashboardVisualizationDefinition } from "~~/shared/types/dashboard-visualization";
 import {
   DASHBOARD_VISUALIZATION_HANDOFF_KEY,
@@ -56,6 +56,7 @@ const router = useRouter();
 const visualizationId = ref(typeof route.query.visualizationId === "string" ? route.query.visualizationId : crypto.randomUUID());
 const savedRevision = ref(0);
 const saveStatus = ref<"idle" | "saved" | "published" | "error">("idle");
+const publicationStep = ref<"edit" | "review" | "success">("edit");
 const loadingSavedVisualization = ref(false);
 const selectedDatasetId = ref("");
 const selectedResourceId = ref("");
@@ -75,12 +76,15 @@ const dataMode = ref<"chart" | "source">("chart");
 const assistantPrompt = ref("");
 const selectedModelId = ref<AgentModelId>(DEFAULT_AGENT_MODEL_ID);
 const hasChart = ref(false);
+const visualizationKind = ref<"chart" | "indicator">("chart");
 const agentChartSpec = ref<ChartSpec | null>(null);
+const agentIndicatorSpec = ref<IndicatorSpec | null>(null);
 const syncingConfiguration = ref(false);
 const manualAppearanceEnabled = ref(true);
 
 const title = ref("Nombre de festivals par région");
 const description = ref("Répartition des festivals répertoriés dans chaque région française.");
+const indicatorPeriod = ref("");
 const chartType = ref<ChartKind>("bar");
 const dimension = ref("");
 const dimensionType = ref<"category" | "date">("category");
@@ -144,6 +148,10 @@ function displayChartDataValue(value: DatasetRow[string] | undefined) {
   return String(value);
 }
 
+function indicatorDisplayValue(value: unknown): string | number {
+  return typeof value === "number" || typeof value === "string" ? value : String(value ?? "");
+}
+
 const paletteOptions = Object.entries(chartColorPalettes).map(([value, definition]) => ({
   value: value as keyof typeof chartColorPalettes,
   ...definition,
@@ -187,7 +195,16 @@ const chartSpec = computed<ChartSpec>(() => ({
   xLabel: xLabel.value || dimension.value,
   series: [{ field: "value", label: yLabel.value || "Valeur" }],
 }));
+const indicatorSpec = computed<IndicatorSpec>(() => ({
+  type: "number",
+  title: title.value,
+  description: description.value,
+  valueField: "value",
+  unit: unit.value || undefined,
+  period: indicatorPeriod.value || undefined,
+}));
 const activeChartSpec = computed(() => agentChartSpec.value ?? chartSpec.value);
+const activeIndicatorSpec = computed(() => agentIndicatorSpec.value ?? indicatorSpec.value);
 const previewAppearance = computed(() => (
   agentChartSpec.value && !manualAppearanceEnabled.value ? undefined : appearance.value
 ));
@@ -294,13 +311,20 @@ function buildWhereClause() {
 }
 
 function generatedSql() {
+  const valueExpression = aggregation.value === "count" || !measure.value
+    ? "COUNT(*)"
+    : `${aggregation.value.toUpperCase()}(TRY_CAST(${quoteIdentifier(measure.value)} AS DOUBLE))`;
+  if (visualizationKind.value === "indicator") {
+    return [
+      `SELECT ${valueExpression} AS value`,
+      "FROM data",
+      buildWhereClause(),
+    ].filter(Boolean).join("\n");
+  }
   if (!dimension.value) return "SELECT * FROM data LIMIT 20";
   const dimensionExpression = dimensionType.value === "date"
     ? `CAST(${quoteIdentifier(dimension.value)} AS DATE)`
     : quoteIdentifier(dimension.value);
-  const valueExpression = aggregation.value === "count" || !measure.value
-    ? "COUNT(*)"
-    : `${aggregation.value.toUpperCase()}(TRY_CAST(${quoteIdentifier(measure.value)} AS DOUBLE))`;
   return [
     `SELECT ${dimensionExpression} AS category, ${valueExpression} AS value`,
     "FROM data",
@@ -312,10 +336,9 @@ function generatedSql() {
 }
 
 function syncSpecificationEditor() {
-  specJson.value = JSON.stringify({
-    ...activeChartSpec.value,
-    appearance: appearance.value,
-  }, null, 2);
+  specJson.value = JSON.stringify(visualizationKind.value === "indicator"
+    ? activeIndicatorSpec.value
+    : { ...activeChartSpec.value, appearance: appearance.value }, null, 2);
 }
 
 function syncEditors() {
@@ -325,6 +348,11 @@ function syncEditors() {
 
 function syncManualPresentation() {
   if (syncingConfiguration.value || !hasChart.value) return;
+  if (visualizationKind.value === "indicator") {
+    agentIndicatorSpec.value = indicatorSpec.value;
+    syncSpecificationEditor();
+    return;
+  }
   const current = activeChartSpec.value;
   agentChartSpec.value = {
     ...current,
@@ -339,12 +367,13 @@ function syncManualPresentation() {
 }
 
 async function refreshPreview(useEditorSql = false) {
-  if (!hasChart.value || !dataset.schema.value || !dimension.value) return;
+  if (!hasChart.value || !dataset.schema.value || (visualizationKind.value === "chart" && !dimension.value)) return;
   previewLoading.value = true;
   error.value = "";
   try {
     if (!useEditorSql) {
       agentChartSpec.value = null;
+      agentIndicatorSpec.value = null;
       syncEditors();
     }
     const result = await dataset.executeSql(sql.value);
@@ -400,9 +429,23 @@ function removeFilterRule(group: FilterGroup, ruleId: string) {
 
 function applySpecification() {
   try {
-    const parsed = JSON.parse(specJson.value) as ChartSpec & { appearance?: typeof appearance.value };
+    const parsed = JSON.parse(specJson.value) as (ChartSpec & { appearance?: typeof appearance.value }) | IndicatorSpec;
     syncingConfiguration.value = true;
+    if (parsed.type === "number") {
+      visualizationKind.value = "indicator";
+      agentIndicatorSpec.value = parsed;
+      agentChartSpec.value = null;
+      title.value = parsed.title;
+      description.value = parsed.description;
+      unit.value = parsed.unit ?? "";
+      indicatorPeriod.value = parsed.period ?? "";
+      void refreshPreview(true);
+      void nextTick(() => { syncingConfiguration.value = false; });
+      return;
+    }
+    visualizationKind.value = "chart";
     agentChartSpec.value = parsed;
+    agentIndicatorSpec.value = null;
     manualAppearanceEnabled.value = true;
     if (isChartKind(parsed.type)) chartType.value = parsed.type;
     title.value = parsed.title ?? title.value;
@@ -452,7 +495,9 @@ const toolRuntime = useExplorationToolRuntime(dataset, (output) => {
   onChartReady(spec, result) {
     syncingConfiguration.value = true;
     hasChart.value = true;
+    visualizationKind.value = "chart";
     agentChartSpec.value = spec;
+    agentIndicatorSpec.value = null;
     manualAppearanceEnabled.value = false;
     rows.value = result.rows;
     title.value = spec.title;
@@ -463,8 +508,23 @@ const toolRuntime = useExplorationToolRuntime(dataset, (output) => {
     specJson.value = JSON.stringify(spec, null, 2);
     void nextTick(() => { syncingConfiguration.value = false; });
   },
+  onIndicatorReady(spec, result) {
+    syncingConfiguration.value = true;
+    hasChart.value = true;
+    visualizationKind.value = "indicator";
+    agentIndicatorSpec.value = spec;
+    agentChartSpec.value = null;
+    rows.value = result.rows;
+    title.value = spec.title;
+    description.value = spec.description;
+    unit.value = spec.unit ?? "";
+    indicatorPeriod.value = spec.period ?? "";
+    specJson.value = JSON.stringify(spec, null, 2);
+    void nextTick(() => { syncingConfiguration.value = false; });
+  },
   onChartUpdate(update) {
     if (!hasChart.value) throw new Error("Créez d’abord un graphique avant de le modifier.");
+    if (visualizationKind.value !== "chart") throw new Error("update_chart ne peut modifier qu’un graphique.");
     syncingConfiguration.value = true;
     const fields: string[] = [];
 
@@ -520,11 +580,12 @@ const toolRuntime = useExplorationToolRuntime(dataset, (output) => {
 function visualizationAgentContext() {
   return {
     exists: hasChart.value,
+    kind: visualizationKind.value,
     title: title.value,
     description: description.value,
     sql: sql.value,
-    specification: activeChartSpec.value,
-    appearance: appearance.value,
+    specification: visualizationKind.value === "indicator" ? activeIndicatorSpec.value : activeChartSpec.value,
+    appearance: visualizationKind.value === "indicator" ? {} : appearance.value,
   };
 }
 
@@ -578,11 +639,11 @@ const {
 runtimeBridge.addToolOutput = addToolOutput;
 
 const agentResponding = computed(() => agentStatus.value === "submitted" || agentStatus.value === "streaming");
-const chartCreationPending = computed(() => {
+const visualizationCreationPending = computed(() => {
   if (!agentResponding.value) return false;
   const activeMessage = [...agentMessages.value].reverse().find(message => message.role === "assistant");
   return activeMessage?.parts.some(part => (
-    part.type === "tool-create_chart"
+    (part.type === "tool-create_chart" || part.type === "tool-create_indicator")
     && part.state !== "output-available"
     && part.state !== "output-error"
   )) ?? false;
@@ -633,7 +694,7 @@ async function submitAssistant() {
 
 let refreshTimer: ReturnType<typeof setTimeout> | undefined;
 watch([
-  dimension, dimensionType, aggregation, measure, sortDirection, limit,
+  visualizationKind, dimension, dimensionType, aggregation, measure, sortDirection, limit,
 ], () => {
   if (syncingConfiguration.value || loading.value || !dataset.schema.value) return;
   clearTimeout(refreshTimer);
@@ -641,7 +702,7 @@ watch([
 });
 
 watch([
-  chartType, title, description, xLabel, yLabel, yMin, yMax, unit, unitPosition,
+  visualizationKind, chartType, title, description, indicatorPeriod, xLabel, yLabel, yMin, yMax, unit, unitPosition,
   showValues, showLegend, legendPosition, valueFormat, valuePrecision, orientation,
   barWidth, roundedBars, lineSmooth, showPoints, lineWidth, areaOpacity,
   pieShape, pieLabelContent, pieLabelPosition, pointSize, pointOpacity,
@@ -657,6 +718,7 @@ watch(selectedDatasetId, () => {
   hasChart.value = false;
   rows.value = [];
   agentChartSpec.value = null;
+  agentIndicatorSpec.value = null;
   manualAppearanceEnabled.value = true;
   agentMessages.value = [];
   toolRuntime.reset();
@@ -668,6 +730,7 @@ watch(selectedResourceId, () => {
   hasChart.value = false;
   rows.value = [];
   agentChartSpec.value = null;
+  agentIndicatorSpec.value = null;
   manualAppearanceEnabled.value = true;
   agentMessages.value = [];
   toolRuntime.reset();
@@ -677,38 +740,52 @@ watch(selectedResourceId, () => {
 function startManualChart() {
   if (!selectedResource.value || !dataset.schema.value) return;
   hasChart.value = true;
+  visualizationKind.value = "chart";
   void refreshPreview();
+}
+
+function selectVisualizationKind(kind: "chart" | "indicator") {
+  const wasDefaultChart = title.value === "Nombre de festivals par région"
+    && description.value === "Répartition des festivals répertoriés dans chaque région française.";
+  visualizationKind.value = kind;
+  agentChartSpec.value = null;
+  agentIndicatorSpec.value = null;
+  if (kind === "indicator" && wasDefaultChart) {
+    title.value = "Nombre total d’enregistrements";
+    description.value = "Nombre total de lignes correspondant aux filtres appliqués.";
+  }
+  if (hasChart.value) void refreshPreview();
 }
 
 function savedDefinition(): DashboardVisualizationDefinition | null {
   const resource = selectedResource.value;
   if (!resource || !hasChart.value || !rows.value.length) return null;
-  return {
-    version: 1,
-    kind: "chart",
-    title: activeChartSpec.value.title || title.value,
-    description: activeChartSpec.value.description || description.value,
-    size: "large",
+  const base = {
+    version: 1 as const,
+    title: title.value,
+    description: description.value,
+    size: "large" as const,
     data: {
       resourceId: resource.id,
       datasetReference: resource.datasetReference,
       resourceName: visualizationResourceName(resource),
       resourceUrl: resource.parquetUrl,
-      engine: "duckdb-sql",
+      engine: "duckdb-sql" as const,
       query: sql.value,
     },
     filters: [],
-    specification: activeChartSpec.value,
-    appearance: appearance.value,
   };
+  return visualizationKind.value === "indicator"
+    ? { ...base, kind: "indicator", specification: activeIndicatorSpec.value, appearance: {} }
+    : { ...base, kind: "chart", specification: activeChartSpec.value, appearance: appearance.value };
 }
 
 async function saveVisualization(status: SavedVisualization["status"]) {
   const resource = selectedResource.value;
   const definition = savedDefinition();
   if (!resource || !definition) {
-    error.value = "Créez un graphique valide avant de l’enregistrer.";
-    return;
+    error.value = "Créez une visualisation valide avant de l’enregistrer.";
+    return false;
   }
   try {
     const library = readVisualizationLibrary(localStorage);
@@ -747,18 +824,30 @@ async function saveVisualization(status: SavedVisualization["status"]) {
       localStorage.setItem(DASHBOARD_VISUALIZATION_HANDOFF_KEY, JSON.stringify(handoff));
       await router.push("/experiences/tableau-de-bord-visualisations");
     }
+    return true;
   }
   catch {
     saveStatus.value = "error";
     error.value = "La visualisation n’a pas pu être enregistrée localement.";
+    return false;
   }
+}
+
+function reviewPublication() {
+  if (!hasChart.value || !rows.value.length || !selectedResource.value) return;
+  publicationStep.value = "review";
+}
+
+async function confirmPublication() {
+  const published = await saveVisualization("published");
+  if (published && !route.query.dashboardId) publicationStep.value = "success";
 }
 
 async function loadSavedVisualization() {
   const requestedId = typeof route.query.visualizationId === "string" ? route.query.visualizationId : "";
   if (!requestedId) return;
   const record = readVisualizationLibrary(localStorage).find(item => item.id === requestedId);
-  if (!record || record.definition.kind !== "chart") return;
+  if (!record || (record.definition.kind !== "chart" && record.definition.kind !== "indicator")) return;
   loadingSavedVisualization.value = true;
   visualizationId.value = record.id;
   savedRevision.value = record.revision;
@@ -770,9 +859,21 @@ async function loadSavedVisualization() {
   hasChart.value = true;
   rows.value = record.rows;
   sql.value = record.definition.data.query;
-  agentChartSpec.value = record.definition.specification;
+  visualizationKind.value = record.definition.kind;
+  if (record.definition.kind === "indicator") {
+    agentIndicatorSpec.value = record.definition.specification;
+    agentChartSpec.value = null;
+    unit.value = record.definition.specification.unit ?? "";
+    indicatorPeriod.value = record.definition.specification.period ?? "";
+    specJson.value = JSON.stringify(record.definition.specification, null, 2);
+  }
+  else {
+    agentChartSpec.value = record.definition.specification;
+    agentIndicatorSpec.value = null;
+  }
   title.value = record.definition.title;
   description.value = record.definition.description;
+  if (record.definition.kind === "chart") {
   if (isChartKind(record.definition.specification.type)) chartType.value = record.definition.specification.type;
   xLabel.value = record.definition.specification.xLabel ?? record.definition.specification.xField;
   yLabel.value = record.definition.specification.series[0]?.label ?? yLabel.value;
@@ -799,6 +900,7 @@ async function loadSavedVisualization() {
   pointSize.value = record.definition.appearance.pointSize ?? "medium";
   pointOpacity.value = record.definition.appearance.pointOpacity ?? "strong";
   specJson.value = JSON.stringify({ ...record.definition.specification, appearance: record.definition.appearance }, null, 2);
+  }
   saveStatus.value = record.status === "published" ? "published" : "saved";
   await nextTick();
   syncingConfiguration.value = false;
@@ -820,12 +922,82 @@ onMounted(() => void loadSavedVisualization());
         <div class="flex shrink-0 items-center gap-2">
           <span class="hidden text-[11px] text-[#666666] sm:inline">{{ saveStatus === 'published' ? 'Publiée' : saveStatus === 'saved' ? 'Brouillon enregistré' : saveStatus === 'error' ? 'Échec de l’enregistrement' : 'Modifications non enregistrées' }}</span>
           <button class="h-9 rounded-md border border-[#000091] bg-white px-3 text-[12px] font-medium text-[#000091] disabled:opacity-50" type="button" :disabled="!hasChart || !rows.length" @click="saveVisualization('draft')">Enregistrer le brouillon</button>
-          <button class="h-9 rounded-md bg-[#000091] px-3 text-[12px] font-medium text-white disabled:opacity-50" type="button" :disabled="!hasChart || !rows.length" @click="saveVisualization('published')">{{ route.query.dashboardId ? 'Enregistrer et ajouter' : 'Publier' }}</button>
         </div>
       </div>
     </header>
 
-    <div class="visualization-shell">
+    <section v-if="publicationStep !== 'edit'" class="publication-flow">
+      <div v-if="publicationStep === 'success'" class="publication-success" role="status">
+        <span class="grid size-11 shrink-0 place-items-center rounded-full bg-[#e3fdeb] text-[#18753c]"><i aria-hidden="true" class="ri-check-line text-xl" /></span>
+        <div class="min-w-0 flex-1">
+          <p class="text-[15px] font-bold">La visualisation est publiée</p>
+          <p class="mt-1 text-[12px] leading-5 text-[#555555]">Dans le produit final, elle sera accessible depuis vos publications et pourra être intégrée à une page ou un tableau de bord.</p>
+        </div>
+        <button class="shrink-0 text-[12px] font-medium text-[#000091] underline underline-offset-4" type="button" @click="publicationStep = 'edit'">Revenir à l’éditeur</button>
+      </div>
+
+      <header class="publication-flow__header">
+        <p class="text-[11px] font-medium uppercase tracking-[0.06em] text-[#666666]">Publication · Étape 2 sur 2</p>
+        <h2 class="mt-1 text-[24px] font-bold leading-8">Vérifier avant de publier</h2>
+        <p class="mt-2 max-w-2xl text-[13px] leading-5 text-[#555555]">Contrôlez l’aperçu, la source et les informations publiques de la visualisation.</p>
+      </header>
+
+      <div class="publication-flow__grid">
+        <article class="publication-preview">
+          <header class="border-b border-[#e5e5e5] bg-[#f6f6f6] px-5 py-3">
+            <p class="text-[11px] font-semibold uppercase tracking-[0.04em] text-[#555555]">Aperçu public</p>
+          </header>
+          <div class="p-5 sm:p-7">
+            <ExplorationIndicatorCard
+              v-if="visualizationKind === 'indicator' && rows.length && selectedResource"
+              :title="activeIndicatorSpec.title"
+              :value="indicatorDisplayValue(rows[0]?.[activeIndicatorSpec.valueField])"
+              :unit="activeIndicatorSpec.unit"
+              :period="activeIndicatorSpec.period"
+              :description="activeIndicatorSpec.description"
+              :comparison="activeIndicatorSpec.comparison ? String(rows[0]?.[activeIndicatorSpec.comparison.field] ?? '') : undefined"
+              :comparison-label="activeIndicatorSpec.comparison?.label"
+              :comparison-tone="activeIndicatorSpec.comparison?.tone"
+              :source="`${selectedResource.title} · ${selectedResource.organization}`"
+              :source-description="activeIndicatorSpec.sourceDescription"
+            />
+            <ExplorationAgentChart
+              v-else-if="rows.length && selectedResource"
+              :appearance="previewAppearance"
+              :play-completion-sound="false"
+              renderer="svg"
+              :rows="rows"
+              :source="`${selectedResource.title} · ${selectedResource.organization}`"
+              :spec="activeChartSpec"
+              :truncated="false"
+            />
+          </div>
+        </article>
+
+        <aside class="publication-summary" aria-label="Récapitulatif de publication">
+          <h3 class="text-[16px] font-bold">Récapitulatif</h3>
+          <dl class="mt-5 divide-y divide-[#e5e5e5]">
+            <div class="pb-4"><dt>Publier avec</dt><dd>{{ publisher }}</dd></div>
+            <div class="py-4"><dt>Jeu de données</dt><dd>{{ selectedResource?.title }}</dd></div>
+            <div class="py-4"><dt>Ressource</dt><dd>{{ selectedResource ? visualizationResourceName(selectedResource) : '' }}</dd></div>
+            <div class="py-4"><dt>Type</dt><dd>{{ visualizationKind === 'indicator' ? 'Indicateur' : chartTypeOptions.find(option => option.value === chartType)?.label }}</dd></div>
+            <div class="py-4"><dt>Titre public</dt><dd>{{ title }}</dd></div>
+            <div class="pt-4"><dt>Description</dt><dd class="leading-5">{{ description }}</dd></div>
+          </dl>
+          <div class="mt-5 flex gap-2 rounded-md border border-[#b8b8ff] bg-[#ececfe] p-3 text-[11px] leading-5 text-[#272747]">
+            <i aria-hidden="true" class="ri-global-line mt-0.5 text-base" />
+            <p><strong class="font-semibold">Publication publique.</strong> La visualisation et sa source seront visibles par tous. Les données d’origine ne seront pas modifiées.</p>
+          </div>
+        </aside>
+      </div>
+
+      <footer class="publication-flow__actions">
+        <button class="h-10 rounded-md border border-[#000091] bg-white px-4 text-[12px] font-medium text-[#000091]" type="button" @click="publicationStep = 'edit'"><i aria-hidden="true" class="ri-arrow-left-line mr-1" />Retour à l’édition</button>
+        <button class="h-10 rounded-md bg-[#000091] px-5 text-[12px] font-medium text-white hover:bg-[#1212ff]" type="button" @click="confirmPublication"><i aria-hidden="true" class="ri-send-plane-line mr-1" />Confirmer la publication</button>
+      </footer>
+    </section>
+
+    <div v-else class="visualization-shell">
       <section class="source-context" aria-label="Source de données">
         <div class="source-context__heading">
           <div class="min-w-0"><h2 class="text-[12px] font-bold">Source de données</h2><p class="mt-0.5 truncate text-[10px] text-[#666666]">Contexte commun à la prévisualisation et à l’assistant</p></div>
@@ -853,21 +1025,44 @@ onMounted(() => void loadSavedVisualization());
             <nav class="center-tabs" role="tablist" aria-label="Affichage central">
               <button role="tab" :aria-selected="centerMode === 'preview'" :class="centerMode === 'preview' ? 'center-tab--active' : ''" class="center-tab" type="button" @click="centerMode = 'preview'"><i aria-hidden="true" class="ri-bar-chart-box-line text-base leading-none" />Prévisualisation</button>
               <button role="tab" :aria-selected="centerMode === 'data'" :class="centerMode === 'data' ? 'center-tab--active' : ''" class="center-tab" type="button" @click="centerMode = 'data'"><i aria-hidden="true" class="ri-table-line text-base leading-none" />Données<span v-if="dataset.schema.value" class="text-[10px] font-normal text-[#777777]">{{ dataset.schema.value.rowCount.toLocaleString('fr-FR') }}</span></button>
+              <button
+                v-if="centerMode === 'preview'"
+                class="ml-auto my-1.5 inline-flex items-center gap-1.5 rounded-md bg-[#000091] px-3 text-[11px] font-medium text-white hover:bg-[#1212ff] disabled:cursor-not-allowed disabled:bg-[#e5e5e5] disabled:text-[#929292]"
+                type="button"
+                :disabled="!hasChart || !rows.length"
+                @click="reviewPublication"
+              >
+                <i aria-hidden="true" :class="saveStatus === 'published' ? 'ri-check-line' : 'ri-send-plane-line'" />
+                {{ route.query.dashboardId ? 'Enregistrer et ajouter' : saveStatus === 'published' ? 'Visualisation publiée' : 'Publier la visualisation' }}
+              </button>
             </nav>
           </header>
 
           <div v-if="centerMode === 'preview'" class="flex min-h-0 flex-1 flex-col">
             <div class="relative min-h-[420px] flex-1 p-4 sm:p-7">
-              <div v-if="chartCreationPending" class="absolute inset-0 z-10 bg-white p-4 sm:p-7">
-                <ExplorationVisualizationLoading class="h-full" kind="graphique" />
+              <div v-if="visualizationCreationPending" class="absolute inset-0 z-10 bg-white p-4 sm:p-7">
+                <ExplorationVisualizationLoading class="h-full" :kind="visualizationKind === 'indicator' ? 'indicateur' : 'graphique'" />
               </div>
               <div v-else-if="loading || previewLoading" class="absolute inset-0 z-10 grid place-items-center bg-white/80"><div class="text-center text-[12px] text-[#555555]"><i aria-hidden="true" class="ri-loader-4-line mb-2 block animate-spin text-2xl text-[#000091]" />Mise à jour de la prévisualisation</div></div>
               <div v-if="error" class="mb-4 flex items-start gap-2 rounded-md border border-[#ffbdbd] bg-[#fff4f4] px-3 py-2 text-[12px] leading-5 text-[#ce0500]"><i aria-hidden="true" class="ri-error-warning-line mt-0.5" /><span>{{ error }}</span></div>
-              <ExplorationAgentChart v-if="hasChart && rows.length && selectedResource" :appearance="previewAppearance" :play-completion-sound="false" renderer="svg" :rows="rows" :source="`${selectedResource.title} · ${selectedResource.organization}`" :spec="activeChartSpec" :truncated="false" />
+              <ExplorationIndicatorCard
+                v-if="hasChart && visualizationKind === 'indicator' && rows.length && selectedResource"
+                :title="activeIndicatorSpec.title"
+                :value="indicatorDisplayValue(rows[0]?.[activeIndicatorSpec.valueField])"
+                :unit="activeIndicatorSpec.unit"
+                :period="activeIndicatorSpec.period"
+                :description="activeIndicatorSpec.description"
+                :comparison="activeIndicatorSpec.comparison ? String(rows[0]?.[activeIndicatorSpec.comparison.field] ?? '') : undefined"
+                :comparison-label="activeIndicatorSpec.comparison?.label"
+                :comparison-tone="activeIndicatorSpec.comparison?.tone"
+                :source="`${selectedResource.title} · ${selectedResource.organization}`"
+                :source-description="activeIndicatorSpec.sourceDescription"
+              />
+              <ExplorationAgentChart v-else-if="hasChart && rows.length && selectedResource" :appearance="previewAppearance" :play-completion-sound="false" renderer="svg" :rows="rows" :source="`${selectedResource.title} · ${selectedResource.organization}`" :spec="activeChartSpec" :truncated="false" />
               <div v-else-if="!loading && !error" class="grid h-full min-h-[360px] place-items-center text-center">
                 <div class="max-w-sm">
                   <span class="mx-auto grid size-14 place-items-center rounded-full bg-[#eeeeee] text-[#777777]"><i aria-hidden="true" class="ri-bar-chart-box-line text-2xl" /></span>
-                  <p class="mt-4 text-[15px] font-semibold">Aucun graphique créé</p>
+                  <p class="mt-4 text-[15px] font-semibold">Aucune visualisation créée</p>
                   <p class="mt-1 text-[12px] leading-5 text-[#666666]">{{ selectedResourceId ? 'Utilisez l’assistant ou l’édition manuelle pour créer votre première visualisation.' : 'Sélectionnez un jeu de données et une ressource pour commencer.' }}</p>
                 </div>
               </div>
@@ -876,14 +1071,14 @@ onMounted(() => void loadSavedVisualization());
 
           <div v-else class="flex min-h-0 flex-1 flex-col overflow-hidden">
             <nav class="data-tabs" aria-label="Type de données affichées">
-              <button class="data-tab" :class="dataMode === 'chart' ? 'data-tab--active' : ''" type="button" @click="dataMode = 'chart'"><i aria-hidden="true" class="ri-bar-chart-box-line" />Données du graphique<span v-if="hasChart && rows.length" class="data-tab__count">{{ rows.length.toLocaleString('fr-FR') }}</span></button>
+              <button class="data-tab" :class="dataMode === 'chart' ? 'data-tab--active' : ''" type="button" @click="dataMode = 'chart'"><i aria-hidden="true" :class="visualizationKind === 'indicator' ? 'ri-number-1' : 'ri-bar-chart-box-line'" />Données de la visualisation<span v-if="hasChart && rows.length" class="data-tab__count">{{ rows.length.toLocaleString('fr-FR') }}</span></button>
               <button class="data-tab" :class="dataMode === 'source' ? 'data-tab--active' : ''" type="button" @click="dataMode = 'source'"><i aria-hidden="true" class="ri-database-2-line" />Ressource source<span v-if="dataset.schema.value" class="data-tab__count">{{ dataset.schema.value.rowCount.toLocaleString('fr-FR') }}</span></button>
             </nav>
 
             <template v-if="dataMode === 'chart'">
               <ExplorationDatasetTableSkeleton v-if="previewLoading" />
               <div v-else-if="hasChart && rows.length" class="flex min-h-0 flex-1 flex-col overflow-hidden bg-white">
-                <div class="flex min-h-10 shrink-0 items-center justify-between gap-3 border-b border-[#e5e5e5] bg-[#f6f6f6] px-3 text-[11px] text-[#555555]"><span>Résultat de la requête transmis au graphique</span><span class="tabular-nums">{{ rows.length.toLocaleString('fr-FR') }} ligne{{ rows.length > 1 ? 's' : '' }} · {{ chartDataColumns.length }} colonne{{ chartDataColumns.length > 1 ? 's' : '' }}</span></div>
+                <div class="flex min-h-10 shrink-0 items-center justify-between gap-3 border-b border-[#e5e5e5] bg-[#f6f6f6] px-3 text-[11px] text-[#555555]"><span>Résultat de la requête transmis à la visualisation</span><span class="tabular-nums">{{ rows.length.toLocaleString('fr-FR') }} ligne{{ rows.length > 1 ? 's' : '' }} · {{ chartDataColumns.length }} colonne{{ chartDataColumns.length > 1 ? 's' : '' }}</span></div>
                 <div class="min-h-0 flex-1 overflow-auto">
                   <table class="min-w-full border-collapse text-left text-[12px]">
                     <thead><tr><th v-for="column in chartDataColumns" :key="column" class="sticky top-0 z-10 min-w-40 border-b border-r border-[#e5e5e5] bg-[#f6f6f6] px-3 py-2.5 font-semibold">{{ column }}</th></tr></thead>
@@ -891,7 +1086,7 @@ onMounted(() => void loadSavedVisualization());
                   </table>
                 </div>
               </div>
-              <div v-else class="grid min-h-0 flex-1 place-items-center bg-[#fafafa] p-8 text-center"><div class="max-w-sm"><i aria-hidden="true" class="ri-bar-chart-box-line text-2xl text-[#777777]" /><h2 class="mt-3 text-[14px] font-bold">Aucune donnée de graphique</h2><p class="mt-1 text-[11px] leading-5 text-[#555555]">Créez un graphique avec l’assistant ou l’éditeur manuel pour consulter ici les données réellement utilisées.</p><button v-if="dataset.schema.value" class="mt-3 text-[11px] font-medium text-[#000091] underline underline-offset-2" type="button" @click="dataMode = 'source'">Consulter la ressource source</button></div></div>
+              <div v-else class="grid min-h-0 flex-1 place-items-center bg-[#fafafa] p-8 text-center"><div class="max-w-sm"><i aria-hidden="true" class="ri-bar-chart-box-line text-2xl text-[#777777]" /><h2 class="mt-3 text-[14px] font-bold">Aucune donnée de visualisation</h2><p class="mt-1 text-[11px] leading-5 text-[#555555]">Créez une visualisation avec l’assistant ou l’éditeur manuel pour consulter ici les données réellement utilisées.</p><button v-if="dataset.schema.value" class="mt-3 text-[11px] font-medium text-[#000091] underline underline-offset-2" type="button" @click="dataMode = 'source'">Consulter la ressource source</button></div></div>
             </template>
 
             <template v-else>
@@ -914,7 +1109,7 @@ onMounted(() => void loadSavedVisualization());
 
         <div v-if="panelMode === 'manual'" class="space-y-6 overflow-y-auto p-5">
           <div v-if="!hasChart" class="grid min-h-[420px] place-items-center text-center">
-            <div class="max-w-xs"><span class="mx-auto grid size-12 place-items-center rounded-full bg-[#eeeeee] text-[#777777]"><i aria-hidden="true" class="ri-settings-3-line text-xl" /></span><h3 class="mt-4 text-[14px] font-semibold">Aucun graphique à configurer</h3><p class="mt-1 text-[12px] leading-5 text-[#666666]">{{ selectedResourceId ? 'Démarrez un graphique pour accéder aux axes, filtres et options de style.' : 'Sélectionnez d’abord un jeu de données et une ressource.' }}</p><button class="mt-4 inline-flex h-9 items-center justify-center rounded-md bg-[#000091] px-4 text-[12px] font-medium text-white disabled:cursor-not-allowed disabled:opacity-50" type="button" :disabled="!selectedResourceId || loading" @click="startManualChart">Créer manuellement</button></div>
+            <div class="max-w-xs"><span class="mx-auto grid size-12 place-items-center rounded-full bg-[#eeeeee] text-[#777777]"><i aria-hidden="true" class="ri-settings-3-line text-xl" /></span><h3 class="mt-4 text-[14px] font-semibold">Aucune visualisation à configurer</h3><p class="mt-1 text-[12px] leading-5 text-[#666666]">{{ selectedResourceId ? 'Démarrez une visualisation pour accéder aux données et aux options de présentation.' : 'Sélectionnez d’abord un jeu de données et une ressource.' }}</p><button class="mt-4 inline-flex h-9 items-center justify-center rounded-md bg-[#000091] px-4 text-[12px] font-medium text-white disabled:cursor-not-allowed disabled:opacity-50" type="button" :disabled="!selectedResourceId || loading" @click="startManualChart">Créer manuellement</button></div>
           </div>
           <template v-else>
           <section>
@@ -940,13 +1135,17 @@ onMounted(() => void loadSavedVisualization());
           </section>
 
           <section class="border-t border-[#e5e5e5] pt-5">
-            <h3 class="text-[12px] font-bold">Type de graphique</h3>
+            <h3 class="text-[12px] font-bold">Type de visualisation</h3>
             <div class="mt-3 grid grid-cols-2 gap-2">
+              <button class="chart-type-button" :class="visualizationKind === 'chart' ? 'chart-type-button--active' : ''" type="button" @click="selectVisualizationKind('chart')"><i aria-hidden="true" class="ri-bar-chart-box-line" />Graphique</button>
+              <button class="chart-type-button" :class="visualizationKind === 'indicator' ? 'chart-type-button--active' : ''" type="button" @click="selectVisualizationKind('indicator')"><i aria-hidden="true" class="ri-number-1" />Indicateur</button>
+            </div>
+            <div v-if="visualizationKind === 'chart'" class="mt-2 grid grid-cols-2 gap-2">
               <button v-for="option in chartTypeOptions" :key="option.value" class="chart-type-button" :class="chartType === option.value ? 'chart-type-button--active' : ''" type="button" @click="selectChartType(option.value)"><i aria-hidden="true" :class="option.icon" />{{ option.label }}</button>
             </div>
           </section>
 
-          <section class="border-t border-[#e5e5e5] pt-5">
+          <section v-if="visualizationKind === 'chart'" class="border-t border-[#e5e5e5] pt-5">
             <h3 class="text-[12px] font-bold">Axe X</h3>
             <label class="mt-3 block text-[11px] font-medium">Choisir quoi afficher</label><select v-model="dimension" class="form-select mt-1"><option v-for="column in dimensionColumns" :key="column.name" :value="column.name">{{ column.name }}</option></select>
             <label class="mt-3 block text-[11px] font-medium">Type</label><select v-model="dimensionType" class="form-select mt-1"><option value="category">Discret (catégories)</option><option value="date">Temporel (date)</option></select>
@@ -955,12 +1154,16 @@ onMounted(() => void loadSavedVisualization());
           </section>
 
           <section class="border-t border-[#e5e5e5] pt-5">
-            <h3 class="text-[12px] font-bold">Axe Y</h3>
+            <h3 class="text-[12px] font-bold">{{ visualizationKind === 'indicator' ? 'Valeur' : 'Axe Y' }}</h3>
             <label class="mt-3 block text-[11px] font-medium">Calcul</label><select v-model="aggregation" class="form-select mt-1"><option value="count">Compter les lignes</option><option value="sum">Somme</option><option value="avg">Moyenne</option></select>
             <template v-if="aggregation !== 'count'"><label class="mt-3 block text-[11px] font-medium">Colonne Y</label><select v-model="measure" class="form-select mt-1"><option v-for="column in numericColumns" :key="column.name" :value="column.name">{{ column.name }}</option></select></template>
+            <template v-if="visualizationKind === 'indicator'">
+              <label class="mt-3 block text-[11px] font-medium">Période</label><input v-model="indicatorPeriod" class="form-control mt-1" placeholder="Par exemple : En 2024">
+              <label class="mt-3 block text-[11px] font-medium">Unité</label><input v-model="unit" class="form-control mt-1" placeholder="%, €, km…">
+            </template>
           </section>
 
-          <details class="border-t border-[#e5e5e5] pt-5" open>
+          <details v-if="visualizationKind === 'chart'" class="border-t border-[#e5e5e5] pt-5" open>
             <summary class="cursor-pointer text-[12px] font-bold">Styles</summary>
             <label class="mt-3 block text-[11px] font-medium">Label de l’axe X</label><input v-model="xLabel" class="form-control mt-1">
             <label class="mt-3 block text-[11px] font-medium">Label de l’axe Y</label><input v-model="yLabel" class="form-control mt-1">
@@ -1022,7 +1225,7 @@ onMounted(() => void loadSavedVisualization());
             </div>
           </details>
           <details class="code-disclosure">
-            <summary><span class="flex items-center gap-2"><i aria-hidden="true" class="ri-braces-line" />Spécification du graphique</span><i aria-hidden="true" class="ri-arrow-down-s-line disclosure-arrow" /></summary>
+            <summary><span class="flex items-center gap-2"><i aria-hidden="true" class="ri-braces-line" />Spécification de la visualisation</span><i aria-hidden="true" class="ri-arrow-down-s-line disclosure-arrow" /></summary>
             <div class="border-t border-[#e5e5e5]">
               <div class="flex min-h-8 items-center justify-between bg-[#f6f6f6] px-3 font-mono text-[10px] text-[#555555]"><span>JSON</span><span>Configuration du rendu</span></div>
               <textarea v-model="specJson" rows="14" spellcheck="false" aria-label="Spécification JSON du graphique" class="json-editor" />
@@ -1074,7 +1277,7 @@ onMounted(() => void loadSavedVisualization());
           <ExplorationAgentComposer
             v-model="assistantPrompt"
             v-model:selected-model-id="selectedModelId"
-            context-description="L’assistant crée ou modifie le graphique affiché dans la prévisualisation."
+            context-description="L’assistant crée un graphique ou un indicateur à partir des données sélectionnées."
             context-initially-open
             context-title="Visualisation en cours"
             :disabled="!selectedResource || !columns.length"
@@ -1093,6 +1296,16 @@ onMounted(() => void loadSavedVisualization());
 </template>
 
 <style scoped>
+.publication-flow { width: calc(100% - 32px); max-width: 1440px; margin: 24px auto 64px; }
+.publication-success { display: flex; align-items: center; gap: 16px; margin-bottom: 20px; border: 1px solid #b8fec9; border-radius: 6px; background: #f0fdf4; padding: 16px 20px; }
+.publication-flow__header { border: 1px solid #e5e5e5; border-radius: 6px 6px 0 0; background: #fff; padding: 24px; }
+.publication-flow__grid { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(320px, 0.65fr); gap: 20px; border-right: 1px solid #e5e5e5; border-left: 1px solid #e5e5e5; background: #f6f6f6; padding: 20px; }
+.publication-preview, .publication-summary { overflow: hidden; border: 1px solid #e5e5e5; border-radius: 6px; background: #fff; }
+.publication-preview { min-width: 0; }
+.publication-summary { padding: 20px; }
+.publication-summary dt { color: #666666; font-size: 10px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; }
+.publication-summary dd { margin-top: 4px; overflow-wrap: anywhere; color: #161616; font-size: 12px; font-weight: 500; }
+.publication-flow__actions { display: flex; justify-content: space-between; gap: 12px; border: 1px solid #e5e5e5; border-top: 0; border-radius: 0 0 6px 6px; background: #fff; padding: 16px 20px; }
 .visualization-shell { display: flex; height: calc(100dvh - 48px); min-height: 680px; max-height: 860px; width: calc(100% - 32px); max-width: 1440px; margin: 24px auto 64px; flex-direction: column; overflow: hidden; border: 1px solid #e5e5e5; border-radius: 6px; background: #fff; box-shadow: 0 1px 3px rgb(0 0 0 / 5%); }
 .source-context { display: grid; min-height: 88px; grid-template-columns: minmax(190px, 0.8fr) minmax(0, 3fr) minmax(145px, 0.6fr); align-items: center; gap: 20px; border-bottom: 1px solid #d5d5d5; background: #fff; padding: 12px 20px; }
 .source-context__heading { display: flex; min-width: 0; align-items: center; gap: 10px; }
@@ -1135,6 +1348,12 @@ onMounted(() => void loadSavedVisualization());
   .visualization-workspace { grid-template-columns: minmax(0, 1fr) minmax(330px, 390px); }
 }
 @media (max-width: 760px) {
+  .publication-flow { width: calc(100% - 16px); margin: 8px auto 20px; }
+  .publication-success { align-items: flex-start; flex-wrap: wrap; padding: 14px; }
+  .publication-flow__header { padding: 18px; }
+  .publication-flow__grid { grid-template-columns: 1fr; padding: 12px; }
+  .publication-flow__actions { flex-direction: column-reverse; padding: 14px; }
+  .publication-flow__actions button { width: 100%; }
   .visualization-shell { height: auto; min-height: 0; max-height: none; width: calc(100% - 16px); margin: 8px auto 20px; overflow: visible; }
   .source-context { display: block; padding: 14px; }
   .source-context__fields { margin-top: 14px; display: grid; grid-template-columns: 1fr; }

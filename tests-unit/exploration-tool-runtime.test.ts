@@ -140,6 +140,80 @@ describe("exploration tool runtime", () => {
     }]);
   });
 
+  it("creates an indicator from exactly one numeric SQL row", async () => {
+    const dataset = datasetStub();
+    const recorder = toolOutputRecorder();
+    const onIndicatorReady = vi.fn();
+    const runtime = useExplorationToolRuntime(dataset, recorder.addToolOutput, { onIndicatorReady });
+    const input = {
+      type: "number" as const,
+      title: "Total",
+      description: "Nombre total de lignes.",
+      valueField: "count",
+    };
+
+    await runtime.handleToolCall({
+      toolCall: { dynamic: false, toolName: "create_indicator", toolCallId: "indicator-1", input },
+    } as ExplorationToolCallOptions);
+
+    expect(dataset.createChartData).toHaveBeenCalledWith(["count"], "SELECT 1");
+    expect(onIndicatorReady).toHaveBeenCalledWith(input, queryResult);
+    expect(recorder.outputs).toEqual([{ tool: "create_indicator", toolCallId: "indicator-1", output: queryResult }]);
+  });
+
+  it("accepts a DuckDB BIGINT serialized as a decimal string", async () => {
+    const bigintResult = {
+      ...queryResult,
+      rows: [{ count: "2256319637" }],
+    };
+    const dataset = datasetStub({ createChartData: vi.fn().mockResolvedValue(bigintResult) });
+    const recorder = toolOutputRecorder();
+    const runtime = useExplorationToolRuntime(dataset, recorder.addToolOutput);
+
+    await runtime.handleToolCall({
+      toolCall: {
+        dynamic: false,
+        toolName: "create_indicator",
+        toolCallId: "indicator-bigint",
+        input: { type: "number", title: "Téléchargements", description: "Total.", valueField: "count" },
+      },
+    } as ExplorationToolCallOptions);
+
+    expect(recorder.outputs).toEqual([{
+      tool: "create_indicator",
+      toolCallId: "indicator-bigint",
+      output: bigintResult,
+    }]);
+  });
+
+  it("rejects an indicator backed by more than one row", async () => {
+    const dataset = datasetStub({
+      createChartData: vi.fn().mockResolvedValue({
+        ...queryResult,
+        rows: [{ count: 12 }, { count: 13 }],
+        rowCount: 2,
+      }),
+    });
+    const recorder = toolOutputRecorder();
+    const runtime = useExplorationToolRuntime(dataset, recorder.addToolOutput);
+
+    await runtime.handleToolCall({
+      toolCall: {
+        dynamic: false,
+        toolName: "create_indicator",
+        toolCallId: "indicator-many",
+        input: { type: "number", title: "Total", description: "Total.", valueField: "count" },
+      },
+    } as ExplorationToolCallOptions);
+
+    expect(recorder.outputs).toEqual([{
+      state: "output-error",
+      tool: "create_indicator",
+      toolCallId: "indicator-many",
+      errorText: "Un indicateur nécessite une requête SQL qui retourne exactement une ligne.",
+    }]);
+  });
+
   it("applies a chart update through the dedicated hook", async () => {
     const dataset = datasetStub();
     const recorder = toolOutputRecorder();

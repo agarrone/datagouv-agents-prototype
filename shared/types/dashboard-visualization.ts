@@ -1,4 +1,4 @@
-import type { ChartSpec, DatasetRow, MapBasemap, MapSpec } from "./exploration";
+import type { ChartSpec, DatasetRow, IndicatorSpec, MapBasemap, MapSpec } from "./exploration";
 import type { ChartAppearance } from "../agents/chart-appearance";
 
 export type DashboardVisualizationKind = "chart" | "map" | "indicator";
@@ -42,13 +42,7 @@ export interface DashboardMapAppearance {
   showLegend: boolean;
 }
 
-export interface DashboardIndicatorSpec {
-  type: "number";
-  title: string;
-  description: string;
-  valueField: string;
-  unit?: string;
-}
+export type DashboardIndicatorSpec = IndicatorSpec;
 
 interface DashboardVisualizationBase {
   version: 1;
